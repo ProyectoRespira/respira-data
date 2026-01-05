@@ -1,0 +1,19 @@
+name: "respira_data"
+version: "0.1.0"
+config-version: 2
+
+profile: "respira_data"
+
+model-paths: ["models"]
+macro-paths: ["macros"]
+test-paths: ["tests"]
+
+models:
+  respira_data:
+    +materialized: view
+    bronze:
+      +schema: bronze
+    silver:
+      +schema: silver
+    gold:
+      +schema: gold

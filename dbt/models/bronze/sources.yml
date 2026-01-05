@@ -1,0 +1,8 @@
+version: 2
+
+sources:
+  - name: airbyte
+    schema: "{{ env_var('AIRBYTE_DB_SCHEMA', 'airbyte') }}"
+    tables:
+      - name: example_table
+        description: "Placeholder. Replace with real airbyte table."
