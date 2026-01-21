@@ -7,13 +7,64 @@ profile: "respira_data"
 model-paths: ["models"]
 macro-paths: ["macros"]
 test-paths: ["tests"]
+seed-paths: ["seeds"]
 
 models:
   respira_data:
-    +materialized: view
-    bronze:
-      +schema: bronze
-    silver:
-      +schema: silver
-    gold:
-      +schema: gold
+    staging:
+      +schema: staging
+      +materialized: view
+
+    intermediate:
+      +schema: intermediate
+      +materialized: view
+
+    marts:
+      +materialized: table
+      core:
+        +schema: core
+      facts:
+        +schema: facts
+seeds:
+  respira_data:
+    +schema: core
+vars:
+  measurements_sources:
+    fiuna_airbyte:
+      relation: stg_fiuna_measurements
+      station_code_col: station_code
+      measured_at_col: measured_at
+      raw_payload_col: raw_payload
+      variables:
+        pm1: pm1
+        pm25: pm25
+        pm10: pm10
+        temperature_c: temperature_c
+        hum: hum
+        pres: pres
+        battery: battery
+
+    airelibre_airbyte:
+      relation: stg_airelibre_measurements
+      station_code_col: station_code
+      measured_at_col: measured_at
+      raw_payload_col: raw_payload
+      variables:
+        pm1: pm1
+        pm25: pm25
+        pm10: pm10
+
+    meteostat_airbyte:
+      relation: stg_meteostat_weather
+      station_code_col: station_code
+      measured_at_col: measured_at
+      raw_payload_col: raw_payload
+      variables:
+        temperature_c: temperature_c
+        hum: hum
+        pres: pres
+        prcp: prcp
+        wspd: wspd
+        wdir: wdir
+        dwpt: dwpt
+        coco: coco
