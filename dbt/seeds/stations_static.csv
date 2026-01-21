@@ -1,0 +1,12 @@
+code,name,description,latitude,longitude,elevation_m,status,properties
+fiuna_1,Campus de la UNA,, -25.33360102213910, -57.5139365997165,,active,{"source":"FIUNA"}
+fiuna_2,Zona Multiplaza,, -25.32014521770180, -57.56050041876730,,active,{"source":"FIUNA"}
+fiuna_3,Acceso Sur,, -25.34024024382230, -57.58431466296320,,active,{"source":"FIUNA"}
+fiuna_4,Primero de Marzo y Perón,, -25.32836979255080, -57.62706899084150,,active,{"source":"FIUNA"}
+fiuna_5,Villa Morra,, -25.29511316679420, -57.57708610966800,,active,{"source":"FIUNA"}
+fiuna_6,Barrio Jara,, -25.28833455406130, -57.60329900309440,,active,{"source":"FIUNA"}
+fiuna_7,San Roque,, -25.28936695307490, -57.62515967711810,,active,{"source":"FIUNA"}
+fiuna_8,Centro de Asunción,, -25.28640403412280, -57.64701121486720,,active,{"source":"FIUNA"}
+fiuna_9,Ñu Guasu,, -25.26458493433890, -57.54793468862770,,active,{"source":"FIUNA"}
+fiuna_10,Botánico,, -25.24647398851810, -57.54928501322870,,active,{"source":"FIUNA"}
+asu_airport,Asunción Airport,Meteostat airport station,-25.2399,-57.5191,,active,{"source":"Meteostat"}

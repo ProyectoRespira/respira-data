@@ -1,0 +1,5 @@
+name,short_name,type,country,properties
+Respira,respira,client,PY,{}
+FIUNA,fiuna,operator,PY,{}
+AireLibre,airelibre,data_provider,PY,{}
+Meteostat,meteostat,data_provider,GLOBAL,{}
