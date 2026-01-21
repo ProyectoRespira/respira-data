@@ -1,20 +1,4 @@
 services:
-  project_postgres:
-    image: postgres:16
-    container_name: project_postgres
-    environment:
-      POSTGRES_DB: ${PROJECT_DB_NAME}
-      POSTGRES_USER: ${PROJECT_DB_USER}
-      POSTGRES_PASSWORD: ${PROJECT_DB_PASSWORD}
-    ports:
-      - "5434:5432"
-    volumes:
-      - project_postgres_data:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${PROJECT_DB_USER} -d ${PROJECT_DB_NAME}"]
-      interval: 5s
-      timeout: 5s
-      retries: 20
 
   prefect_server:
     image: prefecthq/prefect:3.6.9-python3.12
@@ -30,16 +14,13 @@ services:
   app:
     build: .
     working_dir: /app
+    environment:
+      - DBT_PROFILES_DIR=/app/dbt
     volumes:
       - ./:/app
     env_file:
       - .env
     depends_on:
-      project_postgres:
-        condition: service_healthy
       prefect_server:
         condition: service_started
     command: ["bash", "-lc", "bash"]
-
-volumes:
-  project_postgres_data:
