@@ -1,0 +1,4 @@
+name,type,active,properties
+fiuna_airbyte,airbyte,true,{}
+airelibre_airbyte,airbyte,true,{}
+meteostat_airbyte,airbyte,true,{}

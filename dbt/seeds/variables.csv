@@ -1,0 +1,14 @@
+code,name,unit_symbol,data_type,category
+pm1,PM1,µg/m³,float,air_quality
+pm25,PM2.5,µg/m³,float,air_quality
+pm10,PM10,µg/m³,float,air_quality
+temperature_c,Air Temperature,°C,float,meteorology
+hum,Relative Humidity,%,float,meteorology
+pres,Air Pressure,hPa,float,meteorology
+battery,Battery,%,float,device
+prcp,Precipitation,mm,float,meteorology
+wspd,Wind Speed,km/h,float,meteorology
+wdir,Wind Direction,deg,float,meteorology
+dwpt,Dew Point,°C,float,meteorology
+coco,Weather Condition Code,,float,meteorology
+
