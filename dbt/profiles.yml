@@ -3,10 +3,22 @@ respira_data:
   outputs:
     dev:
       type: postgres
-      host: "{{ env_var('PROJECT_DB_HOST') }}"
-      port: "{{ env_var('PROJECT_DB_PORT') | int }}"
-      user: "{{ env_var('PROJECT_DB_USER') }}"
-      password: "{{ env_var('PROJECT_DB_PASSWORD') }}"
-      dbname: "{{ env_var('PROJECT_DB_NAME') }}"
-      schema: "{{ env_var('DBT_TARGET_SCHEMA', 'public') }}"
+      host: "{{ env_var('REMOTE_PG_HOST') }}"
+      port: "{{ env_var('REMOTE_PG_PORT') | int }}"
+      user: "{{ env_var('REMOTE_PG_USER') }}"
+      password: "{{ env_var('REMOTE_PG_PASSWORD') }}"
+      dbname: "{{ env_var('REMOTE_PG_DB') }}"
+      schema: core
       threads: 4
+      sslmode: "{{ env_var('REMOTE_PG_SSLMODE', 'prefer') }}"
+
+    prod:
+      type: postgres
+      host: "{{ env_var('REMOTE_PG_HOST') }}"
+      port: "{{ env_var('REMOTE_PG_PORT') | int }}"
+      user: "{{ env_var('REMOTE_PG_USER') }}"
+      password: "{{ env_var('REMOTE_PG_PASSWORD') }}"
+      dbname: "{{ env_var('REMOTE_PG_DB') }}"
+      schema: core
+      threads: 4
+      sslmode: "{{ env_var('REMOTE_PG_SSLMODE', 'prefer') }}"
