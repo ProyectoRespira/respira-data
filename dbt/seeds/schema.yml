@@ -1,0 +1,52 @@
+version: 2
+
+seeds:
+  - name: data_sources
+    description: "Seed defining known data sources."
+    columns:
+      - name: name
+        tests: [not_null, unique]
+      - name: type
+        tests: [not_null]
+      - name: active
+        tests: [not_null]
+
+  - name: variables
+    description: "Seed defining supported measurement variables."
+    columns:
+      - name: code
+        tests: [not_null, unique]
+      - name: name
+        tests: [not_null]
+      - name: data_type
+        tests: [not_null]
+      - name: category
+        tests: [not_null]
+
+  - name: stations_static
+    description: "Static station registry."
+    columns:
+      - name: code
+        tests: [not_null, unique]
+      - name: name
+        tests: [not_null]
+      - name: status
+        tests: [not_null]
+
+  - name: projects
+    description: "Projects registry."
+    columns:
+      - name: id
+        tests: [not_null, unique]
+      - name: code
+        tests: [not_null, unique]
+      - name: owner_organization_code
+        tests: [not_null]
+
+  - name: organizations
+    description: "Organizations registry."
+    columns:
+      - name: short_name
+        tests: [not_null, unique]
+      - name: name
+        tests: [not_null]

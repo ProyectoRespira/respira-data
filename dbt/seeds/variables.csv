@@ -11,4 +11,3 @@ wspd,Wind Speed,km/h,float,meteorology
 wdir,Wind Direction,deg,float,meteorology
 dwpt,Dew Point,°C,float,meteorology
 coco,Weather Condition Code,,float,meteorology
-
