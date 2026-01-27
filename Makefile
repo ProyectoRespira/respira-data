@@ -1,0 +1,140 @@
+SHELL := /bin/bash
+.DEFAULT_GOAL := help
+
+# Docker Compose wrapper (v2)
+DC := docker compose
+
+# Run dbt inside the app container (ephemeral)
+DBT := $(DC) run --rm app bash -lc "cd dbt && dbt"
+
+# Optional: run arbitrary shell inside the app container (ephemeral)
+APP_SHELL := $(DC) run --rm app bash
+
+.PHONY: help
+help:
+	@echo "Targets:"
+	@echo "  up                Start services (prefect_server)"
+	@echo "  down              Stop services"
+	@echo "  ps                Show running containers"
+	@echo "  logs              Tail logs (all services)"
+	@echo "  shell             Open a shell in the app container"
+	@echo ""
+	@echo "dbt:"
+	@echo "  dbt-debug         dbt debug"
+	@echo "  dbt-deps          dbt deps"
+	@echo "  seed              dbt seed"
+	@echo "  seed-fr           dbt seed --full-refresh"
+	@echo "  run               dbt run (all models)"
+	@echo "  test              dbt test (all tests)"
+	@echo ""
+	@echo "Layered runs:"
+	@echo "  run-staging       dbt run --select staging+"
+	@echo "  run-intermediate  dbt run --select intermediate+"
+	@echo "  run-core          dbt run --select marts.core+"
+	@echo "  run-facts         dbt run --select marts.facts+"
+	@echo ""
+	@echo "Build flows:"
+	@echo "  build             deps + seed + run-all + test"
+	@echo "  build-fr          deps + seed(full refresh) + run(full refresh) + test"
+	@echo ""
+	@echo "Selection helpers:"
+	@echo "  ls                dbt ls"
+	@echo "  docs              dbt docs generate"
+	@echo ""
+	@echo "Variables:"
+	@echo "  TARGET=prod       (default: prod)"
+
+# Default dbt target (use --target prod for now)
+TARGET ?= prod
+
+.PHONY: up
+up:
+	$(DC) up -d
+
+.PHONY: down
+down:
+	$(DC) down
+
+.PHONY: ps
+ps:
+	$(DC) ps
+
+.PHONY: logs
+logs:
+	$(DC) logs -f --tail=200
+
+.PHONY: shell
+shell:
+	$(APP_SHELL)
+
+# -----------------------
+# dbt basics
+# -----------------------
+.PHONY: dbt-debug
+dbt-debug:
+	$(DBT) debug --target $(TARGET)
+
+.PHONY: dbt-deps
+dbt-deps:
+	$(DBT) deps
+
+.PHONY: seed
+seed:
+	$(DBT) seed --target $(TARGET)
+
+.PHONY: seed-fr
+seed-fr:
+	$(DBT) seed --target $(TARGET) --full-refresh
+
+.PHONY: run
+run:
+	$(DBT) run --target $(TARGET)
+
+.PHONY: test
+test:
+	$(DBT) test --target $(TARGET)
+
+.PHONY: ls
+ls:
+	$(DBT) ls --target $(TARGET)
+
+.PHONY: docs
+docs:
+	$(DBT) docs generate --target $(TARGET)
+
+# -----------------------
+# Layered runs
+# -----------------------
+.PHONY: run-staging
+run-staging:
+	$(DBT) run --target $(TARGET) --select staging+
+
+.PHONY: run-intermediate
+run-intermediate:
+	$(DBT) run --target $(TARGET) --select intermediate+
+
+.PHONY: run-core
+run-core:
+	$(DBT) run --target $(TARGET) --select marts.core+
+
+.PHONY: run-facts
+run-facts:
+	$(DBT) run --target $(TARGET) --select marts.facts+
+
+# -----------------------
+# Build flows
+# -----------------------
+.PHONY: build
+build: dbt-deps seed run test
+
+# Full refresh for when schemas/logic change significantly
+.PHONY: build-fr
+build-fr: dbt-deps seed-fr
+	$(DBT) run --target $(TARGET) --full-refresh
+	$(DBT) test --target $(TARGET)
+
+# A fast inner-loop option (no deps, no seed) for iteration
+.PHONY: quick
+quick:
+	$(DBT) run --target $(TARGET) --select staging+ intermediate+
+	$(DBT) test --target $(TARGET) --select intermediate+ marts.facts.fct_measurements_silver
