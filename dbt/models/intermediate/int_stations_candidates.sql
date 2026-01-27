@@ -22,8 +22,8 @@ airelibre_latest as (
     'active' as status,
     jsonb_build_object('source', 'AireLibre') as properties
   from {{ ref('stg_airelibre_measurements') }}
-  where latitude is not null and longitude is not null
-  order by station_code, measured_at desc
+  where latitude is not null and longitude is not null and is_measured_at_valid
+  order by station_code, measured_at_parsed desc
 ),
 
 all_candidates as (
