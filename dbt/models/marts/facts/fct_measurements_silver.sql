@@ -5,7 +5,10 @@
 ) }}
 
 with m as (
-  select * from {{ ref('int_measurements_long') }}
+  select *
+  from {{ ref('int_measurements_values_silver') }}
+  where measured_at_silver is not null
+    and value_silver is not null
 ),
 
 streams as (
@@ -16,17 +19,20 @@ streams as (
 joined as (
   select
     s.stream_id,
-    m.measured_at as timestamp,
-    m.value_raw,
-    m.value_parsed,
+    m.measured_at_silver as timestamp,
+    m.value_silver as value_parsed,
+
+    -- prefer this if available in m:
+    -- m._airbyte_extracted_at as ingested_at
     now()::timestamptz as ingested_at,
+
     m.raw_payload
   from m
   join streams s
     on s.code = (m.station_code || '_' || m.variable_code || '_' || m.data_source_name)
 
   {% if is_incremental() %}
-  where m.measured_at >= (
+  where m.measured_at_silver >= (
     select coalesce(max(timestamp), '1970-01-01'::timestamptz) from {{ this }}
   ) - interval '2 days'
   {% endif %}
@@ -49,7 +55,6 @@ deduped as (
 select
   stream_id,
   timestamp,
-  value_raw,
   value_parsed,
   ingested_at,
   raw_payload
