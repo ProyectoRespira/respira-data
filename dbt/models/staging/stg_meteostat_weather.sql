@@ -9,12 +9,22 @@ typed as (
 
   select
     _airbyte_raw_id,
-    _airbyte_extracted_at,
+    _airbyte_extracted_at as extracted_at,
     _airbyte_meta,
     _airbyte_generation_id,
 
+    'meteostat_airbyte' as data_source_name,
+
     'asu_airport' as station_code,
-    (time::timestamp at time zone 'UTC')::timestamptz as measured_at,
+
+    null::bigint as cursor_id,
+
+    time::text as measured_at_raw,
+    (time::timestamp at time zone 'UTC')::timestamptz as measured_at_parsed,
+
+    (
+      (time::timestamp at time zone 'UTC')::timestamptz >= '2018-01-01'::timestamptz
+    ) as is_measured_at_valid,
 
     temp::numeric as temperature_c,
     rhum::numeric as hum,
