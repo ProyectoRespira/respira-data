@@ -1,0 +1,73 @@
+version: 2
+
+models:
+  - name: dim_data_sources
+    description: "Data sources dimension, currently seeded via core.data_sources."
+    columns:
+      - name: id
+        tests: [not_null, unique]
+      - name: name
+        tests: [not_null, unique]
+      - name: type
+        tests: [not_null]
+      - name: active
+        tests: [not_null]
+
+  - name: dim_variables
+    description: "Variables dimension, seeded via core.variables."
+    columns:
+      - name: id
+        tests: [not_null, unique]
+      - name: code
+        tests: [not_null, unique]
+      - name: name
+        tests: [not_null]
+      - name: data_type
+        tests: [not_null]
+      - name: category
+        tests: [not_null]
+
+  - name: dim_stations
+    description: "Stations dimension derived from int_stations_candidates (static + AireLibre latest)."
+    columns:
+      - name: id
+        tests: [not_null, unique]
+      - name: code
+        tests: [not_null, unique]
+      - name: name
+        tests: [not_null]
+      - name: status
+        tests: [not_null]
+      - name: properties
+        tests: [not_null]
+
+  - name: dim_streams
+    description: "Streams dimension: station_id x variable_id x data_source_id with canonical stream code."
+    columns:
+      - name: id
+        tests: [not_null, unique]
+      - name: station_id
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_stations')
+                field: id
+      - name: variable_id
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_variables')
+                field: id
+      - name: data_source_id
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_data_sources')
+                field: id
+      - name: code
+        tests: [not_null, unique]
+      - name: name
+        tests: [not_null]
