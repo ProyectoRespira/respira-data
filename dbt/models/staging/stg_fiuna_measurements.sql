@@ -26,15 +26,29 @@ typed as (
 
   select
     src._airbyte_raw_id,
-    src._airbyte_extracted_at,
+    src._airbyte_extracted_at as extracted_at,
     src._airbyte_meta,
     src._airbyte_generation_id,
     src._source_table,
 
+    'fiuna_airbyte' as data_source_name,
+
+    src."ID"::bigint as cursor_id,
+
+    /* Preserve raw date/time for auditability */
+    src."FECHA"::text as fecha_raw,
+    src."HORA"::text as hora_raw,
+    (src."FECHA"::text || ' ' || src."HORA"::text) as measured_at_raw,
+
     /* FIUNA_Estacion7 -> fiuna_7 */
     ('fiuna_' || regexp_replace(lower(src._source_table), '^fiuna_estacion', '')) as station_code,
 
-    {{ parse_fiuna_timestamp('FECHA', 'HORA') }} as measured_at,
+    {{ parse_fiuna_timestamp('FECHA', 'HORA') }} as measured_at_parsed,
+
+    (
+      {{ parse_fiuna_timestamp('FECHA', 'HORA') }} is not null
+      and {{ parse_fiuna_timestamp('FECHA', 'HORA') }} >= '2018-01-01'::timestamptz
+    ) as is_measured_at_valid,
 
     src."MP1"::numeric   as pm1,
     src."MP2_5"::numeric as pm25,

@@ -1,0 +1,77 @@
+version: 2
+
+models:
+  - name: stg_fiuna_measurements
+    description: "Staging view for FIUNA Airbyte tables. Adds station_code, cursor_id (ID), parsed timestamp, and validity flags."
+    columns:
+      - name: _airbyte_raw_id
+        tests: [not_null]
+      - name: extracted_at
+        tests: [not_null]
+      - name: data_source_name
+        tests:
+          - not_null
+          - accepted_values:
+              values: ["fiuna_airbyte"]
+      - name: station_code
+        tests: [not_null]
+      - name: cursor_id
+        description: "FIUNA continuity cursor (source-of-truth ID)."
+        tests: [not_null]
+      - name: measured_at_raw
+        tests: [not_null]
+      - name: measured_at_parsed
+        description: "Parsed timestamp in UTC."
+      - name: is_measured_at_valid
+        tests: [not_null]
+      - name: raw_payload
+        tests: [not_null]
+
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns: ["station_code", "cursor_id"]
+
+  - name: stg_airelibre_measurements
+    description: "Staging view for AireLibre Airbyte table. Uses recorded as timestamp, no reliable cursor_id."
+    columns:
+      - name: _airbyte_raw_id
+        tests: [not_null]
+      - name: extracted_at
+        tests: [not_null]
+      - name: data_source_name
+        tests:
+          - not_null
+          - accepted_values:
+              values: ["airelibre_airbyte"]
+      - name: station_code
+        tests: [not_null]
+      - name: measured_at_raw
+      - name: measured_at_parsed
+      - name: is_measured_at_valid
+        tests: [not_null]
+      - name: raw_payload
+        tests: [not_null]
+
+  - name: stg_meteostat_weather
+    description: "Staging view for Meteostat Airbyte table for asu_airport station."
+    columns:
+      - name: _airbyte_raw_id
+        tests: [not_null]
+      - name: extracted_at
+        tests: [not_null]
+      - name: data_source_name
+        tests:
+          - not_null
+          - accepted_values:
+              values: ["meteostat_airbyte"]
+      - name: station_code
+        tests:
+          - not_null
+          - accepted_values:
+              values: ["asu_airport"]
+      - name: measured_at_raw
+      - name: measured_at_parsed
+      - name: is_measured_at_valid
+        tests: [not_null]
+      - name: raw_payload
+        tests: [not_null]
