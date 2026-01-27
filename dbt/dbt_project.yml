@@ -33,8 +33,10 @@ vars:
     fiuna_airbyte:
       relation: stg_fiuna_measurements
       station_code_col: station_code
-      measured_at_col: measured_at
+      measured_at_col: measured_at_parsed
       raw_payload_col: raw_payload
+      cursor_id_col: cursor_id
+      is_measured_at_valid_col: is_measured_at_valid
       variables:
         pm1: pm1
         pm25: pm25
@@ -47,8 +49,9 @@ vars:
     airelibre_airbyte:
       relation: stg_airelibre_measurements
       station_code_col: station_code
-      measured_at_col: measured_at
+      measured_at_col: measured_at_parsed
       raw_payload_col: raw_payload
+      is_measured_at_valid_col: is_measured_at_valid
       variables:
         pm1: pm1
         pm25: pm25
@@ -57,8 +60,9 @@ vars:
     meteostat_airbyte:
       relation: stg_meteostat_weather
       station_code_col: station_code
-      measured_at_col: measured_at
+      measured_at_col: measured_at_parsed
       raw_payload_col: raw_payload
+      is_measured_at_valid_col: is_measured_at_valid
       variables:
         temperature_c: temperature_c
         hum: hum
@@ -68,3 +72,4 @@ vars:
         wdir: wdir
         dwpt: dwpt
         coco: coco
+
