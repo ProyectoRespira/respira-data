@@ -20,7 +20,9 @@ services:
       - ./:/app
     env_file:
       - .env
+    ports:
+      - "8000:8000"
     depends_on:
       prefect_server:
         condition: service_started
-    command: ["bash", "-lc", "bash"]
+    command: ["bash", "-lc", "sleep infinity"]
