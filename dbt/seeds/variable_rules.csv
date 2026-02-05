@@ -2,7 +2,7 @@ variable_code,min_value,max_value,allow_null
 pm1,0,2000,true
 pm25,0,2000,true
 pm10,0,3000,true
-temperature_c,-273.15,80,true
+temperature_c,-100.00,80,true
 hum,0,100,true
 pres,800,1100,true
 battery,0,100,true
