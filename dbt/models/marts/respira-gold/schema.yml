@@ -1,0 +1,89 @@
+version: 2
+
+models:
+  - name: regions
+    description: "Gold regions table exposed to backend (generated or seeded)."
+    columns:
+      - name: id
+        tests: [not_null, unique]
+      - name: region_code
+        tests: [not_null, unique]
+      - name: name
+        tests: [not_null]
+
+  - name: stations
+    description: "Gold stations table exposed to backend (air quality stations only)."
+    columns:
+      - name: id
+        tests: [not_null, unique]
+      - name: region_id
+        tests:
+          - relationships:
+              arguments:
+                to: ref('regions')
+                field: id
+      - name: name
+        tests: [not_null]
+      - name: is_station_on
+        tests: [not_null]
+      - name: is_pattern_station
+        tests: [not_null]
+
+  - name: weather_stations
+    description: "Gold weather stations table (meteostat stations)."
+    columns:
+      - name: id
+        tests: [not_null, unique]
+      - name: region_id
+        tests:
+          - relationships:
+              arguments:
+                to: ref('regions')
+                field: id
+
+  - name: station_readings_gold
+    description: "Hourly station readings with calibration, AQI, and rolling stats."
+    columns:
+      - name: station_id
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('stations')
+                field: id
+      - name: date_localtime
+        tests: [not_null]
+
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns: ["station_id", "date_localtime"]
+
+  - name: region_readings_gold
+    description: "Hourly region aggregations derived from station_readings_gold."
+    columns:
+      - name: region_id
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('regions')
+                field: id
+      - name: date_utc
+        tests: [not_null]
+
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns: ["region_id", "date_utc"]
+
+  - name: station_inference_features
+    description: "Feature view for inference models (station + region + weather)."
+    columns:
+      - name: station_id
+        tests: [not_null]
+      - name: date_utc
+        tests: [not_null]
+
+  - name: inference_runs
+    description: "(Optional) Inference runs table for backend contract. Disabled by default."
+  - name: inference_results
+    description: "(Optional) Inference results table for backend contract. Disabled by default."
