@@ -32,6 +32,8 @@ seeds:
         tests: [not_null]
       - name: status
         tests: [not_null]
+      - name: is_pattern_station
+        tests: [not_null]
 
   - name: projects
     description: "Projects registry."
@@ -49,4 +51,33 @@ seeds:
       - name: short_name
         tests: [not_null, unique]
       - name: name
+        tests: [not_null]
+
+  - name: regions_seed
+    description: "Optional seed to define regions explicitly (overrides generated regions when populated)."
+    columns:
+      - name: region_code
+        tests: [not_null, unique]
+      - name: name
+        tests: [not_null]
+      - name: bbox
+        tests: [not_null]
+
+  - name: station_region_seed
+    description: "Optional seed mapping stations to regions. When empty, stations map to their own region_code."
+    columns:
+      - name: station_code
+        tests: [not_null, unique]
+      - name: region_code
+        tests: [not_null]
+
+  - name: calibration_factors_seed
+    description: "Optional seed for PM calibration factors (used when external calibration_factors table is missing)."
+    columns:
+      - name: station_code
+        tests: [not_null]
+      - name: date_start_use
+        tests: [not_null]
+      - name: date_end_use
+      - name: calibration_factor
         tests: [not_null]

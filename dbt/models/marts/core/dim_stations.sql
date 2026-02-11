@@ -19,6 +19,7 @@ final as (
     elevation_m,
     status,
     properties,
+    is_pattern_station,
     now()::timestamptz as created_at,
     null::timestamptz as updated_at
   from candidates

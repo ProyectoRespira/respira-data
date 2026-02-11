@@ -40,6 +40,8 @@ models:
         tests: [not_null]
       - name: properties
         tests: [not_null]
+      - name: is_pattern_station
+        tests: [not_null]
 
   - name: dim_streams
     description: "Streams dimension: station_id x variable_id x data_source_id with canonical stream code."
