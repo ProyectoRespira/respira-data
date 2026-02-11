@@ -25,10 +25,13 @@ models:
         +schema: core
       facts:
         +schema: facts
+      respira-gold:
+        +schema: "respira-gold"
 seeds:
   respira_data:
     +schema: core
 vars:
+  default_region_code: GRAN_ASUNCION
   measurements_sources:
     fiuna_airbyte:
       relation: stg_fiuna_measurements
@@ -72,4 +75,3 @@ vars:
         wdir: wdir
         dwpt: dwpt
         coco: coco
-
