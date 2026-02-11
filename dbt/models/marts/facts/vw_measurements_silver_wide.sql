@@ -24,7 +24,6 @@ with base as (
 ),
 
 project_one as (
-  -- hoy tu repo parece asumir 1 solo proyecto “activo”
   select code as project_code
   from {{ ref('projects') }}
   where active::boolean is true
@@ -37,7 +36,7 @@ select
   b.station_code as station,
   b.timestamp as timestamp,
 
-  -- "stream": en tu caso, el stream agrupador para el wide es el data source
+  -- "stream": el stream agrupador para el wide es el data source
   b.data_source_name as stream,
 
   -- organization: mapeo directo por data_source_name (hoy no tenés esta relación modelada en dim_data_sources)
