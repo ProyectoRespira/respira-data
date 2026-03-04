@@ -1,0 +1,38 @@
+selectors:
+  - name: core
+    description: Core marts models.
+    definition:
+      method: path
+      value: models/marts/core
+
+  - name: facts
+    description: Facts marts models.
+    definition:
+      method: path
+      value: models/marts/facts
+
+  - name: gold
+    description: Gold marts models.
+    definition:
+      method: path
+      value: models/marts/respira-gold
+
+  - name: gold_tests
+    description: Data tests scoped to gold models.
+    definition:
+      intersection:
+        - method: resource_type
+          value: test
+        - method: path
+          value: models/marts/respira-gold
+
+  - name: full_refresh_safe
+    description: Safe full-refresh scope for marts layers.
+    definition:
+      union:
+        - method: path
+          value: models/marts/core
+        - method: path
+          value: models/marts/facts
+        - method: path
+          value: models/marts/respira-gold

@@ -37,6 +37,15 @@ help:
 	@echo "  build             deps + seed + run-all + test"
 	@echo "  build-fr          deps + seed(full refresh) + run(full refresh) + test"
 	@echo ""
+	@echo "Prefect:"
+	@echo "  prefect-bootstrap Run warehouse bootstrap SQL (01 optional + 02 ops)"
+	@echo "  run-dbt-incremental Run dbt_incremental flow"
+	@echo "  run-dbt-gold      Run dbt_gold flow"
+	@echo "  run-dbt-full-refresh Run dbt_full_refresh flow (manual)"
+	@echo "  run-inference     Run inference_per_station flow"
+	@echo "  run-gold-then-inference Run coordinator flow"
+	@echo "  smoke-test        Run minimal unit tests for orchestration"
+	@echo ""
 	@echo "Selection helpers:"
 	@echo "  ls                dbt ls"
 	@echo "  docs              dbt docs generate"
@@ -138,3 +147,34 @@ build-fr: dbt-deps seed-fr
 quick:
 	$(DBT) run --target $(TARGET) --select staging+ intermediate+
 	$(DBT) test --target $(TARGET) --select intermediate+ marts.facts.fct_measurements_silver
+
+# -----------------------
+# Prefect flows
+# -----------------------
+.PHONY: prefect-bootstrap
+prefect-bootstrap:
+	python3 prefect/flows/warehouse_bootstrap.py
+
+.PHONY: run-dbt-incremental
+run-dbt-incremental:
+	python3 prefect/flows/dbt_incremental.py
+
+.PHONY: run-dbt-gold
+run-dbt-gold:
+	python3 prefect/flows/dbt_gold.py
+
+.PHONY: run-dbt-full-refresh
+run-dbt-full-refresh:
+	python3 prefect/flows/dbt_full_refresh.py
+
+.PHONY: run-inference
+run-inference:
+	python3 prefect/flows/inference_per_station.py
+
+.PHONY: run-gold-then-inference
+run-gold-then-inference:
+	python3 prefect/flows/gold_then_inference.py
+
+.PHONY: smoke-test
+smoke-test:
+	poetry run pytest -q tests/test_artifacts.py tests/test_gates.py tests/test_inference_json.py
