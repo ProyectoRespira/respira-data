@@ -1,0 +1,5 @@
+SELECTOR_CORE = "core"
+SELECTOR_FACTS = "facts"
+SELECTOR_GOLD = "gold"
+SELECTOR_GOLD_TESTS = "gold_tests"
+SELECTOR_FULL_REFRESH_SAFE = "full_refresh_safe"

@@ -1,0 +1,15 @@
+name: dbt-incremental
+entrypoint: prefect/flows/dbt_incremental.py:dbt_incremental
+work_pool:
+  name: default
+parameters: {}
+schedules:
+  - cron: "5 * * * *"
+    timezone: UTC
+    active: true
+concurrency_limit:
+  limit: 1
+  collision_strategy: ENQUEUE
+tags:
+  - dbt
+  - incremental
