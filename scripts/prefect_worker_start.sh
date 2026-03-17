@@ -49,6 +49,7 @@ deploy_flow() {
   local entrypoint="$1"
   local deployment_name="$2"
   local schedule="${3:-}"
+  shift 3 || true
 
   local cmd=(
     prefect --no-prompt deploy "${entrypoint}"
@@ -60,6 +61,10 @@ deploy_flow() {
     cmd+=(--cron "${schedule}" --timezone "${PREFECT_SCHEDULE_TIMEZONE}")
   fi
 
+  if [[ "$#" -gt 0 ]]; then
+    cmd+=("$@")
+  fi
+
   "${cmd[@]}"
 }
 
@@ -68,10 +73,8 @@ main() {
   export PREFECT_WORK_POOL="${PREFECT_WORK_POOL:-default}"
   export PREFECT_WORKER_TYPE="${PREFECT_WORKER_TYPE:-process}"
   export PREFECT_SCHEDULE_TIMEZONE="${PREFECT_SCHEDULE_TIMEZONE:-UTC}"
-  export PREFECT_DBT_INCREMENTAL_CRON="${PREFECT_DBT_INCREMENTAL_CRON:-5 * * * *}"
-  export PREFECT_DBT_GOLD_CRON="${PREFECT_DBT_GOLD_CRON:-15 * * * *}"
-  export PREFECT_GOLD_THEN_INFERENCE_CRON="${PREFECT_GOLD_THEN_INFERENCE_CRON:-20 * * * *}"
-  export PREFECT_INFERENCE_CRON="${PREFECT_INFERENCE_CRON:-25 * * * *}"
+  export PREFECT_CANONICAL_INCREMENTAL_CRON="${PREFECT_CANONICAL_INCREMENTAL_CRON:-5 * * * *}"
+  export PREFECT_PROJECT_RESPIRA_GOLD_CRON="${PREFECT_PROJECT_RESPIRA_GOLD_CRON:-20 * * * *}"
 
   wait_for_prefect_api
 
@@ -81,19 +84,29 @@ main() {
     "${PREFECT_WORK_POOL}" \
     --overwrite
 
-  log "Deploying dbt flows..."
-  deploy_flow "prefect/flows/dbt_incremental.py:dbt_incremental" "dbt-incremental" "${PREFECT_DBT_INCREMENTAL_CRON}"
-  deploy_flow "prefect/flows/dbt_gold.py:dbt_gold" "dbt-gold" "${PREFECT_DBT_GOLD_CRON}"
-  deploy_flow "prefect/flows/dbt_full_refresh.py:dbt_full_refresh" "dbt-full-refresh"
+  log "Deploying canonical flows..."
+  deploy_flow \
+    "prefect/flows/canonical_incremental.py:canonical_incremental" \
+    "canonical-incremental" \
+    "${PREFECT_CANONICAL_INCREMENTAL_CRON}"
+  deploy_flow \
+    "prefect/flows/canonical_full_refresh.py:canonical_full_refresh" \
+    "canonical-full-refresh"
 
   if [[ -n "${MODEL_6H_PATH:-}" && -n "${MODEL_12H_PATH:-}" ]]; then
-    log "Model paths found. Deploying inference flows with schedules..."
-    deploy_flow "prefect/flows/inference_per_station.py:inference_per_station" "inference-per-station" "${PREFECT_INFERENCE_CRON}"
-    deploy_flow "prefect/flows/gold_then_inference.py:gold_then_inference" "gold-then-inference" "${PREFECT_GOLD_THEN_INFERENCE_CRON}"
+    log "Model paths found. Deploying project pipeline with schedule..."
+    deploy_flow \
+      "prefect/flows/project_pipeline.py:project_pipeline" \
+      "project-pipeline-respira_gold" \
+      "${PREFECT_PROJECT_RESPIRA_GOLD_CRON}" \
+      --param "project_code=respira_gold"
   else
-    log "MODEL_6H_PATH/MODEL_12H_PATH not set. Deploying inference flows without schedules."
-    deploy_flow "prefect/flows/inference_per_station.py:inference_per_station" "inference-per-station"
-    deploy_flow "prefect/flows/gold_then_inference.py:gold_then_inference" "gold-then-inference"
+    log "MODEL_6H_PATH/MODEL_12H_PATH not set. Deploying project pipeline without schedule."
+    deploy_flow \
+      "prefect/flows/project_pipeline.py:project_pipeline" \
+      "project-pipeline-respira_gold" \
+      "" \
+      --param "project_code=respira_gold"
   fi
 
   log "Starting worker..."
