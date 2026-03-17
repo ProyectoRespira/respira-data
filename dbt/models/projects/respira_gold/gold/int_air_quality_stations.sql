@@ -9,5 +9,5 @@ select
   status,
   properties,
   is_pattern_station
-from {{ ref('dim_stations') }}
-where coalesce(properties->>'source', '') = 'Meteostat'
+from {{ ref('int_project_stations') }}
+where coalesce(properties->>'source', '') <> 'Meteostat'

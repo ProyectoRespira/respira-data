@@ -2,11 +2,11 @@ version: 2
 
 models:
   - name: int_station_id_map
-    description: "Internal mapping from core station ids to sequential respira-gold station ids."
+    description: "Internal mapping from canonical station ids to sequential respira_gold station ids."
     columns:
       - name: core_station_id
         tests: [not_null, unique]
-      - name: gold_station_id
+      - name: project_station_id
         tests: [not_null, unique]
       - name: station_code
         tests: [not_null, unique]
@@ -92,6 +92,9 @@ models:
         tests: [not_null]
       - name: date_utc
         tests: [not_null]
+
+  - name: measurements_silver_wide
+    description: "Project-scoped wide view over canonical silver measurements."
 
   - name: inference_runs
     description: "(Optional) Inference runs table for backend contract. Disabled by default."
