@@ -29,6 +29,12 @@ Variables inferencia:
 - `MODEL_6H_VERSION` (default: `unknown`)
 - `MODEL_12H_VERSION` (default: `unknown`)
 
+Runtime de inferencia:
+
+- `prefect_worker` usa `Dockerfile.worker`
+- esa imagen está pensada para instalar el grupo Poetry `inference`
+- `app` sigue usando `Dockerfile` base sin dependencias exclusivas de inferencia
+
 Alertas:
 
 - `SLACK_WEBHOOK_URL` (opcional)
@@ -93,9 +99,9 @@ Esto evita solapes y pone corridas concurrentes en cola.
 `prefect/sql/02_ops_audit.sql` crea:
 
 - `ops.dbt_run_audit`: una fila por etapa dbt (deps/run/test) con resumen de `run_results.json`
-- `ops.inference_runs`: metadata global de una corrida de inferencia
+- `"respira-gold".inference_runs`: metadata global de una corrida de inferencia
 - `ops.inference_station_status`: estado por estación (`success`, `skipped`, `failed`)
-- `ops.inference_results`: resultados JSONB por estación y horizonte (6h/12h)
+- `"respira-gold".inference_results`: resultados JSONB por estación y horizonte (6h/12h)
 
 Bootstrap:
 

@@ -25,6 +25,11 @@ pytest = "^8.2.0"
 ruff = "^0.5.0"
 mypy = "^1.10.0"
 
+
+[tool.poetry.group.inference.dependencies]
+u8darts = "0.30.0"
+lightgbm = "^4.6.0"
+
 [build-system]
 requires = ["poetry-core>=2.0.0,<3.0.0"]
 build-backend = "poetry.core.masonry.api"

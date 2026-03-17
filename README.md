@@ -34,6 +34,10 @@ This will start:
 - registers deployments
 - starts a Prefect worker polling that pool
 
+Container images:
+- `app` uses `Dockerfile` with the base project dependencies.
+- `prefect_worker` uses `Dockerfile.worker` and is the intended place for inference-only dependencies such as Darts.
+
 Open Prefect UI at `http://localhost:4200`.
 
 ## Useful commands

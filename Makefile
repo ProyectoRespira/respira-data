@@ -10,6 +10,9 @@ DBT := $(DC) run --rm app bash -lc
 # Run Prefect flows inside the app container (ephemeral)
 PREFECT_RUN := $(DC) run --rm app bash -lc
 
+# Run inference-related flows inside the worker container (ephemeral)
+WORKER_RUN := $(DC) run --rm prefect_worker bash -lc
+
 # Optional: run arbitrary shell inside the app container (ephemeral)
 APP_SHELL := $(DC) run --rm app bash
 
@@ -182,11 +185,11 @@ run-dbt-full-refresh:
 
 .PHONY: run-inference
 run-inference:
-	$(PREFECT_RUN) "python3 prefect/flows/inference_per_station.py"
+	$(WORKER_RUN) "python3 prefect/flows/inference_per_station.py"
 
 .PHONY: run-gold-then-inference
 run-gold-then-inference:
-	$(PREFECT_RUN) "python3 prefect/flows/gold_then_inference.py"
+	$(WORKER_RUN) "python3 prefect/flows/gold_then_inference.py"
 
 .PHONY: smoke-test
 smoke-test:

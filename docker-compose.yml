@@ -19,7 +19,9 @@ services:
       start_period: 10s
 
   app:
-    build: .
+    build:
+      context: .
+      dockerfile: Dockerfile
     working_dir: /app
     environment:
       - DBT_PROFILES_DIR=/app/dbt
@@ -35,7 +37,9 @@ services:
     command: ["bash", "-lc", "sleep infinity"]
 
   prefect_worker:
-    build: .
+    build:
+      context: .
+      dockerfile: Dockerfile.worker
     working_dir: /app
     environment:
       - DBT_PROFILES_DIR=/app/dbt

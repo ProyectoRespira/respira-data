@@ -18,9 +18,9 @@ from inference.model_loader import load_pickle_model
 from inference.predictor import WindowPredictor
 from tasks.db import ensure_ops_audit_tables, get_engine
 from tasks.inference_tasks import (
-    create_inference_run,
     filter_complete_rows,
     finalize_inference_run,
+    initialize_inference_run,
     list_candidate_stations,
     load_station_window,
     persist_inference_result,
@@ -77,6 +77,7 @@ def inference_per_station(
     }
 
     inference_run_id = None
+    pending_station_statuses: list[dict[str, object]] = []
     counters = {
         "stations_total": 0,
         "stations_success": 0,
@@ -85,10 +86,37 @@ def inference_per_station(
     }
 
     try:
-        inference_run_id = create_inference_run(engine, run_ctx)
         stations = list_candidate_stations(engine, as_of_value, window_hours_value)
         counters["stations_total"] = len(stations)
         logger.info("Found %s candidate stations for inference", len(stations))
+
+        def persist_or_queue_station_status(
+            station_id: int,
+            status: str,
+            reason_code: str | None,
+            reason_detail: str | None,
+            duration_s: int | None,
+        ) -> None:
+            payload = {
+                "station_id": station_id,
+                "status": status,
+                "reason_code": reason_code,
+                "reason_detail": reason_detail,
+                "duration_s": duration_s,
+            }
+            if inference_run_id is None:
+                pending_station_statuses.append(payload)
+                return
+
+            persist_station_status(
+                engine,
+                inference_run_id,
+                station_id,
+                status=status,
+                reason_code=reason_code,
+                reason_detail=reason_detail,
+                duration_s=duration_s,
+            )
 
         for station_id in stations:
             station_started = datetime.now(timezone.utc)
@@ -96,9 +124,7 @@ def inference_per_station(
                 rows = load_station_window(engine, station_id, as_of_value, window_hours_value)
                 if not validate_min_points(rows, min_points_value):
                     counters["stations_skipped"] += 1
-                    persist_station_status(
-                        engine,
-                        inference_run_id,
+                    persist_or_queue_station_status(
                         station_id,
                         status="skipped",
                         reason_code="min_points",
@@ -110,9 +136,7 @@ def inference_per_station(
                 complete_rows = filter_complete_rows(rows, REQUIRED_FEATURE_COLUMNS)
                 if not validate_min_points(complete_rows, min_points_value):
                     counters["stations_skipped"] += 1
-                    persist_station_status(
-                        engine,
-                        inference_run_id,
+                    persist_or_queue_station_status(
                         station_id,
                         status="skipped",
                         reason_code="min_points_or_nulls",
@@ -123,32 +147,54 @@ def inference_per_station(
 
                 feature_frame = rows_to_feature_frame(complete_rows)
 
-                prediction_6h = predictor_6h.predict_window(feature_frame, horizon_hours=6)
-                persist_inference_result(
-                    engine,
-                    inference_run_id,
-                    station_id,
-                    as_of_value,
-                    horizon_hours=6,
-                    model_version=model_6h_version_value,
-                    predictions_json=prediction_6h,
-                )
+                prediction_6h = predictor_6h.predict_window(feature_frame, horizon_hours=6, as_of=as_of_value)
+                prediction_12h = predictor_12h.predict_window(feature_frame, horizon_hours=12, as_of=as_of_value)
 
-                prediction_12h = predictor_12h.predict_window(feature_frame, horizon_hours=12)
-                persist_inference_result(
-                    engine,
-                    inference_run_id,
-                    station_id,
-                    as_of_value,
-                    horizon_hours=12,
-                    model_version=model_12h_version_value,
-                    predictions_json=prediction_12h,
-                )
+                if inference_run_id is None:
+                    inference_run_id = initialize_inference_run(
+                        engine,
+                        run_ctx,
+                        station_statuses=pending_station_statuses,
+                        inference_results=[
+                            {
+                                "station_id": station_id,
+                                "as_of": as_of_value,
+                                "horizon_hours": 6,
+                                "model_version": model_6h_version_value,
+                                "predictions_json": prediction_6h,
+                            },
+                            {
+                                "station_id": station_id,
+                                "as_of": as_of_value,
+                                "horizon_hours": 12,
+                                "model_version": model_12h_version_value,
+                                "predictions_json": prediction_12h,
+                            },
+                        ],
+                    )
+                    pending_station_statuses.clear()
+                else:
+                    persist_inference_result(
+                        engine,
+                        inference_run_id,
+                        station_id,
+                        as_of_value,
+                        horizon_hours=6,
+                        model_version=model_6h_version_value,
+                        predictions_json=prediction_6h,
+                    )
+                    persist_inference_result(
+                        engine,
+                        inference_run_id,
+                        station_id,
+                        as_of_value,
+                        horizon_hours=12,
+                        model_version=model_12h_version_value,
+                        predictions_json=prediction_12h,
+                    )
 
                 counters["stations_success"] += 1
-                persist_station_status(
-                    engine,
-                    inference_run_id,
+                persist_or_queue_station_status(
                     station_id,
                     status="success",
                     reason_code=None,
@@ -158,9 +204,7 @@ def inference_per_station(
             except Exception as station_exc:  # noqa: BLE001
                 counters["stations_failed"] += 1
                 logger.exception("Station inference failed for station_id=%s", station_id)
-                persist_station_status(
-                    engine,
-                    inference_run_id,
+                persist_or_queue_station_status(
                     station_id,
                     status="failed",
                     reason_code="exception",
@@ -168,13 +212,14 @@ def inference_per_station(
                     duration_s=int((datetime.now(timezone.utc) - station_started).total_seconds()),
                 )
 
-        finalize_inference_run(
-            engine,
-            inference_run_id,
-            counters=counters,
-            status="success",
-            error_summary=None,
-        )
+        if inference_run_id is not None:
+            finalize_inference_run(
+                engine,
+                inference_run_id,
+                counters=counters,
+                status="success",
+                error_summary=None,
+            )
 
     except Exception as exc:  # noqa: BLE001
         logger.exception("Inference flow failed")

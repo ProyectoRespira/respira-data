@@ -19,6 +19,109 @@ from inference.feature_adapter import REQUIRED_FEATURE_COLUMNS
 
 SOURCE_TABLE = '"respira-gold".station_inference_features'
 REQUIRED_COLUMNS = ["station_id", "date_utc", *REQUIRED_FEATURE_COLUMNS]
+INSERT_INFERENCE_RUN_QUERY = text(
+    """
+    insert into "respira-gold".inference_runs (
+        id,
+        flow_run_id,
+        deployment,
+        as_of,
+        window_hours,
+        min_points,
+        model_6h_version,
+        model_12h_version,
+        model_6h_path,
+        model_12h_path,
+        started_at,
+        ended_at,
+        duration_s,
+        status,
+        stations_total,
+        stations_success,
+        stations_skipped,
+        stations_failed,
+        error_summary,
+        created_at
+    ) values (
+        :id,
+        :flow_run_id,
+        :deployment,
+        :as_of,
+        :window_hours,
+        :min_points,
+        :model_6h_version,
+        :model_12h_version,
+        :model_6h_path,
+        :model_12h_path,
+        :started_at,
+        null,
+        null,
+        :status,
+        0,
+        0,
+        0,
+        0,
+        null,
+        now()
+    )
+    """
+)
+UPSERT_STATION_STATUS_QUERY = text(
+    """
+    insert into ops.inference_station_status (
+        id,
+        inference_run_id,
+        station_id,
+        status,
+        reason_code,
+        reason_detail,
+        duration_s,
+        created_at
+    ) values (
+        :id,
+        :inference_run_id,
+        :station_id,
+        :status,
+        :reason_code,
+        :reason_detail,
+        :duration_s,
+        now()
+    )
+    on conflict (inference_run_id, station_id)
+    do update set
+        status = excluded.status,
+        reason_code = excluded.reason_code,
+        reason_detail = excluded.reason_detail,
+        duration_s = excluded.duration_s
+    """
+)
+UPSERT_INFERENCE_RESULT_QUERY = text(
+    """
+    insert into "respira-gold".inference_results (
+        id,
+        inference_run_id,
+        station_id,
+        as_of,
+        horizon_hours,
+        model_version,
+        predictions_json,
+        created_at
+    ) values (
+        :id,
+        :inference_run_id,
+        :station_id,
+        :as_of,
+        :horizon_hours,
+        :model_version,
+        cast(:predictions_json as jsonb),
+        now()
+    )
+    on conflict (inference_run_id, station_id, horizon_hours)
+    do update set
+        model_version = excluded.model_version,
+        predictions_json = excluded.predictions_json
+    """
+)
 
 
 def _ensure_utc(as_of: datetime) -> datetime:
@@ -99,56 +202,35 @@ def validate_min_points(rows: list[dict[str, Any]], min_points: int) -> bool:
 
 def create_inference_run(engine, ctx: dict[str, Any]) -> UUID:
     inference_run_id = uuid4()
+    payload = _build_inference_run_payload(inference_run_id, ctx)
 
-    query = text(
-        """
-        insert into ops.inference_runs (
-            id,
-            flow_run_id,
-            deployment,
-            as_of,
-            window_hours,
-            min_points,
-            model_6h_version,
-            model_12h_version,
-            model_6h_path,
-            model_12h_path,
-            started_at,
-            ended_at,
-            duration_s,
-            status,
-            stations_total,
-            stations_success,
-            stations_skipped,
-            stations_failed,
-            error_summary,
-            created_at
-        ) values (
-            :id,
-            :flow_run_id,
-            :deployment,
-            :as_of,
-            :window_hours,
-            :min_points,
-            :model_6h_version,
-            :model_12h_version,
-            :model_6h_path,
-            :model_12h_path,
-            :started_at,
-            null,
-            null,
-            :status,
-            0,
-            0,
-            0,
-            0,
-            null,
-            now()
-        )
-        """
-    )
+    with engine.begin() as conn:
+        conn.execute(INSERT_INFERENCE_RUN_QUERY, payload)
 
-    payload = {
+    return inference_run_id
+
+
+def initialize_inference_run(
+    engine,
+    ctx: dict[str, Any],
+    station_statuses: list[dict[str, Any]],
+    inference_results: list[dict[str, Any]],
+) -> UUID:
+    inference_run_id = uuid4()
+    run_payload = _build_inference_run_payload(inference_run_id, ctx)
+
+    with engine.begin() as conn:
+        conn.execute(INSERT_INFERENCE_RUN_QUERY, run_payload)
+        for status_payload in station_statuses:
+            conn.execute(UPSERT_STATION_STATUS_QUERY, _build_station_status_payload(inference_run_id, status_payload))
+        for result_payload in inference_results:
+            conn.execute(UPSERT_INFERENCE_RESULT_QUERY, _build_inference_result_payload(inference_run_id, result_payload))
+
+    return inference_run_id
+
+
+def _build_inference_run_payload(inference_run_id: UUID, ctx: dict[str, Any]) -> dict[str, Any]:
+    return {
         "id": str(inference_run_id),
         "flow_run_id": ctx.get("flow_run_id", "local"),
         "deployment": ctx.get("deployment"),
@@ -163,11 +245,6 @@ def create_inference_run(engine, ctx: dict[str, Any]) -> UUID:
         "status": ctx.get("status", "success"),
     }
 
-    with engine.begin() as conn:
-        conn.execute(query, payload)
-
-    return inference_run_id
-
 
 def persist_station_status(
     engine,
@@ -178,48 +255,19 @@ def persist_station_status(
     reason_detail: str | None,
     duration_s: int | None,
 ) -> None:
-    query = text(
-        """
-        insert into ops.inference_station_status (
-            id,
-            inference_run_id,
-            station_id,
-            status,
-            reason_code,
-            reason_detail,
-            duration_s,
-            created_at
-        ) values (
-            :id,
-            :inference_run_id,
-            :station_id,
-            :status,
-            :reason_code,
-            :reason_detail,
-            :duration_s,
-            now()
-        )
-        on conflict (inference_run_id, station_id)
-        do update set
-            status = excluded.status,
-            reason_code = excluded.reason_code,
-            reason_detail = excluded.reason_detail,
-            duration_s = excluded.duration_s
-        """
-    )
-
     with engine.begin() as conn:
         conn.execute(
-            query,
-            {
-                "id": str(uuid4()),
-                "inference_run_id": str(inference_run_id),
-                "station_id": int(station_id),
-                "status": status,
-                "reason_code": reason_code,
-                "reason_detail": reason_detail,
-                "duration_s": duration_s,
-            },
+            UPSERT_STATION_STATUS_QUERY,
+            _build_station_status_payload(
+                inference_run_id,
+                {
+                    "station_id": station_id,
+                    "status": status,
+                    "reason_code": reason_code,
+                    "reason_detail": reason_detail,
+                    "duration_s": duration_s,
+                },
+            ),
         )
 
 
@@ -232,49 +280,46 @@ def persist_inference_result(
     model_version: str,
     predictions_json: dict[str, Any],
 ) -> None:
-    query = text(
-        """
-        insert into ops.inference_results (
-            id,
-            inference_run_id,
-            station_id,
-            as_of,
-            horizon_hours,
-            model_version,
-            predictions_json,
-            created_at
-        ) values (
-            :id,
-            :inference_run_id,
-            :station_id,
-            :as_of,
-            :horizon_hours,
-            :model_version,
-            cast(:predictions_json as jsonb),
-            now()
-        )
-        on conflict (inference_run_id, station_id, horizon_hours)
-        do update set
-            model_version = excluded.model_version,
-            predictions_json = excluded.predictions_json
-        """
-    )
-
-    import json
-
     with engine.begin() as conn:
         conn.execute(
-            query,
-            {
-                "id": str(uuid4()),
-                "inference_run_id": str(inference_run_id),
-                "station_id": int(station_id),
-                "as_of": _ensure_utc(as_of),
-                "horizon_hours": int(horizon_hours),
-                "model_version": model_version,
-                "predictions_json": json.dumps(predictions_json),
-            },
+            UPSERT_INFERENCE_RESULT_QUERY,
+            _build_inference_result_payload(
+                inference_run_id,
+                {
+                    "station_id": station_id,
+                    "as_of": as_of,
+                    "horizon_hours": horizon_hours,
+                    "model_version": model_version,
+                    "predictions_json": predictions_json,
+                },
+            ),
         )
+
+
+def _build_station_status_payload(inference_run_id: UUID, payload: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "id": str(uuid4()),
+        "inference_run_id": str(inference_run_id),
+        "station_id": int(payload["station_id"]),
+        "status": payload["status"],
+        "reason_code": payload.get("reason_code"),
+        "reason_detail": payload.get("reason_detail"),
+        "duration_s": payload.get("duration_s"),
+    }
+
+
+def _build_inference_result_payload(inference_run_id: UUID, payload: dict[str, Any]) -> dict[str, Any]:
+    import json
+
+    return {
+        "id": str(uuid4()),
+        "inference_run_id": str(inference_run_id),
+        "station_id": int(payload["station_id"]),
+        "as_of": _ensure_utc(payload["as_of"]),
+        "horizon_hours": int(payload["horizon_hours"]),
+        "model_version": payload["model_version"],
+        "predictions_json": json.dumps(payload["predictions_json"]),
+    }
 
 
 def finalize_inference_run(
@@ -288,7 +333,7 @@ def finalize_inference_run(
 
     with engine.begin() as conn:
         started_at = conn.execute(
-            text("select started_at from ops.inference_runs where id = :id"),
+            text('select started_at from "respira-gold".inference_runs where id = :id'),
             {"id": str(inference_run_id)},
         ).scalar_one()
 
@@ -297,7 +342,7 @@ def finalize_inference_run(
         conn.execute(
             text(
                 """
-                update ops.inference_runs
+                update "respira-gold".inference_runs
                 set ended_at = :ended_at,
                     duration_s = :duration_s,
                     status = :status,

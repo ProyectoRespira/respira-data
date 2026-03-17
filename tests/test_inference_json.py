@@ -1,6 +1,10 @@
 from __future__ import annotations
 
 import json
+import sys
+import types
+
+import pandas as pd
 
 from inference.feature_adapter import REQUIRED_COLUMNS, REQUIRED_FEATURE_COLUMNS, rows_to_feature_frame
 from inference.predictor import WindowPredictor
@@ -44,3 +48,60 @@ def test_predictor_output_is_json_serializable():
 def test_rows_to_feature_frame_keeps_required_columns():
     frame = rows_to_feature_frame(_sample_rows())
     assert all(column in frame.columns for column in REQUIRED_COLUMNS)
+
+
+def test_predictor_supports_darts_models(monkeypatch):
+    rows = _sample_rows()
+    frame = rows_to_feature_frame(rows)
+    captured: dict[str, pd.DataFrame] = {}
+
+    class FakePredictionSeries:
+        def __init__(self, series: pd.Series):
+            self._series = series
+
+        def pd_series(self):
+            return self._series
+
+    class FakeTimeSeries:
+        def __init__(self, frame: pd.DataFrame, selected_columns: list[str] | None = None):
+            self._frame = frame.reset_index(drop=True)
+            self._selected_columns = selected_columns
+
+        @classmethod
+        def from_dataframe(cls, frame: pd.DataFrame, time_col: str, value_cols: list[str], freq: str):
+            captured["frame"] = frame.copy()
+            assert time_col == "date_utc"
+            assert freq == "h"
+            return cls(frame[["date_utc", *value_cols]].copy())
+
+        def __getitem__(self, key):
+            if isinstance(key, list):
+                return FakeTimeSeries(self._frame[["date_utc", *key]].copy(), key)
+            return FakeTimeSeries(self._frame[["date_utc", key]].copy(), [key])
+
+    fake_darts = types.ModuleType("darts")
+    fake_darts.TimeSeries = FakeTimeSeries
+    monkeypatch.setitem(sys.modules, "darts", fake_darts)
+
+    class DummyDartsModel:
+        def predict(self, horizon: int, series=None, past_covariates=None):
+            assert horizon == 6
+            assert series is not None
+            assert past_covariates is not None
+
+            start = pd.Timestamp("2026-01-01T04:00:00Z")
+            index = pd.date_range(start=start, periods=horizon, freq="h", tz="UTC")
+            values = pd.Series([50, 51, 52, 53, 54, 55], index=index)
+            return FakePredictionSeries(values)
+
+    predictor = WindowPredictor(model=DummyDartsModel(), model_version="darts-v1")
+    output = predictor.predict_window(
+        frame,
+        horizon_hours=6,
+        as_of=pd.Timestamp("2026-01-01T03:00:00Z"),
+    )
+
+    assert captured["frame"]["date_utc"].max() == pd.Timestamp("2026-01-01T03:00:00Z")
+    assert output["meta"]["model_version"] == "darts-v1"
+    assert len(output["points"]) == 6
+    assert output["points"][0]["yhat"] == 50.0
