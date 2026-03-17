@@ -12,5 +12,5 @@ select
   station_code,
   row_number() over (
     order by station_code, core_station_id
-  )::bigint as gold_station_id
+  )::bigint as project_station_id
 from stations

@@ -1,6 +1,6 @@
 {{ config(materialized='view') }}
 
-{% set schema_name = var('calibration_factors_schema', 'respira-gold') %}
+{% set schema_name = var('calibration_factors_schema', 'respira_gold') %}
 {% set table_name = var('calibration_factors_identifier', 'calibration_factors') %}
 {% set rel = adapter.get_relation(database=target.database, schema=schema_name, identifier=table_name) %}
 

@@ -17,7 +17,7 @@ regions as (
 )
 
 select
-  sm.gold_station_id as id,
+  sm.project_station_id as id,
   case
     when lower(coalesce(s.properties->>'source', '')) = 'fiuna' then 'FIUNA: ' || s.name
     when lower(coalesce(s.properties->>'source', '')) = 'airelibre' then 'AireLibre: ' || s.name

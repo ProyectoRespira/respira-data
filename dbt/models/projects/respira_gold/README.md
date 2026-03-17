@@ -1,8 +1,8 @@
-# Tables in respira-gold
+# Tables in respira_gold
 
 ## Backend contract tables
 
-Table respira-gold.regions {
+Table respira_gold.regions {
   id integer [primary key]
   name varchar
   region_code varchar [unique]
@@ -12,7 +12,7 @@ Table respira-gold.regions {
   
 }
 
-Table respira-gold.stations {
+Table respira_gold.stations {
   id integer [primary key]
   name varchar 
   latitude float
@@ -22,7 +22,7 @@ Table respira-gold.stations {
   is_pattern_station bool
 }
 
-Table respira-gold.weather_stations {
+Table respira_gold.weather_stations {
   id integer [primary key]
   name varchar
   latitude float
@@ -30,7 +30,7 @@ Table respira-gold.weather_stations {
   region_id varchar [ref: > regions.id]
 }
 
-Table respira-gold.station_readings_gold {
+Table respira_gold.station_readings_gold {
   id serial [primary key]
   station_id integer [ref: > stations.id]
   airnow_id integer [ref: - airnow_readings_silver.id]
@@ -60,13 +60,13 @@ Table respira-gold.station_readings_gold {
 
 }
 
-Table respira-gold.inference_runs {
+Table respira_gold.inference_runs {
   id serial [primary key]
   run_date timestamptz
   
 }
 
-Table respira-gold.inference_results {
+Table respira_gold.inference_results {
   id serial [primary key]
   inference_run_id integer [ref: > inference_runs.id]
   station_id integer [ref: > stations.id]
@@ -92,5 +92,4 @@ Table respira-gold.inference_results {
 ### Inference tables
 - `inference_runs` and `inference_results` are stubbed and disabled by default.
 - Enable creation with `--vars '{build_inference_tables: true}'` if needed.
-
 

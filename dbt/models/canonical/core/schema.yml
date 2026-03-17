@@ -1,6 +1,31 @@
 version: 2
 
 models:
+  - name: dim_organizations
+    description: "Organizations dimension, seeded via core.organizations."
+    columns:
+      - name: id
+        tests: [not_null, unique]
+      - name: code
+        tests: [not_null, unique]
+      - name: name
+        tests: [not_null]
+
+  - name: dim_projects
+    description: "Projects dimension, seeded via core.projects."
+    columns:
+      - name: id
+        tests: [not_null, unique]
+      - name: code
+        tests: [not_null, unique]
+      - name: owner_organization_id
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_organizations')
+                field: id
+
   - name: dim_data_sources
     description: "Data sources dimension, currently seeded via core.data_sources."
     columns:
@@ -8,6 +33,13 @@ models:
         tests: [not_null, unique]
       - name: name
         tests: [not_null, unique]
+      - name: organization_id
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_organizations')
+                field: id
       - name: type
         tests: [not_null]
       - name: active
@@ -22,6 +54,42 @@ models:
         tests: [not_null, unique]
       - name: name
         tests: [not_null]
+
+  - name: bridge_project_data_sources
+    description: "Bridge between projects and data sources."
+    columns:
+      - name: project_id
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_projects')
+                field: id
+      - name: data_source_id
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_data_sources')
+                field: id
+
+  - name: bridge_project_organizations
+    description: "Bridge between projects and organizations."
+    columns:
+      - name: project_id
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_projects')
+                field: id
+      - name: organization_id
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_organizations')
+                field: id
       - name: data_type
         tests: [not_null]
       - name: category
