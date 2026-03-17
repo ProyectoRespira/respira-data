@@ -68,7 +68,7 @@ def _predict_with_darts(model: Any, features_frame: pd.DataFrame, horizon_hours:
     covariate_columns = [column for column in features_frame.columns if column not in NON_COVARIATE_COLUMNS]
     series_columns = [TARGET_COLUMN, *[column for column in covariate_columns if column != TARGET_COLUMN]]
     input_frame = features_frame[["date_utc", *series_columns]].copy()
-    input_frame["date_utc"] = pd.to_datetime(input_frame["date_utc"], utc=True, errors="coerce").dt.tz_convert(None)
+    input_frame["date_utc"] = pd.to_datetime(input_frame["date_utc"], utc=True, errors="coerce")
 
     ts = TimeSeries.from_dataframe(input_frame, time_col="date_utc", value_cols=series_columns, freq="h")
     target_series = ts[TARGET_COLUMN]
