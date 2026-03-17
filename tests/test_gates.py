@@ -26,7 +26,7 @@ def test_should_alert_on_tests_only_when_failed():
 def test_format_test_alert_contains_selector_and_counts():
     msg = format_test_alert(
         {"tests_failed": 2, "tests_passed": 10, "error_summary": "bad null test"},
-        selector="gold_tests",
+        selector="project_respira_gold_tests",
     )
-    assert "gold_tests" in msg
+    assert "project_respira_gold_tests" in msg
     assert "tests_failed=2" in msg
