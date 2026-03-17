@@ -36,22 +36,20 @@ help:
 	@echo "  test              dbt test (all tests)"
 	@echo ""
 	@echo "Layered runs:"
-	@echo "  run-staging       dbt run --select staging+"
-	@echo "  run-intermediate  dbt run --select intermediate+"
-	@echo "  run-core          dbt run --select marts.core+"
-	@echo "  run-facts         dbt run --select marts.facts+"
+	@echo "  run-canonical-core    dbt run --selector canonical_core"
+	@echo "  run-canonical-silver  dbt run --selector canonical_silver"
+	@echo "  run-project-respira_gold dbt run --selector project_respira_gold"
 	@echo ""
 	@echo "Build flows:"
 	@echo "  build             deps + seed + run-all + test"
 	@echo "  build-fr          deps + seed(full refresh) + run(full refresh) + test"
 	@echo ""
 	@echo "Prefect:"
-	@echo "  prefect-bootstrap Run warehouse bootstrap SQL (01 optional + 02 ops)"
-	@echo "  run-dbt-incremental Run dbt_incremental flow"
-	@echo "  run-dbt-gold      Run dbt_gold flow"
-	@echo "  run-dbt-full-refresh Run dbt_full_refresh flow (manual)"
-	@echo "  run-inference     Run inference_per_station flow"
-	@echo "  run-gold-then-inference Run coordinator flow"
+	@echo "  prefect-bootstrap Ensure ops tables and project inference tables"
+	@echo "  run-canonical-incremental Run canonical_incremental flow"
+	@echo "  run-canonical-full-refresh Run canonical_full_refresh flow (manual)"
+	@echo "  run-project-pipeline Run project_pipeline for respira_gold"
+	@echo "  run-project-inference Run project_inference for respira_gold"
 	@echo "  smoke-test        Run minimal unit tests for orchestration"
 	@echo ""
 	@echo "Selection helpers:"
@@ -130,21 +128,17 @@ docs:
 # -----------------------
 # Layered runs
 # -----------------------
-.PHONY: run-staging
-run-staging:
-	$(DBT) "cd dbt && dbt run --target $(TARGET) --select staging+"
+.PHONY: run-canonical-core
+run-canonical-core:
+	$(DBT) "cd dbt && dbt run --target $(TARGET) --selector canonical_core"
 
-.PHONY: run-intermediate
-run-intermediate:
-	$(DBT) "cd dbt && dbt run --target $(TARGET) --select intermediate+"
+.PHONY: run-canonical-silver
+run-canonical-silver:
+	$(DBT) "cd dbt && dbt run --target $(TARGET) --selector canonical_silver"
 
-.PHONY: run-core
-run-core:
-	$(DBT) "cd dbt && dbt run --target $(TARGET) --select marts.core+"
-
-.PHONY: run-facts
-run-facts:
-	$(DBT) "cd dbt && dbt run --target $(TARGET) --select marts.facts+"
+.PHONY: run-project-respira_gold
+run-project-respira_gold:
+	$(DBT) "cd dbt && dbt run --target $(TARGET) --selector project_respira_gold"
 
 # -----------------------
 # Build flows
@@ -155,14 +149,15 @@ build: dbt-deps seed run test
 # Full refresh for when schemas/logic change significantly
 .PHONY: build-fr
 build-fr: dbt-deps seed-fr
-	$(DBT) "cd dbt && dbt run --target $(TARGET) --full-refresh"
-	$(DBT) "cd dbt && dbt test --target $(TARGET)"
+	$(DBT) "cd dbt && dbt run --target $(TARGET) --selector canonical_full_refresh --full-refresh"
+	$(DBT) "cd dbt && dbt run --target $(TARGET) --selector project_respira_gold"
+	$(DBT) "cd dbt && dbt test --target $(TARGET) --selector project_respira_gold_tests"
 
 # A fast inner-loop option (no deps, no seed) for iteration
 .PHONY: quick
 quick:
-	$(DBT) "cd dbt && dbt run --target $(TARGET) --select staging+ intermediate+"
-	$(DBT) "cd dbt && dbt test --target $(TARGET) --select intermediate+ marts.facts.fct_measurements_silver"
+	$(DBT) "cd dbt && dbt run --target $(TARGET) --selector canonical_core"
+	$(DBT) "cd dbt && dbt run --target $(TARGET) --selector canonical_silver"
 
 # -----------------------
 # Prefect flows
@@ -171,26 +166,22 @@ quick:
 prefect-bootstrap:
 	$(PREFECT_RUN) "python3 prefect/flows/warehouse_bootstrap.py"
 
-.PHONY: run-dbt-incremental
-run-dbt-incremental:
-	$(PREFECT_RUN) "python3 prefect/flows/dbt_incremental.py"
+.PHONY: run-canonical-incremental
+run-canonical-incremental:
+	$(PREFECT_RUN) "python3 prefect/flows/canonical_incremental.py"
 
-.PHONY: run-dbt-gold
-run-dbt-gold:
-	$(PREFECT_RUN) "python3 prefect/flows/dbt_gold.py"
+.PHONY: run-canonical-full-refresh
+run-canonical-full-refresh:
+	$(PREFECT_RUN) "python3 prefect/flows/canonical_full_refresh.py"
 
-.PHONY: run-dbt-full-refresh
-run-dbt-full-refresh:
-	$(PREFECT_RUN) "python3 prefect/flows/dbt_full_refresh.py"
+.PHONY: run-project-inference
+run-project-inference:
+	$(WORKER_RUN) "python3 prefect/flows/project_inference.py"
 
-.PHONY: run-inference
-run-inference:
-	$(WORKER_RUN) "python3 prefect/flows/inference_per_station.py"
-
-.PHONY: run-gold-then-inference
-run-gold-then-inference:
-	$(WORKER_RUN) "python3 prefect/flows/gold_then_inference.py"
+.PHONY: run-project-pipeline
+run-project-pipeline:
+	$(WORKER_RUN) "python3 prefect/flows/project_pipeline.py"
 
 .PHONY: smoke-test
 smoke-test:
-	poetry run pytest -q tests/test_artifacts.py tests/test_gates.py tests/test_inference_json.py
+	poetry run pytest -q tests/test_artifacts.py tests/test_dbt_tasks_command.py tests/test_gates.py tests/test_inference_json.py tests/test_projects_config.py
