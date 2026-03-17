@@ -1,0 +1,6 @@
+numpy<2
+pandas
+streamlit
+plotly
+u8darts==0.30.0
+lightgbm

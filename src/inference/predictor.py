@@ -6,6 +6,10 @@ from typing import Any
 import pandas as pd
 
 
+TARGET_COLUMN = "aqi_pm2_5"
+NON_COVARIATE_COLUMNS = {"date_utc", "station_id"}
+
+
 class WindowPredictor:
     def __init__(self, model: Any, model_version: str = "unknown"):
         if not hasattr(model, "predict"):
@@ -13,14 +17,20 @@ class WindowPredictor:
         self.model = model
         self.model_version = model_version
 
-    def predict_window(self, features_frame: pd.DataFrame, horizon_hours: int) -> dict[str, Any]:
+    def predict_window(
+        self,
+        features_frame: pd.DataFrame,
+        horizon_hours: int,
+        as_of: datetime | None = None,
+    ) -> dict[str, Any]:
         if features_frame.empty:
             raise ValueError("features_frame is empty")
 
-        raw_predictions = self.model.predict(features_frame)
+        prepared_frame = _prepare_prediction_frame(features_frame, as_of=as_of)
+        raw_predictions = _predict(self.model, prepared_frame, horizon_hours)
         generated_at = datetime.now(timezone.utc).isoformat()
 
-        points = _normalize_predictions(raw_predictions, features_frame, horizon_hours)
+        points = _normalize_predictions(raw_predictions, prepared_frame, horizon_hours)
         return {
             "meta": {
                 "model_version": self.model_version,
@@ -31,17 +41,73 @@ class WindowPredictor:
         }
 
 
-def predict_window(model: Any, features_frame: pd.DataFrame, horizon_hours: int, model_version: str = "unknown") -> dict[str, Any]:
+def predict_window(
+    model: Any,
+    features_frame: pd.DataFrame,
+    horizon_hours: int,
+    model_version: str = "unknown",
+    as_of: datetime | None = None,
+) -> dict[str, Any]:
     return WindowPredictor(model=model, model_version=model_version).predict_window(
         features_frame=features_frame,
         horizon_hours=horizon_hours,
+        as_of=as_of,
     )
+
+
+def _predict(model: Any, features_frame: pd.DataFrame, horizon_hours: int) -> Any:
+    try:
+        return _predict_with_darts(model, features_frame, horizon_hours)
+    except (ImportError, TypeError, ValueError, AttributeError):
+        return model.predict(features_frame)
+
+
+def _predict_with_darts(model: Any, features_frame: pd.DataFrame, horizon_hours: int) -> Any:
+    from darts import TimeSeries
+
+    covariate_columns = [column for column in features_frame.columns if column not in NON_COVARIATE_COLUMNS]
+    series_columns = [TARGET_COLUMN, *[column for column in covariate_columns if column != TARGET_COLUMN]]
+    input_frame = features_frame[["date_utc", *series_columns]].copy()
+    input_frame["date_utc"] = pd.to_datetime(input_frame["date_utc"], utc=True, errors="coerce").dt.tz_convert(None)
+
+    ts = TimeSeries.from_dataframe(input_frame, time_col="date_utc", value_cols=series_columns, freq="h")
+    target_series = ts[TARGET_COLUMN]
+
+    if covariate_columns:
+        return model.predict(horizon_hours, series=target_series, past_covariates=ts[covariate_columns])
+    return model.predict(horizon_hours, series=target_series)
+
+
+def _prepare_prediction_frame(features_frame: pd.DataFrame, as_of: datetime | None) -> pd.DataFrame:
+    frame = features_frame.reset_index(drop=True).copy()
+    frame["date_utc"] = pd.to_datetime(frame["date_utc"], utc=True, errors="coerce")
+    frame = frame.dropna(subset=["date_utc"]).sort_values("date_utc", ascending=True)
+
+    duplicate_mask = frame.duplicated(subset=["date_utc"], keep="last")
+    if duplicate_mask.any():
+        frame = frame[~duplicate_mask]
+
+    end_ts = pd.to_datetime(as_of, utc=True) if as_of is not None else frame["date_utc"].max()
+    if pd.isna(end_ts):
+        raise ValueError("Unable to determine prediction end timestamp")
+
+    full_range = pd.date_range(start=frame["date_utc"].min(), end=end_ts, freq="h", tz="UTC")
+    frame = frame.set_index("date_utc").reindex(full_range).rename_axis("date_utc").reset_index()
+
+    value_columns = [column for column in frame.columns if column != "date_utc"]
+    if value_columns:
+        frame[value_columns] = frame[value_columns].ffill().bfill()
+
+    return frame
 
 
 def _normalize_predictions(raw_predictions: Any, features_frame: pd.DataFrame, horizon_hours: int) -> list[dict[str, Any]]:
     timestamps = list(features_frame["date_utc"])
     if not timestamps:
         timestamps = [datetime.now(timezone.utc)]
+
+    if hasattr(raw_predictions, "pd_series"):
+        return _from_darts_series(raw_predictions)
 
     if isinstance(raw_predictions, pd.DataFrame):
         return _from_dataframe(raw_predictions)
@@ -64,6 +130,11 @@ def _normalize_predictions(raw_predictions: Any, features_frame: pd.DataFrame, h
     except (TypeError, ValueError):
         ts = _fallback_ts(timestamps, horizon_hours)
         return [_point(ts, None, None, None)]
+
+
+def _from_darts_series(series: Any) -> list[dict[str, Any]]:
+    pandas_series = series.pd_series().round(0)
+    return [_point(ts, value, None, None) for ts, value in pandas_series.items()]
 
 
 def _from_dataframe(frame: pd.DataFrame) -> list[dict[str, Any]]:

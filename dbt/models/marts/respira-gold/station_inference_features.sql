@@ -30,6 +30,8 @@ select
   sb.pm2_5_std_6h,
 
   sb.aqi_pm2_5,
+  sb.aqi_pm10,
+  sb.aqi_level,
   sb.aqi_pm2_5_max_24h,
   sb.aqi_pm2_5_skew_24h,
   sb.aqi_pm2_5_std_24h,
@@ -44,7 +46,7 @@ select
   rf.aqi_region_std,
   rf.level_region_max,
 
-  wf.temperature_c,
+  wf.temperature_c as temperature,
   wf.humidity,
   wf.pressure,
   wf.wind_speed,
