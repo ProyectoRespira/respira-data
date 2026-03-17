@@ -1,4 +1,4 @@
-name,type,active,properties
-fiuna_airbyte,airbyte,true,{}
-airelibre_airbyte,airbyte,true,{}
-meteostat_airbyte,airbyte,true,{}
+name,organization_code,type,active,properties
+fiuna_airbyte,fiuna,airbyte,true,{}
+airelibre_airbyte,airelibre,airbyte,true,{}
+meteostat_airbyte,meteostat,airbyte,true,{}
