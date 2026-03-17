@@ -8,8 +8,9 @@ if str(PREFECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PREFECT_ROOT))
 
 from compat import flow, get_run_logger
+from config.projects import list_project_configs
 from config.settings import get_settings
-from tasks.db import execute_sql_file, get_engine
+from tasks.db import ensure_ops_audit_tables, ensure_project_inference_tables, get_engine
 
 
 @flow(name="warehouse_bootstrap")
@@ -18,21 +19,13 @@ def warehouse_bootstrap() -> None:
     settings = get_settings()
     engine = get_engine(settings)
 
-    bootstrap_files = [
-        PREFECT_ROOT / "sql" / "02_ops_audit.sql",
-    ]
-
     try:
-        for sql_file in bootstrap_files:
-            if sql_file.name == "01_schema.sql" and not sql_file.exists():
-                logger.info("Skipping optional bootstrap SQL: %s", sql_file)
-                continue
+        logger.info("Ensuring ops audit tables")
+        ensure_ops_audit_tables(engine)
 
-            if not sql_file.exists():
-                raise FileNotFoundError(f"Required bootstrap SQL file not found: {sql_file}")
-
-            logger.info("Executing bootstrap SQL: %s", sql_file)
-            execute_sql_file(engine, str(sql_file))
+        for project in list_project_configs():
+            logger.info("Ensuring inference tables for project_code=%s", project.project_code)
+            ensure_project_inference_tables(engine, project)
     finally:
         engine.dispose()
 

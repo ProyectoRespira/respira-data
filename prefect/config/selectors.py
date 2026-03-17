@@ -1,5 +1,3 @@
-SELECTOR_CORE = "core"
-SELECTOR_FACTS = "facts"
-SELECTOR_GOLD = "gold"
-SELECTOR_GOLD_TESTS = "gold_tests"
-SELECTOR_FULL_REFRESH_SAFE = "full_refresh_safe"
+SELECTOR_CANONICAL_CORE = "canonical_core"
+SELECTOR_CANONICAL_SILVER = "canonical_silver"
+SELECTOR_CANONICAL_FULL_REFRESH = "canonical_full_refresh"

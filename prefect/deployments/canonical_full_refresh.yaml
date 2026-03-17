@@ -1,5 +1,5 @@
-name: dbt-full-refresh
-entrypoint: prefect/flows/dbt_full_refresh.py:dbt_full_refresh
+name: canonical-full-refresh
+entrypoint: prefect/flows/canonical_full_refresh.py:canonical_full_refresh
 work_pool:
   name: default
 parameters: {}
@@ -8,4 +8,5 @@ concurrency_limit:
   collision_strategy: ENQUEUE
 tags:
   - dbt
+  - canonical
   - maintenance

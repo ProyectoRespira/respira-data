@@ -21,8 +21,9 @@ def dbt_build() -> None:
     commands = [
         ["dbt", "deps"],
         ["dbt", "seed", "--full-refresh"],
-        ["dbt", "run", "--select", "staging+ intermediate+ marts.core+"],
-        ["dbt", "run", "--select", "marts.facts+"],
+        ["dbt", "run", "--selector", "canonical_core"],
+        ["dbt", "run", "--selector", "canonical_silver"],
+        ["dbt", "run", "--selector", "project_respira_gold"],
     ]
 
     for cmd in commands:
