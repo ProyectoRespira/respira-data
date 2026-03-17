@@ -12,7 +12,7 @@ from compat import flow, get_flow_context, get_run_logger
 from config.selectors import SELECTOR_FULL_REFRESH_SAFE, SELECTOR_GOLD_TESTS
 from config.settings import get_settings
 from tasks.artifacts import load_run_results, persist_dbt_audit, summarize_run_results
-from tasks.db import get_engine
+from tasks.db import ensure_ops_audit_tables, get_engine
 from tasks.dbt_tasks import dbt_deps, dbt_run_selector, dbt_test_selector
 from tasks.gates import format_test_alert, raise_if_failed, should_alert_on_tests
 from tasks.notifications import notify_flow_failure, notify_gold_tests_failed
@@ -44,6 +44,7 @@ def dbt_full_refresh() -> None:
     logger = get_run_logger()
     settings = get_settings()
     engine = get_engine(settings)
+    ensure_ops_audit_tables(engine)
 
     ctx = get_flow_context()
     ctx.update(
