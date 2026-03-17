@@ -12,7 +12,7 @@ from compat import flow, get_flow_context, get_run_logger
 from config.selectors import SELECTOR_CORE, SELECTOR_FACTS
 from config.settings import get_settings
 from tasks.artifacts import load_run_results, persist_dbt_audit, summarize_run_results
-from tasks.db import get_engine
+from tasks.db import ensure_ops_audit_tables, get_engine
 from tasks.dbt_tasks import dbt_deps, dbt_run_selector
 from tasks.gates import raise_if_failed
 from tasks.notifications import notify_flow_failure
@@ -44,6 +44,7 @@ def dbt_incremental() -> None:
     logger = get_run_logger()
     settings = get_settings()
     engine = get_engine(settings)
+    ensure_ops_audit_tables(engine)
 
     ctx = get_flow_context()
     ctx.update(

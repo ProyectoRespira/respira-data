@@ -19,7 +19,6 @@ def warehouse_bootstrap() -> None:
     engine = get_engine(settings)
 
     bootstrap_files = [
-        PREFECT_ROOT / "sql" / "01_schema.sql",
         PREFECT_ROOT / "sql" / "02_ops_audit.sql",
     ]
 
