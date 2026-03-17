@@ -43,18 +43,21 @@ def _timeout_for_command(settings, command: str, selector: str | None) -> int:
 
 
 def _build_dbt_command(settings, command: str, selector: str | None, full_refresh: bool) -> list[str]:
+    command_tokens = shlex.split(command)
+    root_command = command_tokens[0] if command_tokens else ""
+    supports_threads = root_command in {"run", "test", "build", "seed", "snapshot", "clone"}
     cmd: list[str] = [
         "dbt",
+        *command_tokens,
         "--project-dir",
         settings.DBT_PROJECT_DIR,
         "--profiles-dir",
         settings.DBT_PROFILES_DIR,
         "--target",
         settings.DBT_TARGET,
-        "--threads",
-        str(settings.DBT_THREADS),
     ]
-    cmd.extend(shlex.split(command))
+    if supports_threads:
+        cmd.extend(["--threads", str(settings.DBT_THREADS)])
     if selector:
         cmd.extend(["--selector", selector])
     if full_refresh:
@@ -145,13 +148,13 @@ def _run_with_prefect_dbt_if_available(settings, command: str, selector: str | N
 
     timeout_s = _timeout_for_command(settings, command, selector)
     cmd = _build_dbt_command(settings, command, selector, full_refresh)
-    cmd_without_binary = shlex.join(cmd[1:])
+    cmd_with_binary = shlex.join(cmd)
     started_at = datetime.now(timezone.utc)
 
     try:
-        logger.info("Running dbt via prefect-dbt: %s", cmd_without_binary)
+        logger.info("Running dbt via prefect-dbt: %s", cmd_with_binary)
         operation = operation_class(
-            commands=[cmd_without_binary],
+            commands=[cmd_with_binary],
             project_dir=settings.DBT_PROJECT_DIR,
             profiles_dir=settings.DBT_PROFILES_DIR,
             overwrite_profiles=False,

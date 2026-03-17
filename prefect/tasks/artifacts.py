@@ -1,14 +1,18 @@
 from __future__ import annotations
 
 import json
+import logging
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 from uuid import UUID, uuid4
 
 from sqlalchemy import text
+from sqlalchemy.exc import SQLAlchemyError
 
 from tasks.dbt_tasks import DbtTaskResult
+
+logger = logging.getLogger(__name__)
 
 
 def load_run_results(path: str) -> dict[str, Any]:
@@ -141,7 +145,10 @@ def persist_dbt_audit(engine, dbt_result: DbtTaskResult, summary: dict[str, Any]
         "created_at": created_at,
     }
 
-    with engine.begin() as conn:
-        conn.execute(query, payload)
+    try:
+        with engine.begin() as conn:
+            conn.execute(query, payload)
+    except SQLAlchemyError as exc:
+        logger.warning("Skipping dbt audit persistence: %s", exc)
 
     return audit_id
