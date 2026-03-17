@@ -16,7 +16,7 @@ from config.settings import get_settings
 from inference.feature_adapter import REQUIRED_FEATURE_COLUMNS, rows_to_feature_frame
 from inference.model_loader import load_pickle_model
 from inference.predictor import WindowPredictor
-from tasks.db import get_engine
+from tasks.db import ensure_ops_audit_tables, get_engine
 from tasks.inference_tasks import (
     create_inference_run,
     filter_complete_rows,
@@ -60,6 +60,7 @@ def inference_per_station(
     predictor_12h = WindowPredictor(model=model_12h.model, model_version=model_12h_version_value)
 
     engine = get_engine(settings)
+    ensure_ops_audit_tables(engine)
     flow_ctx = get_flow_context()
 
     run_ctx = {
