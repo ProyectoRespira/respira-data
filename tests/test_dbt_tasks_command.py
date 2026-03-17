@@ -28,5 +28,5 @@ def test_build_dbt_command_supports_multiword_command():
 
 
 def test_build_dbt_command_adds_threads_for_run_like_commands():
-    cmd = _build_dbt_command(_settings(), command="run", selector="core", full_refresh=False)
+    cmd = _build_dbt_command(_settings(), command="run", selector="canonical_core", full_refresh=False)
     assert "--threads" in cmd
