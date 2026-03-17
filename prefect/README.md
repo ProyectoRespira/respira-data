@@ -60,21 +60,24 @@ O directo por Python:
 - `python3 prefect/flows/inference_per_station.py`
 - `python3 prefect/flows/gold_then_inference.py`
 
-## Deployments Prefect 3
+## Auto-bootstrap en Docker Compose
 
-Archivos de deployment en `prefect/deployments/`:
+Al iniciar con `make up` o `make up-build`, el servicio `prefect_worker`:
 
-- `dbt_incremental.yaml`: cron `5 * * * *` UTC
-- `dbt_gold.yaml`: cron `15 * * * *` UTC
-- `inference_per_station.yaml`: cron `25 * * * *` UTC
-- `gold_then_inference.yaml`: cron `20 * * * *` UTC
-- `dbt_full_refresh.yaml`: sin schedule (manual)
+1. espera a que el API de Prefect esté saludable
+2. crea/actualiza el work pool `default`
+3. registra deployments vía `prefect deploy` (idempotente)
+4. inicia el worker para ese pool
 
-Aplicación (puede variar según versión exacta de CLI Prefect 3):
+Deployments creados automáticamente:
 
-1. Ajustar `work_pool.name` y parámetros según tu entorno.
-2. Aplicar cada YAML con el comando de deployment de tu instalación Prefect 3.
-3. Verificar en UI que los schedules estén en UTC y activos.
+- `dbt-incremental` (cron por defecto `5 * * * *`)
+- `dbt-gold` (cron por defecto `15 * * * *`)
+- `dbt-full-refresh` (manual, sin schedule)
+- `inference-per-station`
+- `gold-then-inference`
+
+Si `MODEL_6H_PATH` y `MODEL_12H_PATH` no están definidos, los deployments de inferencia se crean sin schedule para evitar ejecuciones fallidas automáticas.
 
 ## Concurrencia
 
