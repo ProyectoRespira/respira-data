@@ -11,22 +11,27 @@ seed-paths: ["seeds"]
 
 models:
   respira_data:
-    staging:
-      +schema: staging
-      +materialized: view
-
-    intermediate:
-      +schema: intermediate
-      +materialized: view
-
-    marts:
-      +materialized: table
+    canonical:
+      sources:
+        +schema: staging
+      staging:
+        +schema: staging
+        +materialized: view
+      intermediate:
+        +schema: intermediate
+        +materialized: view
       core:
         +schema: core
-      facts:
-        +schema: facts
-      respira-gold:
-        +schema: "respira-gold"
+      silver:
+        +schema: silver
+
+    projects:
+      +materialized: table
+      respira_gold:
+        gold:
+          +schema: respira_gold
+        inference:
+          +schema: respira_gold
 seeds:
   respira_data:
     +schema: core
