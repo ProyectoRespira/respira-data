@@ -2,14 +2,16 @@
 
 Data platform for Proyecto Respira.
 
-This repository contains:
-- dbt models (bronze/silver/gold)
-- Prefect flows for orchestration
+This repository is organized as a modular monorepo:
+
+- `dbt/models/canonical`: reusable canonical ingestion, normalization, dimensions, and silver layer
+- `dbt/models/projects/respira_gold`: project-specific marts and inference features
+- `prefect/flows`: orchestration for canonical and project pipelines
 - Postgres as the local development warehouse
 
 All commands are executed via Docker Compose.
 
-## Quick start (clean containers)
+## Quick start
 
 1. Copy env file and set DB credentials:
 
@@ -23,29 +25,27 @@ cp .env.example .env
 make up-build
 ```
 
-This will start:
+This starts:
+
 - `prefect_server`
 - `app`
 - `prefect_worker`
 
 `prefect_worker` automatically:
-- waits for Prefect API
-- creates/updates work pool `default`
-- registers deployments
-- starts a Prefect worker polling that pool
 
-Container images:
-- `app` uses `Dockerfile` with the base project dependencies.
-- `prefect_worker` uses `Dockerfile.worker` and is the intended place for inference-only dependencies such as Darts.
+- waits for Prefect API
+- creates or updates work pool `default`
+- registers canonical and project deployments
+- starts a Prefect worker polling that pool
 
 Open Prefect UI at `http://localhost:4200`.
 
 ## Useful commands
 
 ```bash
-make ps
-make logs
-make logs-worker
+make run-canonical-incremental
+make run-project-pipeline
 make smoke-test
+make logs
 make down
 ```
