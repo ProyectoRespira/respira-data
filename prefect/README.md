@@ -1,133 +1,87 @@
-# Prefect Orchestration (Respira Data)
+# Prefect Orchestration
 
-Esta carpeta contiene la orquestación Prefect 3 para ejecución por etapas de dbt, auditoría operativa y la inferencia por estación.
+Esta carpeta contiene la orquestación Prefect 3 para un repositorio modular con dos tipos de pipeline:
+
+- `canonical_*` para la capa canónica reusable
+- `project_*` para pipelines específicos de proyecto
 
 ## Variables de entorno
 
-Requeridas para correr flujos con conexión a BD:
+Conexión a BD:
 
-- `DB_DSN` (recomendado) con formato `postgresql+psycopg://user:pass@host:port/dbname`
-- O alternativamente `REMOTE_PG_HOST`, `REMOTE_PG_PORT`, `REMOTE_PG_USER`, `REMOTE_PG_PASSWORD`, `REMOTE_PG_DB` (`REMOTE_PG_NAME` también aceptado) y opcional `REMOTE_PG_SSLMODE`
+- `DB_DSN` recomendado
+- o `REMOTE_PG_HOST`, `REMOTE_PG_PORT`, `REMOTE_PG_USER`, `REMOTE_PG_PASSWORD`, `REMOTE_PG_DB`
 
-Variables dbt:
+dbt:
 
-- `DBT_PROJECT_DIR` (default: `./dbt`)
-- `DBT_PROFILES_DIR` (default: `./dbt`)
-- `DBT_TARGET` (default: `prod`)
-- `DBT_THREADS` (default: `1`)
-- `DBT_TIMEOUT_CORE_S` (default: `900`)
-- `DBT_TIMEOUT_FACTS_S` (default: `1800`)
-- `DBT_TIMEOUT_GOLD_S` (default: `1200`)
-- `DBT_TIMEOUT_TESTS_S` (default: `1200`)
+- `DBT_PROJECT_DIR` default `./dbt`
+- `DBT_PROFILES_DIR` default `./dbt`
+- `DBT_TARGET` default `prod`
+- `DBT_THREADS` default `1`
+- `DBT_TIMEOUT_CANONICAL_CORE_S` default `900`
+- `DBT_TIMEOUT_CANONICAL_SILVER_S` default `1800`
+- `DBT_TIMEOUT_PROJECT_S` default `1200`
+- `DBT_TIMEOUT_TESTS_S` default `1200`
 
-Variables inferencia:
+Inferencia:
 
-- `DEFAULT_WINDOW_HOURS` (default: `24`)
-- `INFERENCE_MIN_POINTS` (default: `18`)
-- `MODEL_6H_PATH` (requerido para inferencia)
-- `MODEL_12H_PATH` (requerido para inferencia)
-- `MODEL_6H_VERSION` (default: `unknown`)
-- `MODEL_12H_VERSION` (default: `unknown`)
-
-Runtime de inferencia:
-
-- `prefect_worker` usa `Dockerfile.worker`
-- esa imagen está pensada para instalar el grupo Poetry `inference`
-- `app` sigue usando `Dockerfile` base sin dependencias exclusivas de inferencia
+- `DEFAULT_WINDOW_HOURS` default `24`
+- `INFERENCE_MIN_POINTS` default `18`
+- `MODEL_6H_PATH` requerido para correr inferencia
+- `MODEL_12H_PATH` requerido para correr inferencia
+- `MODEL_6H_VERSION` default `unknown`
+- `MODEL_12H_VERSION` default `unknown`
 
 Alertas:
 
-- `SLACK_WEBHOOK_URL` (opcional)
+- `SLACK_WEBHOOK_URL` opcional
 
 ## Flujos disponibles
 
 - `prefect/flows/warehouse_bootstrap.py:warehouse_bootstrap`
-- `prefect/flows/dbt_incremental.py:dbt_incremental`
-- `prefect/flows/dbt_gold.py:dbt_gold`
-- `prefect/flows/dbt_full_refresh.py:dbt_full_refresh` (manual)
-- `prefect/flows/inference_per_station.py:inference_per_station`
-- `prefect/flows/gold_then_inference.py:gold_then_inference`
+- `prefect/flows/canonical_incremental.py:canonical_incremental`
+- `prefect/flows/canonical_full_refresh.py:canonical_full_refresh`
+- `prefect/flows/project_inference.py:project_inference`
+- `prefect/flows/project_pipeline.py:project_pipeline`
 
 ## Ejecución local
 
 Desde raíz del repositorio:
 
 - `make prefect-bootstrap`
-- `make run-dbt-incremental`
-- `make run-dbt-gold`
-- `make run-inference`
-- `make run-gold-then-inference`
+- `make run-canonical-incremental`
+- `make run-canonical-full-refresh`
+- `make run-project-pipeline`
+- `make run-project-inference`
 
-O directo por Python:
+## Deployments automáticos
 
-- `python3 prefect/flows/dbt_incremental.py`
-- `python3 prefect/flows/dbt_gold.py`
-- `python3 prefect/flows/dbt_full_refresh.py`
-- `python3 prefect/flows/inference_per_station.py`
-- `python3 prefect/flows/gold_then_inference.py`
+Al iniciar `prefect_worker`, el script de bootstrap:
 
-## Auto-bootstrap en Docker Compose
+1. espera a que Prefect API esté lista
+2. crea o actualiza el work pool `default`
+3. despliega `canonical_incremental`
+4. despliega `canonical_full_refresh`
+5. despliega `project_pipeline(project_code=respira_gold)`
+6. inicia el worker
 
-Al iniciar con `make up` o `make up-build`, el servicio `prefect_worker`:
+Si `MODEL_6H_PATH` y `MODEL_12H_PATH` no están definidos, el pipeline del proyecto se registra sin schedule.
 
-1. espera a que el API de Prefect esté saludable
-2. crea/actualiza el work pool `default`
-3. registra deployments vía `prefect deploy` (idempotente)
-4. inicia el worker para ese pool
-
-Deployments creados automáticamente:
-
-- `dbt-incremental` (cron por defecto `5 * * * *`)
-- `dbt-gold` (cron por defecto `15 * * * *`)
-- `dbt-full-refresh` (manual, sin schedule)
-- `inference-per-station`
-- `gold-then-inference`
-
-Si `MODEL_6H_PATH` y `MODEL_12H_PATH` no están definidos, los deployments de inferencia se crean sin schedule para evitar ejecuciones fallidas automáticas.
-
-## Concurrencia
-
-Cada deployment crítico define límite de concurrencia:
-
-- `limit: 1`
-- `collision_strategy: ENQUEUE`
-
-Esto evita solapes y pone corridas concurrentes en cola.
-
-## Auditoría operativa (`ops` schema)
+## Auditoría operativa
 
 `prefect/sql/02_ops_audit.sql` crea:
 
-- `ops.dbt_run_audit`: una fila por etapa dbt (deps/run/test) con resumen de `run_results.json`
-- `"respira-gold".inference_runs`: metadata global de una corrida de inferencia
-- `ops.inference_station_status`: estado por estación (`success`, `skipped`, `failed`)
-- `"respira-gold".inference_results`: resultados JSONB por estación y horizonte (6h/12h)
+- `ops.dbt_run_audit`
+- `ops.inference_station_status`
 
-Bootstrap:
+Además, `warehouse_bootstrap` crea tablas de inferencia por proyecto según `prefect/config/projects.py`. Para `respira_gold`:
 
-- `warehouse_bootstrap` ejecuta `prefect/sql/01_schema.sql` si existe
-- luego ejecuta siempre `prefect/sql/02_ops_audit.sql`
+- `respira_gold.inference_runs`
+- `respira_gold.inference_results`
 
-## Política de alertas
+## Política actual
 
-- `dbt_gold`: si falla el comando de run gold, el flujo falla
-- `gold_tests`: falla de tests genera alerta Slack, pero no rompe el flujo por defecto
-- si no existe `SLACK_WEBHOOK_URL`, se loguea y continúa
-
-## Runbook básico
-
-1. Fallo en `dbt_incremental`:
-- revisar `ops.dbt_run_audit` (selector `core`/`facts`)
-- reintentar `make run-dbt-incremental`
-
-2. Fallo en `dbt_gold`:
-- revisar tabla de auditoría y `run_results_json`
-- resolver fallo de modelo/test y relanzar `make run-dbt-gold`
-
-3. Fallo parcial en inferencia:
-- revisar `ops.inference_station_status` para `reason_code`
-- resultados exitosos quedan persistidos y no se duplican por upsert
-
-4. Full refresh:
-- ejecutar `make run-dbt-full-refresh` (o por deployment manual)
-- validar con auditoría y tests gold
+- `canonical_incremental` falla si falla `dbt deps`, `canonical_core` o `canonical_silver`
+- `project_pipeline` falla si falla el run dbt del proyecto
+- `project_pipeline` alerta por Slack si fallan tests del proyecto, pero no corta el pipeline por fallas de data tests
+- `project_pipeline` corre inferencia solo si el proyecto la tiene habilitada

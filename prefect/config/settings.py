@@ -20,9 +20,9 @@ class RuntimeSettings(BaseSettings):
     DBT_TARGET: str = "prod"
     DBT_THREADS: int = 1
 
-    DBT_TIMEOUT_CORE_S: int = 900
-    DBT_TIMEOUT_FACTS_S: int = 1800
-    DBT_TIMEOUT_GOLD_S: int = 1200
+    DBT_TIMEOUT_CANONICAL_CORE_S: int = 900
+    DBT_TIMEOUT_CANONICAL_SILVER_S: int = 1800
+    DBT_TIMEOUT_PROJECT_S: int = 1200
     DBT_TIMEOUT_TESTS_S: int = 1200
 
     DEFAULT_WINDOW_HOURS: int = 24

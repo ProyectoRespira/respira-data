@@ -3,9 +3,11 @@ from __future__ import annotations
 import logging
 from pathlib import Path
 
-from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy import create_engine
 from sqlalchemy.engine import Engine
+from sqlalchemy.exc import SQLAlchemyError
+
+from config.projects import ProjectConfig
 
 
 PREFECT_ROOT = Path(__file__).resolve().parents[1]
@@ -33,11 +35,86 @@ def execute_sql_file(engine: Engine, path: str) -> None:
             connection.exec_driver_sql(statement)
 
 
+def execute_statements(engine: Engine, statements: list[str]) -> None:
+    with engine.begin() as connection:
+        for statement in statements:
+            connection.exec_driver_sql(statement)
+
+
 def ensure_ops_audit_tables(engine: Engine) -> None:
     try:
         execute_sql_file(engine, str(OPS_AUDIT_SQL))
     except SQLAlchemyError as exc:
-        # Audit is operational metadata. If we cannot create it due to permissions,
-        # data pipelines may still run and we skip audit persistence.
         logger.warning("Unable to ensure ops audit tables: %s", exc)
-        return
+
+
+def ensure_project_inference_tables(engine: Engine, project: ProjectConfig) -> None:
+    schema_name = project.schema_name
+    inference_runs = project.inference_runs_table
+    inference_results = project.inference_results_table
+
+    statements = [
+        f"create schema if not exists {schema_name}",
+        f"""
+        create table if not exists {inference_runs} (
+            id uuid primary key,
+            flow_run_id text not null,
+            deployment text null,
+            as_of timestamptz not null,
+            window_hours int not null,
+            min_points int not null,
+            model_6h_version text not null,
+            model_12h_version text not null,
+            model_6h_path text null,
+            model_12h_path text null,
+            started_at timestamptz not null,
+            ended_at timestamptz null,
+            duration_s int null,
+            status text not null check (status in ('success', 'failed', 'cancelled')),
+            stations_total int not null default 0,
+            stations_success int not null default 0,
+            stations_skipped int not null default 0,
+            stations_failed int not null default 0,
+            error_summary text null,
+            created_at timestamptz not null default now()
+        )
+        """,
+        f"""
+        create index if not exists idx_{schema_name}_inference_runs_as_of
+        on {inference_runs} (as_of)
+        """,
+        f"""
+        create index if not exists idx_{schema_name}_inference_runs_status
+        on {inference_runs} (status)
+        """,
+        f"""
+        create table if not exists {inference_results} (
+            id uuid primary key,
+            inference_run_id uuid not null references {inference_runs}(id),
+            station_id bigint not null,
+            as_of timestamptz not null,
+            horizon_hours int not null check (horizon_hours in (6, 12)),
+            model_version text not null,
+            predictions_json jsonb not null,
+            created_at timestamptz not null default now(),
+            unique (inference_run_id, station_id, horizon_hours)
+        )
+        """,
+        f"""
+        create index if not exists idx_{schema_name}_inference_results_run_id
+        on {inference_results} (inference_run_id)
+        """,
+        f"""
+        create index if not exists idx_{schema_name}_inference_results_station
+        on {inference_results} (station_id)
+        """,
+        f"""
+        create index if not exists idx_{schema_name}_inference_results_as_of
+        on {inference_results} (as_of)
+        """,
+    ]
+
+    try:
+        execute_statements(engine, statements)
+    except SQLAlchemyError as exc:
+        logger.warning("Unable to ensure inference tables for project %s: %s", project.project_code, exc)

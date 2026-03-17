@@ -33,13 +33,15 @@ def notify_slack(webhook_url: str | None, message: str) -> None:
     _send_slack(webhook_url, message)
 
 
-@task(name="notify_gold_tests_failed")
-def notify_gold_tests_failed(ctx: dict[str, Any], summary: dict[str, Any]) -> None:
-    selector = ctx.get("selector", "gold_tests")
+@task(name="notify_dbt_tests_failed")
+def notify_dbt_tests_failed(ctx: dict[str, Any], summary: dict[str, Any]) -> None:
+    selector = ctx.get("selector", "unknown_tests_selector")
     tests_failed = int(summary.get("tests_failed", 0))
     error_summary = summary.get("error_summary") or "No error summary"
+    project_code = ctx.get("project_code")
+    scope = f" project='{project_code}'" if project_code else ""
     message = (
-        f"[Respira] dbt gold tests failed on selector '{selector}'. "
+        f"[Respira] dbt tests failed on selector '{selector}'{scope}. "
         f"tests_failed={tests_failed}. error_summary={error_summary}"
     )
     _send_slack(ctx.get("slack_webhook_url"), message)

@@ -27,19 +27,19 @@ class DbtTaskResult:
 def _timeout_for_command(settings, command: str, selector: str | None) -> int:
     if command == "test":
         return settings.DBT_TIMEOUT_TESTS_S
-    if selector == "core":
-        return settings.DBT_TIMEOUT_CORE_S
-    if selector == "facts":
-        return settings.DBT_TIMEOUT_FACTS_S
-    if selector == "gold":
-        return settings.DBT_TIMEOUT_GOLD_S
-    if selector == "full_refresh_safe":
+    if selector == "canonical_core":
+        return settings.DBT_TIMEOUT_CANONICAL_CORE_S
+    if selector == "canonical_silver":
+        return settings.DBT_TIMEOUT_CANONICAL_SILVER_S
+    if selector == "canonical_full_refresh":
         return max(
-            settings.DBT_TIMEOUT_CORE_S,
-            settings.DBT_TIMEOUT_FACTS_S,
-            settings.DBT_TIMEOUT_GOLD_S,
+            settings.DBT_TIMEOUT_CANONICAL_CORE_S,
+            settings.DBT_TIMEOUT_CANONICAL_SILVER_S,
+            settings.DBT_TIMEOUT_PROJECT_S,
         )
-    return settings.DBT_TIMEOUT_FACTS_S
+    if selector and selector.startswith("project_"):
+        return settings.DBT_TIMEOUT_PROJECT_S
+    return settings.DBT_TIMEOUT_CANONICAL_SILVER_S
 
 
 def _build_dbt_command(settings, command: str, selector: str | None, full_refresh: bool) -> list[str]:

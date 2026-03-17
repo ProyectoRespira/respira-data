@@ -1,0 +1,16 @@
+name: project-pipeline-respira_gold
+entrypoint: prefect/flows/project_pipeline.py:project_pipeline
+work_pool:
+  name: default
+parameters:
+  project_code: respira_gold
+schedules:
+  - cron: "20 * * * *"
+    timezone: UTC
+    active: true
+concurrency_limit:
+  limit: 1
+  collision_strategy: ENQUEUE
+tags:
+  - project
+  - respira_gold

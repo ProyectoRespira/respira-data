@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import math
 import sys
 from datetime import datetime, timedelta, timezone
@@ -9,6 +10,9 @@ from uuid import UUID, uuid4
 
 from sqlalchemy import text
 
+from config.projects import ProjectConfig
+
+
 PREFECT_ROOT = Path(__file__).resolve().parents[1]
 SRC_ROOT = PREFECT_ROOT.parent / "src"
 if str(SRC_ROOT) not in sys.path:
@@ -17,59 +21,70 @@ if str(SRC_ROOT) not in sys.path:
 from inference.feature_adapter import REQUIRED_FEATURE_COLUMNS
 
 
-SOURCE_TABLE = '"respira-gold".station_inference_features'
 REQUIRED_COLUMNS = ["station_id", "date_utc", *REQUIRED_FEATURE_COLUMNS]
-INSERT_INFERENCE_RUN_QUERY = text(
-    """
-    insert into "respira-gold".inference_runs (
-        id,
-        flow_run_id,
-        deployment,
-        as_of,
-        window_hours,
-        min_points,
-        model_6h_version,
-        model_12h_version,
-        model_6h_path,
-        model_12h_path,
-        started_at,
-        ended_at,
-        duration_s,
-        status,
-        stations_total,
-        stations_success,
-        stations_skipped,
-        stations_failed,
-        error_summary,
-        created_at
-    ) values (
-        :id,
-        :flow_run_id,
-        :deployment,
-        :as_of,
-        :window_hours,
-        :min_points,
-        :model_6h_version,
-        :model_12h_version,
-        :model_6h_path,
-        :model_12h_path,
-        :started_at,
-        null,
-        null,
-        :status,
-        0,
-        0,
-        0,
-        0,
-        null,
-        now()
+
+
+def _ensure_utc(as_of: datetime) -> datetime:
+    if as_of.tzinfo is None:
+        return as_of.replace(tzinfo=timezone.utc)
+    return as_of.astimezone(timezone.utc)
+
+
+def _insert_inference_run_query(project: ProjectConfig):
+    return text(
+        f"""
+        insert into {project.inference_runs_table} (
+            id,
+            flow_run_id,
+            deployment,
+            as_of,
+            window_hours,
+            min_points,
+            model_6h_version,
+            model_12h_version,
+            model_6h_path,
+            model_12h_path,
+            started_at,
+            ended_at,
+            duration_s,
+            status,
+            stations_total,
+            stations_success,
+            stations_skipped,
+            stations_failed,
+            error_summary,
+            created_at
+        ) values (
+            :id,
+            :flow_run_id,
+            :deployment,
+            :as_of,
+            :window_hours,
+            :min_points,
+            :model_6h_version,
+            :model_12h_version,
+            :model_6h_path,
+            :model_12h_path,
+            :started_at,
+            null,
+            null,
+            :status,
+            0,
+            0,
+            0,
+            0,
+            null,
+            now()
+        )
+        """
     )
-    """
-)
+
+
 UPSERT_STATION_STATUS_QUERY = text(
     """
     insert into ops.inference_station_status (
         id,
+        project_code,
         inference_run_id,
         station_id,
         status,
@@ -79,6 +94,7 @@ UPSERT_STATION_STATUS_QUERY = text(
         created_at
     ) values (
         :id,
+        :project_code,
         :inference_run_id,
         :station_id,
         :status,
@@ -87,7 +103,7 @@ UPSERT_STATION_STATUS_QUERY = text(
         :duration_s,
         now()
     )
-    on conflict (inference_run_id, station_id)
+    on conflict (project_code, inference_run_id, station_id)
     do update set
         status = excluded.status,
         reason_code = excluded.reason_code,
@@ -95,49 +111,46 @@ UPSERT_STATION_STATUS_QUERY = text(
         duration_s = excluded.duration_s
     """
 )
-UPSERT_INFERENCE_RESULT_QUERY = text(
-    """
-    insert into "respira-gold".inference_results (
-        id,
-        inference_run_id,
-        station_id,
-        as_of,
-        horizon_hours,
-        model_version,
-        predictions_json,
-        created_at
-    ) values (
-        :id,
-        :inference_run_id,
-        :station_id,
-        :as_of,
-        :horizon_hours,
-        :model_version,
-        cast(:predictions_json as jsonb),
-        now()
+
+
+def _upsert_inference_result_query(project: ProjectConfig):
+    return text(
+        f"""
+        insert into {project.inference_results_table} (
+            id,
+            inference_run_id,
+            station_id,
+            as_of,
+            horizon_hours,
+            model_version,
+            predictions_json,
+            created_at
+        ) values (
+            :id,
+            :inference_run_id,
+            :station_id,
+            :as_of,
+            :horizon_hours,
+            :model_version,
+            cast(:predictions_json as jsonb),
+            now()
+        )
+        on conflict (inference_run_id, station_id, horizon_hours)
+        do update set
+            model_version = excluded.model_version,
+            predictions_json = excluded.predictions_json
+        """
     )
-    on conflict (inference_run_id, station_id, horizon_hours)
-    do update set
-        model_version = excluded.model_version,
-        predictions_json = excluded.predictions_json
-    """
-)
 
 
-def _ensure_utc(as_of: datetime) -> datetime:
-    if as_of.tzinfo is None:
-        return as_of.replace(tzinfo=timezone.utc)
-    return as_of.astimezone(timezone.utc)
-
-
-def list_candidate_stations(engine, as_of: datetime, window_hours: int) -> list[int]:
+def list_candidate_stations(engine, project: ProjectConfig, as_of: datetime, window_hours: int) -> list[int]:
     as_of_utc = _ensure_utc(as_of)
     window_start = as_of_utc - timedelta(hours=window_hours)
 
     query = text(
         f"""
         select distinct station_id
-        from {SOURCE_TABLE}
+        from {project.inference_source_table}
         where date_utc > :window_start
           and date_utc <= :as_of
         order by station_id
@@ -150,7 +163,13 @@ def list_candidate_stations(engine, as_of: datetime, window_hours: int) -> list[
     return [int(row[0]) for row in rows]
 
 
-def load_station_window(engine, station_id: int, as_of: datetime, window_hours: int) -> list[dict[str, Any]]:
+def load_station_window(
+    engine,
+    project: ProjectConfig,
+    station_id: int,
+    as_of: datetime,
+    window_hours: int,
+) -> list[dict[str, Any]]:
     as_of_utc = _ensure_utc(as_of)
     window_start = as_of_utc - timedelta(hours=window_hours)
     selected_columns = ", ".join(REQUIRED_COLUMNS)
@@ -158,7 +177,7 @@ def load_station_window(engine, station_id: int, as_of: datetime, window_hours: 
     query = text(
         f"""
         select {selected_columns}
-        from {SOURCE_TABLE}
+        from {project.inference_source_table}
         where station_id = :station_id
           and date_utc > :window_start
           and date_utc <= :as_of
@@ -200,18 +219,9 @@ def validate_min_points(rows: list[dict[str, Any]], min_points: int) -> bool:
     return len(rows) >= min_points
 
 
-def create_inference_run(engine, ctx: dict[str, Any]) -> UUID:
-    inference_run_id = uuid4()
-    payload = _build_inference_run_payload(inference_run_id, ctx)
-
-    with engine.begin() as conn:
-        conn.execute(INSERT_INFERENCE_RUN_QUERY, payload)
-
-    return inference_run_id
-
-
 def initialize_inference_run(
     engine,
+    project: ProjectConfig,
     ctx: dict[str, Any],
     station_statuses: list[dict[str, Any]],
     inference_results: list[dict[str, Any]],
@@ -220,11 +230,17 @@ def initialize_inference_run(
     run_payload = _build_inference_run_payload(inference_run_id, ctx)
 
     with engine.begin() as conn:
-        conn.execute(INSERT_INFERENCE_RUN_QUERY, run_payload)
+        conn.execute(_insert_inference_run_query(project), run_payload)
         for status_payload in station_statuses:
-            conn.execute(UPSERT_STATION_STATUS_QUERY, _build_station_status_payload(inference_run_id, status_payload))
+            conn.execute(
+                UPSERT_STATION_STATUS_QUERY,
+                _build_station_status_payload(project.project_code, inference_run_id, status_payload),
+            )
         for result_payload in inference_results:
-            conn.execute(UPSERT_INFERENCE_RESULT_QUERY, _build_inference_result_payload(inference_run_id, result_payload))
+            conn.execute(
+                _upsert_inference_result_query(project),
+                _build_inference_result_payload(inference_run_id, result_payload),
+            )
 
     return inference_run_id
 
@@ -248,6 +264,7 @@ def _build_inference_run_payload(inference_run_id: UUID, ctx: dict[str, Any]) ->
 
 def persist_station_status(
     engine,
+    project_code: str,
     inference_run_id: UUID,
     station_id: int,
     status: str,
@@ -259,6 +276,7 @@ def persist_station_status(
         conn.execute(
             UPSERT_STATION_STATUS_QUERY,
             _build_station_status_payload(
+                project_code,
                 inference_run_id,
                 {
                     "station_id": station_id,
@@ -273,6 +291,7 @@ def persist_station_status(
 
 def persist_inference_result(
     engine,
+    project: ProjectConfig,
     inference_run_id: UUID,
     station_id: int,
     as_of: datetime,
@@ -282,7 +301,7 @@ def persist_inference_result(
 ) -> None:
     with engine.begin() as conn:
         conn.execute(
-            UPSERT_INFERENCE_RESULT_QUERY,
+            _upsert_inference_result_query(project),
             _build_inference_result_payload(
                 inference_run_id,
                 {
@@ -296,9 +315,14 @@ def persist_inference_result(
         )
 
 
-def _build_station_status_payload(inference_run_id: UUID, payload: dict[str, Any]) -> dict[str, Any]:
+def _build_station_status_payload(
+    project_code: str,
+    inference_run_id: UUID,
+    payload: dict[str, Any],
+) -> dict[str, Any]:
     return {
         "id": str(uuid4()),
+        "project_code": project_code,
         "inference_run_id": str(inference_run_id),
         "station_id": int(payload["station_id"]),
         "status": payload["status"],
@@ -309,8 +333,6 @@ def _build_station_status_payload(inference_run_id: UUID, payload: dict[str, Any
 
 
 def _build_inference_result_payload(inference_run_id: UUID, payload: dict[str, Any]) -> dict[str, Any]:
-    import json
-
     return {
         "id": str(uuid4()),
         "inference_run_id": str(inference_run_id),
@@ -324,6 +346,7 @@ def _build_inference_result_payload(inference_run_id: UUID, payload: dict[str, A
 
 def finalize_inference_run(
     engine,
+    project: ProjectConfig,
     inference_run_id: UUID,
     counters: dict[str, int],
     status: str,
@@ -333,7 +356,7 @@ def finalize_inference_run(
 
     with engine.begin() as conn:
         started_at = conn.execute(
-            text('select started_at from "respira-gold".inference_runs where id = :id'),
+            text(f"select started_at from {project.inference_runs_table} where id = :id"),
             {"id": str(inference_run_id)},
         ).scalar_one()
 
@@ -341,8 +364,8 @@ def finalize_inference_run(
 
         conn.execute(
             text(
-                """
-                update "respira-gold".inference_runs
+                f"""
+                update {project.inference_runs_table}
                 set ended_at = :ended_at,
                     duration_s = :duration_s,
                     status = :status,

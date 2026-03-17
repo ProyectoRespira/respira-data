@@ -2,20 +2,25 @@ from __future__ import annotations
 
 import subprocess
 import sys
+from datetime import datetime
 from pathlib import Path
 
 PREFECT_ROOT = Path(__file__).resolve().parents[1]
+FLOWS_ROOT = Path(__file__).resolve().parent
 if str(PREFECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PREFECT_ROOT))
+if str(FLOWS_ROOT) not in sys.path:
+    sys.path.insert(0, str(FLOWS_ROOT))
 
 from compat import flow, get_flow_context, get_run_logger
-from config.selectors import SELECTOR_GOLD, SELECTOR_GOLD_TESTS
+from config.projects import get_project_config
 from config.settings import get_settings
+from project_inference import project_inference
 from tasks.artifacts import load_run_results, persist_dbt_audit, summarize_run_results
 from tasks.db import ensure_ops_audit_tables, get_engine
 from tasks.dbt_tasks import dbt_deps, dbt_run_selector, dbt_test_selector
 from tasks.gates import format_test_alert, raise_if_failed, should_alert_on_tests
-from tasks.notifications import notify_flow_failure, notify_gold_tests_failed
+from tasks.notifications import notify_dbt_tests_failed, notify_flow_failure
 
 
 def _git_sha() -> str | None:
@@ -39,10 +44,11 @@ def _summary_from_result(result) -> dict:
     return summarize_run_results(run_results)
 
 
-@flow(name="dbt_gold")
-def dbt_gold() -> None:
+@flow(name="project_pipeline")
+def project_pipeline(project_code: str, as_of: datetime | None = None) -> None:
     logger = get_run_logger()
     settings = get_settings()
+    project = get_project_config(project_code)
     engine = get_engine(settings)
     ensure_ops_audit_tables(engine)
 
@@ -51,8 +57,9 @@ def dbt_gold() -> None:
         {
             "target": settings.DBT_TARGET,
             "git_sha": _git_sha(),
+            "project_code": project.project_code,
             "slack_webhook_url": settings.SLACK_WEBHOOK_URL,
-            "flow_name": "dbt_gold",
+            "flow_name": "project_pipeline",
         }
     )
 
@@ -62,25 +69,27 @@ def dbt_gold() -> None:
         persist_dbt_audit(engine, deps_result, deps_summary, ctx)
         raise_if_failed(deps_result, "dbt deps failed")
 
-        gold_result = dbt_run_selector(settings, selector=SELECTOR_GOLD)
-        gold_summary = _summary_from_result(gold_result)
-        persist_dbt_audit(engine, gold_result, gold_summary, ctx)
-        raise_if_failed(gold_result, "dbt gold stage failed")
+        project_result = dbt_run_selector(settings, selector=project.dbt_selector)
+        project_summary = _summary_from_result(project_result)
+        persist_dbt_audit(engine, project_result, project_summary, ctx)
+        raise_if_failed(project_result, f"dbt project stage failed for {project.project_code}")
 
-        test_result = dbt_test_selector(settings, selector=SELECTOR_GOLD_TESTS)
+        test_result = dbt_test_selector(settings, selector=project.dbt_tests_selector)
         test_summary = _summary_from_result(test_result)
         persist_dbt_audit(engine, test_result, test_summary, ctx)
 
-        # dbt test can return non-zero when data tests fail.
         if test_result.status != "success" and int(test_summary.get("tests_failed", 0)) <= 0:
-            raise RuntimeError("dbt gold tests command failed unexpectedly")
+            raise RuntimeError(f"dbt project tests command failed unexpectedly for {project.project_code}")
 
         if should_alert_on_tests(test_summary):
-            ctx["selector"] = SELECTOR_GOLD_TESTS
-            notify_gold_tests_failed(ctx, test_summary)
-            logger.warning(format_test_alert(test_summary, SELECTOR_GOLD_TESTS))
+            ctx["selector"] = project.dbt_tests_selector
+            notify_dbt_tests_failed(ctx, test_summary)
+            logger.warning(format_test_alert(test_summary, project.dbt_tests_selector))
 
-        logger.info("dbt_gold completed")
+        if project.inference_enabled:
+            project_inference(project_code=project.project_code, as_of=as_of)
+
+        logger.info("project_pipeline completed for project_code=%s", project.project_code)
     except Exception as exc:  # noqa: BLE001
         notify_flow_failure(ctx, str(exc))
         raise
@@ -89,4 +98,4 @@ def dbt_gold() -> None:
 
 
 if __name__ == "__main__":
-    dbt_gold()
+    project_pipeline(project_code="respira_gold")

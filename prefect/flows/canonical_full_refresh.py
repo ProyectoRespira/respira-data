@@ -9,13 +9,13 @@ if str(PREFECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PREFECT_ROOT))
 
 from compat import flow, get_flow_context, get_run_logger
-from config.selectors import SELECTOR_FULL_REFRESH_SAFE, SELECTOR_GOLD_TESTS
+from config.selectors import SELECTOR_CANONICAL_FULL_REFRESH
 from config.settings import get_settings
 from tasks.artifacts import load_run_results, persist_dbt_audit, summarize_run_results
 from tasks.db import ensure_ops_audit_tables, get_engine
 from tasks.dbt_tasks import dbt_deps, dbt_run_selector, dbt_test_selector
-from tasks.gates import format_test_alert, raise_if_failed, should_alert_on_tests
-from tasks.notifications import notify_flow_failure, notify_gold_tests_failed
+from tasks.gates import raise_if_failed
+from tasks.notifications import notify_flow_failure
 
 
 def _git_sha() -> str | None:
@@ -39,8 +39,8 @@ def _summary_from_result(result) -> dict:
     return summarize_run_results(run_results)
 
 
-@flow(name="dbt_full_refresh")
-def dbt_full_refresh() -> None:
+@flow(name="canonical_full_refresh")
+def canonical_full_refresh() -> None:
     logger = get_run_logger()
     settings = get_settings()
     engine = get_engine(settings)
@@ -51,8 +51,9 @@ def dbt_full_refresh() -> None:
         {
             "target": settings.DBT_TARGET,
             "git_sha": _git_sha(),
+            "project_code": None,
             "slack_webhook_url": settings.SLACK_WEBHOOK_URL,
-            "flow_name": "dbt_full_refresh",
+            "flow_name": "canonical_full_refresh",
         }
     )
 
@@ -64,26 +65,19 @@ def dbt_full_refresh() -> None:
 
         refresh_result = dbt_run_selector(
             settings,
-            selector=SELECTOR_FULL_REFRESH_SAFE,
+            selector=SELECTOR_CANONICAL_FULL_REFRESH,
             full_refresh=True,
         )
         refresh_summary = _summary_from_result(refresh_result)
         persist_dbt_audit(engine, refresh_result, refresh_summary, ctx)
-        raise_if_failed(refresh_result, "dbt full refresh stage failed")
+        raise_if_failed(refresh_result, "canonical full refresh stage failed")
 
-        test_result = dbt_test_selector(settings, selector=SELECTOR_GOLD_TESTS)
+        test_result = dbt_test_selector(settings, selector=SELECTOR_CANONICAL_FULL_REFRESH)
         test_summary = _summary_from_result(test_result)
         persist_dbt_audit(engine, test_result, test_summary, ctx)
+        raise_if_failed(test_result, "canonical full refresh tests failed")
 
-        if test_result.status != "success" and int(test_summary.get("tests_failed", 0)) <= 0:
-            raise RuntimeError("dbt gold tests command failed unexpectedly during full refresh")
-
-        if should_alert_on_tests(test_summary):
-            ctx["selector"] = SELECTOR_GOLD_TESTS
-            notify_gold_tests_failed(ctx, test_summary)
-            logger.warning(format_test_alert(test_summary, SELECTOR_GOLD_TESTS))
-
-        logger.info("dbt_full_refresh completed")
+        logger.info("canonical_full_refresh completed")
     except Exception as exc:  # noqa: BLE001
         notify_flow_failure(ctx, str(exc))
         raise
@@ -92,4 +86,4 @@ def dbt_full_refresh() -> None:
 
 
 if __name__ == "__main__":
-    dbt_full_refresh()
+    canonical_full_refresh()
