@@ -1,6 +1,16 @@
 version: 2
 
 models:
+  - name: int_station_id_map
+    description: "Internal mapping from core station ids to sequential respira-gold station ids."
+    columns:
+      - name: core_station_id
+        tests: [not_null, unique]
+      - name: gold_station_id
+        tests: [not_null, unique]
+      - name: station_code
+        tests: [not_null, unique]
+
   - name: regions
     description: "Gold regions table exposed to backend (generated or seeded)."
     columns:

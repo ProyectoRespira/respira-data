@@ -5,10 +5,19 @@
 ) }}
 
 with base as (
-  select a.*
+  select
+    m.gold_station_id as station_id,
+    a.date_localtime,
+    a.pm_calibrated,
+    a.pm1,
+    a.pm2_5,
+    a.pm10,
+    a.aqi_pm2_5,
+    a.aqi_pm10,
+    a.aqi_level
   from {{ ref('int_station_hourly_aqi') }} a
-  join {{ ref('stations') }} s
-    on s.id = a.station_id
+  join {{ ref('int_station_id_map') }} m
+    on m.core_station_id = a.station_id
 
   {% if is_incremental() %}
   where a.date_localtime >= (
