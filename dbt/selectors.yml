@@ -1,38 +1,45 @@
 selectors:
-  - name: core
-    description: Core marts models.
+  - name: canonical_core
+    description: Canonical staging, intermediate, and core models.
+    definition:
+      union:
+        - method: path
+          value: models/canonical/staging
+        - method: path
+          value: models/canonical/intermediate
+        - method: path
+          value: models/canonical/core
+
+  - name: canonical_silver
+    description: Canonical silver models.
     definition:
       method: path
-      value: models/marts/core
+      value: models/canonical/silver
 
-  - name: facts
-    description: Facts marts models.
+  - name: project_respira_gold
+    description: respira_gold project models.
     definition:
       method: path
-      value: models/marts/facts
+      value: models/projects/respira_gold
 
-  - name: gold
-    description: Gold marts models.
-    definition:
-      method: path
-      value: models/marts/respira-gold
-
-  - name: gold_tests
-    description: Data tests scoped to gold models.
+  - name: project_respira_gold_tests
+    description: Data tests scoped to respira_gold project models.
     definition:
       intersection:
         - method: resource_type
           value: test
         - method: path
-          value: models/marts/respira-gold
+          value: models/projects/respira_gold
 
-  - name: full_refresh_safe
-    description: Safe full-refresh scope for marts layers.
+  - name: canonical_full_refresh
+    description: Safe full-refresh scope for canonical models.
     definition:
       union:
         - method: path
-          value: models/marts/core
+          value: models/canonical/staging
         - method: path
-          value: models/marts/facts
+          value: models/canonical/intermediate
         - method: path
-          value: models/marts/respira-gold
+          value: models/canonical/core
+        - method: path
+          value: models/canonical/silver
