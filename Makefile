@@ -164,24 +164,24 @@ quick:
 # -----------------------
 .PHONY: prefect-bootstrap
 prefect-bootstrap:
-	$(PREFECT_RUN) "python3 prefect/flows/warehouse_bootstrap.py"
+	$(PREFECT_RUN) "python3 pipelines/flows/warehouse_bootstrap.py"
 
 .PHONY: run-canonical-incremental
 run-canonical-incremental:
-	$(PREFECT_RUN) "python3 prefect/flows/canonical_incremental.py"
+	$(PREFECT_RUN) "python3 pipelines/flows/canonical_incremental.py"
 
 .PHONY: run-canonical-full-refresh
 run-canonical-full-refresh:
-	$(PREFECT_RUN) "python3 prefect/flows/canonical_full_refresh.py"
+	$(PREFECT_RUN) "python3 pipelines/flows/canonical_full_refresh.py"
 
 .PHONY: run-project-inference
 run-project-inference:
-	$(WORKER_RUN) "python3 prefect/flows/project_inference.py"
+	$(WORKER_RUN) "python3 pipelines/flows/project_inference.py"
 
 .PHONY: run-project-pipeline
 run-project-pipeline:
-	$(WORKER_RUN) "python3 prefect/flows/project_pipeline.py"
+	$(WORKER_RUN) "python3 pipelines/flows/project_pipeline.py"
 
 .PHONY: smoke-test
 smoke-test:
-	poetry run pytest -q tests/test_artifacts.py tests/test_dbt_tasks_command.py tests/test_gates.py tests/test_inference_json.py tests/test_projects_config.py
+	poetry run pytest -q tests/test_artifacts.py tests/test_dbt_tasks_command.py tests/test_gates.py tests/test_inference_json.py tests/test_projects_config.py tests/test_inference_flow.py

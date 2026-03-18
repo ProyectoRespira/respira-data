@@ -2,15 +2,9 @@ from __future__ import annotations
 
 import shlex
 import subprocess
-import sys
-from pathlib import Path
 
-PREFECT_ROOT = Path(__file__).resolve().parents[1]
-if str(PREFECT_ROOT) not in sys.path:
-    sys.path.insert(0, str(PREFECT_ROOT))
-
-from compat import flow, get_run_logger
-from config.settings import get_settings
+from pipelines.compat import flow, get_run_logger
+from pipelines.config.settings import get_settings
 
 
 @flow(name="dbt_build")

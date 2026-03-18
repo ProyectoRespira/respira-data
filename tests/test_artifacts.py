@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 
-from tasks.artifacts import load_run_results, summarize_run_results
+from pipelines.tasks.artifacts import load_run_results, summarize_run_results
 
 
 def test_load_run_results_and_summarize(tmp_path):

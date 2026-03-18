@@ -5,7 +5,10 @@ description = ""
 authors = ["Fernanda Carles <fernanda.carles@gmail.com>"]
 license = "AGPL-3.0-or-later"
 readme = "README.md"
-packages = [{ include = "respira_data", from = "src" }]
+packages = [
+    { include = "pipelines" },
+    { include = "inference", from = "src" },
+]
 
 [tool.poetry.dependencies]
 python = ">=3.12,<3.15"

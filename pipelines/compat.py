@@ -3,28 +3,10 @@ from __future__ import annotations
 import importlib
 import logging
 import os
-import sys
-from pathlib import Path
 from typing import Any, Callable
 
 
 def _import_real_prefect() -> Any | None:
-    repo_root = Path(__file__).resolve().parents[1]
-    removed_entries: list[str] = []
-
-    for entry in list(sys.path):
-        try:
-            resolved = Path(entry or ".").resolve()
-        except Exception:  # noqa: BLE001
-            continue
-        if resolved == repo_root:
-            removed_entries.append(entry)
-            sys.path.remove(entry)
-
-    loaded_prefect = sys.modules.get("prefect")
-    if loaded_prefect is not None and not hasattr(loaded_prefect, "flow"):
-        sys.modules.pop("prefect", None)
-
     try:
         prefect_module = importlib.import_module("prefect")
         if not hasattr(prefect_module, "flow"):
@@ -32,9 +14,6 @@ def _import_real_prefect() -> Any | None:
         return prefect_module
     except Exception:  # noqa: BLE001
         return None
-    finally:
-        for entry in reversed(removed_entries):
-            sys.path.insert(0, entry)
 
 
 _PREFECT = _import_real_prefect()

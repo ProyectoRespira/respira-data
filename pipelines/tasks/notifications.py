@@ -4,7 +4,7 @@ import json
 from typing import Any
 from urllib import request
 
-from compat import get_run_logger, task
+from pipelines.compat import get_run_logger, task
 
 
 def _send_slack(webhook_url: str | None, message: str) -> None:
