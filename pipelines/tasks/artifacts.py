@@ -10,7 +10,7 @@ from uuid import UUID, uuid4
 from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 
-from tasks.dbt_tasks import DbtTaskResult
+from pipelines.tasks.dbt_tasks import DbtTaskResult
 
 logger = logging.getLogger(__name__)
 

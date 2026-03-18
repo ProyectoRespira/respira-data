@@ -86,24 +86,24 @@ main() {
 
   log "Deploying canonical flows..."
   deploy_flow \
-    "prefect/flows/canonical_incremental.py:canonical_incremental" \
+    "pipelines/flows/canonical_incremental.py:canonical_incremental" \
     "canonical-incremental" \
     "${PREFECT_CANONICAL_INCREMENTAL_CRON}"
   deploy_flow \
-    "prefect/flows/canonical_full_refresh.py:canonical_full_refresh" \
+    "pipelines/flows/canonical_full_refresh.py:canonical_full_refresh" \
     "canonical-full-refresh"
 
   if [[ -n "${MODEL_6H_PATH:-}" && -n "${MODEL_12H_PATH:-}" ]]; then
     log "Model paths found. Deploying project pipeline with schedule..."
     deploy_flow \
-      "prefect/flows/project_pipeline.py:project_pipeline" \
+      "pipelines/flows/project_pipeline.py:project_pipeline" \
       "project-pipeline-respira_gold" \
       "${PREFECT_PROJECT_RESPIRA_GOLD_CRON}" \
       --param "project_code=respira_gold"
   else
     log "MODEL_6H_PATH/MODEL_12H_PATH not set. Deploying project pipeline without schedule."
     deploy_flow \
-      "prefect/flows/project_pipeline.py:project_pipeline" \
+      "pipelines/flows/project_pipeline.py:project_pipeline" \
       "project-pipeline-respira_gold" \
       "" \
       --param "project_code=respira_gold"

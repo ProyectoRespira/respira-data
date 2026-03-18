@@ -4,7 +4,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from tasks.gates import format_test_alert, raise_if_failed, should_alert_on_tests
+from pipelines.tasks.gates import format_test_alert, raise_if_failed, should_alert_on_tests
 
 
 def test_raise_if_failed_raises_for_failed_status():

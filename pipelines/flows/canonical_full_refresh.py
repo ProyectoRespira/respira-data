@@ -1,28 +1,25 @@
 from __future__ import annotations
 
 import subprocess
-import sys
 from pathlib import Path
 
-PREFECT_ROOT = Path(__file__).resolve().parents[1]
-if str(PREFECT_ROOT) not in sys.path:
-    sys.path.insert(0, str(PREFECT_ROOT))
+from pipelines.compat import flow, get_flow_context, get_run_logger
+from pipelines.config.selectors import SELECTOR_CANONICAL_FULL_REFRESH
+from pipelines.config.settings import get_settings
+from pipelines.tasks.artifacts import load_run_results, persist_dbt_audit, summarize_run_results
+from pipelines.tasks.db import ensure_ops_audit_tables, get_engine
+from pipelines.tasks.dbt_tasks import dbt_deps, dbt_run_selector, dbt_test_selector
+from pipelines.tasks.gates import raise_if_failed
+from pipelines.tasks.notifications import notify_flow_failure
 
-from compat import flow, get_flow_context, get_run_logger
-from config.selectors import SELECTOR_CANONICAL_FULL_REFRESH
-from config.settings import get_settings
-from tasks.artifacts import load_run_results, persist_dbt_audit, summarize_run_results
-from tasks.db import ensure_ops_audit_tables, get_engine
-from tasks.dbt_tasks import dbt_deps, dbt_run_selector, dbt_test_selector
-from tasks.gates import raise_if_failed
-from tasks.notifications import notify_flow_failure
+REPO_ROOT = Path(__file__).resolve().parents[2]
 
 
 def _git_sha() -> str | None:
     try:
         completed = subprocess.run(
             ["git", "rev-parse", "--short", "HEAD"],
-            cwd=PREFECT_ROOT.parent,
+            cwd=REPO_ROOT,
             capture_output=True,
             text=True,
             check=False,

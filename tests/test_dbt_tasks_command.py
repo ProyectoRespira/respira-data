@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 
-from tasks.dbt_tasks import _build_dbt_command
+from pipelines.tasks.dbt_tasks import _build_dbt_command
 
 
 def _settings() -> SimpleNamespace:

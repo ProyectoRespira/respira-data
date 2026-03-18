@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 
-from compat import get_run_logger, task
+from pipelines.compat import get_run_logger, task
 
 
 @dataclass
