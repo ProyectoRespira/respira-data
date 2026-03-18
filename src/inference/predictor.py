@@ -101,95 +101,112 @@ def _prepare_prediction_frame(features_frame: pd.DataFrame, as_of: datetime | No
     return frame
 
 
+class _DartsSeriesNormalizer:
+    def can_handle(self, raw: Any) -> bool:
+        return hasattr(raw, "pd_series")
+
+    def normalize(self, raw: Any, timestamps: list[Any], horizon_hours: int) -> list[dict[str, Any]]:
+        pandas_series = raw.pd_series().round(0)
+        return [_point(ts, value, None, None) for ts, value in pandas_series.items()]
+
+
+class _DataFrameNormalizer:
+    def can_handle(self, raw: Any) -> bool:
+        return isinstance(raw, pd.DataFrame)
+
+    def normalize(self, raw: Any, timestamps: list[Any], horizon_hours: int) -> list[dict[str, Any]]:
+        points: list[dict[str, Any]] = []
+        for _, row in raw.iterrows():
+            ts = row.get("ts") or row.get("date_utc") or row.get("timestamp")
+            points.append(_point(ts, row.get("yhat"), row.get("yhat_lower"), row.get("yhat_upper")))
+        return points
+
+
+class _DictNormalizer:
+    def can_handle(self, raw: Any) -> bool:
+        return isinstance(raw, dict)
+
+    def normalize(self, raw: Any, timestamps: list[Any], horizon_hours: int) -> list[dict[str, Any]]:
+        existing_points = raw.get("points")
+        if isinstance(existing_points, list):
+            return _normalize_point_dicts(existing_points)
+        value = raw.get("yhat")
+        ts = raw.get("ts") or _fallback_ts(timestamps, horizon_hours)
+        return [_point(ts, value, raw.get("yhat_lower"), raw.get("yhat_upper"))]
+
+
+class _IterableNormalizer:
+    def can_handle(self, raw: Any) -> bool:
+        return isinstance(raw, (list, tuple))
+
+    def normalize(self, raw: Any, timestamps: list[Any], horizon_hours: int) -> list[dict[str, Any]]:
+        points: list[dict[str, Any]] = []
+        start_ts = _fallback_ts(timestamps, 1)
+
+        for idx, item in enumerate(raw):
+            if isinstance(item, dict):
+                points.append(
+                    _point(
+                        item.get("ts") or _shift_ts(start_ts, idx),
+                        item.get("yhat"), item.get("yhat_lower"), item.get("yhat_upper"),
+                    )
+                )
+                continue
+
+            yhat, yhat_lower, yhat_upper = None, None, None
+            if isinstance(item, (list, tuple)):
+                if len(item) > 0:
+                    yhat = item[0]
+                if len(item) > 1:
+                    yhat_lower = item[1]
+                if len(item) > 2:
+                    yhat_upper = item[2]
+            else:
+                yhat = item
+
+            points.append(_point(_shift_ts(start_ts, idx), yhat, yhat_lower, yhat_upper))
+
+        if not points:
+            points.append(_point(_fallback_ts(timestamps, horizon_hours), None, None, None))
+        return points
+
+
+class _ScalarNormalizer:
+    def can_handle(self, raw: Any) -> bool:
+        try:
+            float(raw)
+            return True
+        except (TypeError, ValueError):
+            return True  # fallback: handles everything
+
+    def normalize(self, raw: Any, timestamps: list[Any], horizon_hours: int) -> list[dict[str, Any]]:
+        ts = _fallback_ts(timestamps, horizon_hours)
+        try:
+            return [_point(ts, float(raw), None, None)]
+        except (TypeError, ValueError):
+            return [_point(ts, None, None, None)]
+
+
+NORMALIZERS: list[Any] = [
+    _DartsSeriesNormalizer(),
+    _DataFrameNormalizer(),
+    _DictNormalizer(),
+    _IterableNormalizer(),
+    _ScalarNormalizer(),
+]
+
+
 def _normalize_predictions(raw_predictions: Any, features_frame: pd.DataFrame, horizon_hours: int) -> list[dict[str, Any]]:
     timestamps = list(features_frame["date_utc"])
     if not timestamps:
         timestamps = [datetime.now(timezone.utc)]
 
-    if hasattr(raw_predictions, "pd_series"):
-        return _from_darts_series(raw_predictions)
+    for normalizer in NORMALIZERS:
+        if normalizer.can_handle(raw_predictions):
+            return normalizer.normalize(raw_predictions, timestamps, horizon_hours)
 
-    if isinstance(raw_predictions, pd.DataFrame):
-        return _from_dataframe(raw_predictions)
-
-    if isinstance(raw_predictions, dict):
-        existing_points = raw_predictions.get("points")
-        if isinstance(existing_points, list):
-            return _normalize_point_dicts(existing_points)
-        value = raw_predictions.get("yhat")
-        ts = raw_predictions.get("ts") or _fallback_ts(timestamps, horizon_hours)
-        return [_point(ts, value, raw_predictions.get("yhat_lower"), raw_predictions.get("yhat_upper"))]
-
-    if isinstance(raw_predictions, (list, tuple)):
-        return _from_iterable(raw_predictions, timestamps, horizon_hours)
-
-    try:
-        scalar = float(raw_predictions)
-        ts = _fallback_ts(timestamps, horizon_hours)
-        return [_point(ts, scalar, None, None)]
-    except (TypeError, ValueError):
-        ts = _fallback_ts(timestamps, horizon_hours)
-        return [_point(ts, None, None, None)]
-
-
-def _from_darts_series(series: Any) -> list[dict[str, Any]]:
-    pandas_series = series.pd_series().round(0)
-    return [_point(ts, value, None, None) for ts, value in pandas_series.items()]
-
-
-def _from_dataframe(frame: pd.DataFrame) -> list[dict[str, Any]]:
-    points: list[dict[str, Any]] = []
-    for _, row in frame.iterrows():
-        ts = row.get("ts") or row.get("date_utc") or row.get("timestamp")
-        points.append(
-            _point(
-                ts,
-                row.get("yhat"),
-                row.get("yhat_lower"),
-                row.get("yhat_upper"),
-            )
-        )
-    return points
-
-
-def _from_iterable(predictions: list[Any] | tuple[Any, ...], timestamps: list[Any], horizon_hours: int) -> list[dict[str, Any]]:
-    points: list[dict[str, Any]] = []
-    start_ts = _fallback_ts(timestamps, 1)
-
-    for idx, item in enumerate(predictions):
-        if isinstance(item, dict):
-            points.append(
-                _point(
-                    item.get("ts") or _shift_ts(start_ts, idx),
-                    item.get("yhat"),
-                    item.get("yhat_lower"),
-                    item.get("yhat_upper"),
-                )
-            )
-            continue
-
-        yhat = None
-        yhat_lower = None
-        yhat_upper = None
-
-        if isinstance(item, (list, tuple)):
-            if len(item) > 0:
-                yhat = item[0]
-            if len(item) > 1:
-                yhat_lower = item[1]
-            if len(item) > 2:
-                yhat_upper = item[2]
-        else:
-            yhat = item
-
-        ts = _shift_ts(start_ts, idx)
-        points.append(_point(ts, yhat, yhat_lower, yhat_upper))
-
-    if not points:
-        ts = _fallback_ts(timestamps, horizon_hours)
-        points.append(_point(ts, None, None, None))
-
-    return points
+    ts = _fallback_ts(timestamps, horizon_hours)
+    return [_point(ts, None, None, None)]
 
 
 def _normalize_point_dicts(points: list[Any]) -> list[dict[str, Any]]:
