@@ -105,3 +105,87 @@ def test_predictor_supports_darts_models(monkeypatch):
     assert output["meta"]["model_version"] == "darts-v1"
     assert len(output["points"]) == 6
     assert output["points"][0]["yhat"] == 50.0
+
+
+# --- R7.2: Normalizer-specific tests ---
+
+from inference.predictor import (
+    _DartsSeriesNormalizer,
+    _DataFrameNormalizer,
+    _DictNormalizer,
+    _IterableNormalizer,
+    _ScalarNormalizer,
+)
+
+_SAMPLE_TIMESTAMPS = [pd.Timestamp("2026-01-01T00:00:00Z"), pd.Timestamp("2026-01-01T01:00:00Z")]
+_POINT_KEYS = {"ts", "yhat", "yhat_lower", "yhat_upper"}
+
+
+def test_darts_series_normalizer():
+    class FakeSeries:
+        def pd_series(self):
+            index = pd.date_range("2026-01-01", periods=3, freq="h", tz="UTC")
+            return pd.Series([10.0, 20.0, 30.0], index=index)
+
+    n = _DartsSeriesNormalizer()
+    fake = FakeSeries()
+    assert n.can_handle(fake)
+    points = n.normalize(fake, _SAMPLE_TIMESTAMPS, 6)
+    assert len(points) == 3
+    assert all(set(p.keys()) == _POINT_KEYS for p in points)
+    assert points[0]["yhat"] == 10.0
+
+
+def test_dataframe_normalizer():
+    df = pd.DataFrame({
+        "ts": ["2026-01-01T00:00:00Z", "2026-01-01T01:00:00Z"],
+        "yhat": [1.5, 2.5],
+        "yhat_lower": [1.0, 2.0],
+        "yhat_upper": [2.0, 3.0],
+    })
+    n = _DataFrameNormalizer()
+    assert n.can_handle(df)
+    assert not n.can_handle({"a": 1})
+    points = n.normalize(df, _SAMPLE_TIMESTAMPS, 6)
+    assert len(points) == 2
+    assert points[0]["yhat"] == 1.5
+
+
+def test_dict_normalizer_single_point():
+    raw = {"yhat": 42.0, "yhat_lower": 40.0, "yhat_upper": 44.0}
+    n = _DictNormalizer()
+    assert n.can_handle(raw)
+    points = n.normalize(raw, _SAMPLE_TIMESTAMPS, 6)
+    assert len(points) == 1
+    assert points[0]["yhat"] == 42.0
+
+
+def test_dict_normalizer_with_points_list():
+    raw = {"points": [{"ts": "2026-01-01T00:00:00Z", "yhat": 5.0}]}
+    n = _DictNormalizer()
+    points = n.normalize(raw, _SAMPLE_TIMESTAMPS, 6)
+    assert len(points) == 1
+    assert points[0]["yhat"] == 5.0
+
+
+def test_iterable_normalizer():
+    raw = [1.0, 2.0, 3.0]
+    n = _IterableNormalizer()
+    assert n.can_handle(raw)
+    assert n.can_handle((1,))
+    points = n.normalize(raw, _SAMPLE_TIMESTAMPS, 6)
+    assert len(points) == 3
+    assert points[0]["yhat"] == 1.0
+
+
+def test_scalar_normalizer():
+    n = _ScalarNormalizer()
+    assert n.can_handle(42.0)
+    assert n.can_handle("not_a_number")
+    points = n.normalize(42.0, _SAMPLE_TIMESTAMPS, 6)
+    assert len(points) == 1
+    assert points[0]["yhat"] == 42.0
+
+    points_bad = n.normalize("not_a_number", _SAMPLE_TIMESTAMPS, 6)
+    assert len(points_bad) == 1
+    assert points_bad[0]["yhat"] is None
