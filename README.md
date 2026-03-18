@@ -1,59 +1,335 @@
 # respira-data
 
-Data platform for Proyecto Respira.
+`respira-data` is the data platform for Proyecto Respira. It ingests raw sensor
+data replicated by Airbyte into Postgres, builds a reusable canonical layer with
+dbt, and orchestrates canonical plus project-specific pipelines with Prefect.
 
-This repository is organized as a modular monorepo:
+Today the only active project is `respira_gold`, but the repository is already
+structured as a modular monorepo:
 
-- `dbt/models/canonical`: reusable canonical ingestion, normalization, dimensions, and silver layer
+- `dbt/models/canonical`: reusable ingestion, normalization, dimensions, and silver models
 - `dbt/models/projects/respira_gold`: project-specific marts and inference features
-- `prefect/flows`: orchestration for canonical and project pipelines
-- Postgres as the local development warehouse
+- `pipelines/flows`: Prefect orchestration for canonical and project pipelines
+- `pipelines/config/projects.py`: registry of project-level runtime configuration
+- `scripts/prefect_worker_start.sh`: worker bootstrap, deployment registration, and scheduling
 
-All commands are executed via Docker Compose.
+## What a DevOps Teammate Should Know First
 
-## Quick start
+- Docker Compose does not start a local Postgres instance. This stack connects
+  to an external Postgres warehouse configured through `.env`.
+- Airbyte is assumed to replicate raw tables into the `airbyte` schema of that
+  external Postgres database.
+- The worker auto-registers Prefect deployments on startup. In local
+  development, the worker bootstrap script is the operational source of truth
+  for schedules.
+- The platform has two pipeline layers:
+  - `canonical_*` builds reusable shared data
+  - `project_*` builds project-specific marts and optional inference outputs
+- All timestamps in the silver layer are expected to be UTC. FIUNA source
+  timestamps arrive as local UTC-3 wall-clock time and are converted to UTC in
+  staging before they reach silver.
 
-1. Copy env file and set DB credentials:
+## Runtime Topology
+
+`docker-compose.yml` starts three services:
+
+- `prefect_server`: local Prefect API and UI on `http://localhost:4200`
+- `app`: generic runner container used for dbt commands, ad hoc flow execution,
+  and local shell access
+- `prefect_worker`: long-running worker process that creates deployments and
+  polls the Prefect work pool
+
+Important runtime details:
+
+- The repository is mounted into both `app` and `prefect_worker`, so local code
+  edits are visible immediately inside containers.
+- `prefect_worker` uses `Dockerfile.worker`, which includes the extra inference
+  dependencies.
+- `app` uses `Dockerfile` and is the default place for dbt commands.
+- `make smoke-test` runs with host `poetry`, not inside Docker Compose.
+
+## Repository Layout
+
+- `dbt/`: dbt project, macros, seeds, and models
+- `dbt/models/canonical/`: shared canonical models
+- `dbt/models/projects/respira_gold/`: project-specific models for `respira_gold`
+- `dbt/seeds/`: metadata for organizations, projects, variables, stations, and project scoping
+- `pipelines/flows/`: Prefect flows such as `canonical_incremental` and `project_pipeline`
+- `pipelines/tasks/`: dbt execution, warehouse bootstrap, inference, notifications, and audit helpers
+- `pipelines/config/`: runtime settings, dbt selectors, and registered projects
+- `pipelines/sql/`: SQL used by operational bootstrap tasks
+- `scripts/`: operational helper scripts, especially worker startup and deployment registration
+- `tests/`: orchestration and inference-adjacent tests
+- `src/inference/`: inference runtime code used by project inference flows
+
+## Data and Schema Model
+
+The warehouse is organized into logical schemas:
+
+- `airbyte`: raw replicated source tables, managed outside this repo
+- `staging`: source-specific dbt staging views
+- `intermediate`: dbt normalization and shaping views
+- `core`: canonical dimensions and metadata models
+- `silver`: canonical reusable fact layer
+- `respira_gold`: project-specific marts, features, and inference tables
+- `ops`: operational audit and inference status tables
+
+Current architectural rules:
+
+- Canonical models should not depend on project-specific marts.
+- Project scope is metadata-driven through seeds such as
+  `project_data_sources.csv` and `project_organizations.csv`.
+- Project-specific inference tables live in the project schema, while audit
+  tables live in `ops`.
+
+## Environment Variables
+
+The values in `.env` are loaded into both the `app` and `prefect_worker`
+containers. For dbt-based operations, the `REMOTE_PG_*` values are still
+required because `dbt/profiles.yml` reads them directly.
+
+Required database settings:
+
+- `REMOTE_PG_HOST`
+- `REMOTE_PG_PORT`
+- `REMOTE_PG_DB`
+- `REMOTE_PG_USER`
+- `REMOTE_PG_PASSWORD`
+- `REMOTE_PG_SSLMODE`
+
+Optional database setting for Python tasks:
+
+- `DB_DSN`: optional SQLAlchemy DSN for non-dbt Python tasks. Useful, but it
+  does not replace the `REMOTE_PG_*` values required by dbt.
+
+Prefect and worker settings:
+
+- `PREFECT_API_URL`: defaults to `http://prefect_server:4200/api`
+- `PREFECT_WORK_POOL`: defaults to `default`
+- `PREFECT_WORKER_TYPE`: defaults to `process`
+- `PREFECT_SCHEDULE_TIMEZONE`: defaults to `UTC`
+
+Schedule settings:
+
+- `PREFECT_CANONICAL_INCREMENTAL_CRON`: defaults to `5 * * * *`
+- `PREFECT_PROJECT_RESPIRA_GOLD_CRON`: defaults to `20 * * * *`
+
+dbt runtime settings:
+
+- `DBT_TARGET`: defaults to `prod`
+- `DBT_THREADS`: defaults to `1`
+- `DBT_TIMEOUT_CANONICAL_CORE_S`
+- `DBT_TIMEOUT_CANONICAL_SILVER_S`
+- `DBT_TIMEOUT_PROJECT_S`
+- `DBT_TIMEOUT_TESTS_S`
+
+Inference settings:
+
+- `MODEL_6H_PATH`
+- `MODEL_12H_PATH`
+- `MODEL_6H_VERSION`
+- `MODEL_12H_VERSION`
+- `DEFAULT_WINDOW_HOURS`
+- `INFERENCE_MIN_POINTS`
+
+Alerting:
+
+- `SLACK_WEBHOOK_URL`: optional; used for flow failure alerts and dbt test alerts
+
+## Local Bootstrap
+
+1. Copy the example environment file:
 
 ```bash
 cp .env.example .env
 ```
 
-2. Start everything:
+2. Fill in the remote warehouse credentials and, if scheduled inference is
+   needed, set `MODEL_6H_PATH` and `MODEL_12H_PATH`.
+
+3. Build and start the stack:
 
 ```bash
 make up-build
 ```
 
-This starts:
+4. Open Prefect UI at `http://localhost:4200`.
 
-- `prefect_server`
-- `app`
-- `prefect_worker`
-
-`prefect_worker` automatically:
-
-- waits for Prefect API
-- creates or updates work pool `default`
-- registers canonical and project deployments
-- starts a Prefect worker polling that pool
-
-Open Prefect UI at `http://localhost:4200`.
-
-## Useful commands
+5. For a fresh or reset database, run the initial bootstrap and first load:
 
 ```bash
+make prefect-bootstrap
+make dbt-deps
+make seed
 make run-canonical-incremental
 make run-project-pipeline
-make smoke-test
-make logs
-make down
 ```
 
-## Adding a new Airbyte data source
+What happens automatically when `prefect_worker` starts:
 
-Use this checklist whenever we connect a new Airbyte stream and want it to
-flow through the canonical layer and into one or more projects.
+- waits for the Prefect API health check
+- creates or updates the `default` work pool
+- deploys `canonical_incremental`
+- deploys `canonical_full_refresh`
+- deploys `project_pipeline(project_code=respira_gold)`
+- starts polling the work pool
+
+If both `MODEL_6H_PATH` and `MODEL_12H_PATH` are present, the project pipeline
+is deployed with its schedule. If either model path is missing, the deployment
+is still created but without a schedule.
+
+## Daily Operations
+
+Common commands:
+
+```bash
+make up
+make up-build
+make down
+make ps
+make logs
+make logs-worker
+make shell
+make dbt-debug
+make prefect-bootstrap
+make run-canonical-incremental
+make run-canonical-full-refresh
+make run-project-pipeline
+make run-project-inference
+make smoke-test
+```
+
+What each operational command does:
+
+- `make prefect-bootstrap`: creates `ops` audit tables and project inference
+  tables, but does not run dbt
+- `make run-canonical-incremental`: runs `dbt deps`, canonical core, and
+  canonical silver
+- `make run-canonical-full-refresh`: manual maintenance flow for a full
+  canonical rebuild plus tests
+- `make run-project-pipeline`: runs dbt for `respira_gold`, project tests, and
+  inference if enabled
+- `make run-project-inference`: runs inference only
+- `make smoke-test`: lightweight orchestration test suite on the host machine
+
+dbt-only layered commands:
+
+```bash
+make run-canonical-core
+make run-canonical-silver
+make run-project-respira_gold
+make build
+make build-fr
+```
+
+Use `build-fr` after major schema or logic changes that require a full dbt
+rebuild.
+
+## Prefect Deployment and Scheduling Model
+
+The local scheduling model is controlled by
+`scripts/prefect_worker_start.sh`.
+
+Current behavior:
+
+- `canonical_incremental` is deployed on a cron schedule
+- `canonical_full_refresh` is deployed without a schedule and is intended to be
+  manual
+- `project_pipeline(project_code=respira_gold)` is deployed on a cron schedule
+  only when both model paths are configured
+- the worker re-registers these deployments every time it restarts
+
+Operational implications:
+
+- If you change cron settings, restart `prefect_worker` so deployments are
+  re-created with the new schedule.
+- If you add model paths after startup, restart `prefect_worker` to attach the
+  project schedule.
+- Editing deployment YAML files in `pipelines/deployments/` is not enough for
+  local behavior unless the worker bootstrap logic is updated or deployments are
+  re-applied explicitly.
+
+## Observability and Audit Tables
+
+This repository uses warehouse tables for runtime auditability.
+
+Created by `make prefect-bootstrap`:
+
+- `ops.dbt_run_audit`
+- `ops.inference_station_status`
+- `respira_gold.inference_runs`
+- `respira_gold.inference_results`
+
+Useful operational checks:
+
+- use Prefect UI for run history and task logs
+- use `make logs-worker` for deployment and worker startup issues
+- inspect `ops.dbt_run_audit` for dbt command status and summaries
+- inspect `ops.inference_station_status` for per-station inference failures
+- inspect `respira_gold.inference_runs` and `respira_gold.inference_results`
+  for project inference lifecycle and outputs
+
+## Common Runbooks
+
+Fresh database or rebuilt warehouse:
+
+```bash
+make prefect-bootstrap
+make dbt-deps
+make seed
+make run-canonical-incremental
+make run-project-pipeline
+```
+
+Troubleshooting dbt connectivity:
+
+```bash
+make dbt-debug
+make logs
+make logs-worker
+```
+
+If a project deployment is missing from Prefect UI:
+
+1. Check `make logs-worker`
+2. Confirm `PREFECT_API_URL` and work pool settings
+3. Confirm `MODEL_6H_PATH` and `MODEL_12H_PATH` if the schedule should exist
+4. Restart the worker with `make down` and `make up-build`
+
+If inference should run but does not:
+
+1. Confirm the project has `inference_enabled=True` in
+   `pipelines/config/projects.py`
+2. Confirm model paths exist inside the container filesystem
+3. Run `make run-project-inference`
+4. Inspect `ops.inference_station_status` and `respira_gold.inference_runs`
+
+If you change project registration:
+
+1. Update `pipelines/config/projects.py`
+2. Add or update the dbt models under `dbt/models/projects/<project_code>`
+3. Update seeds for project metadata and project-data-source membership
+4. Update worker bootstrap deployment logic if the new project needs scheduling
+5. Restart the worker to register the new deployment
+
+## Extending the Platform
+
+To add a new project:
+
+- create `dbt/models/projects/<project_code>/`
+- register the project in `dbt/seeds/projects.csv`
+- add `project_data_sources.csv` and `project_organizations.csv` entries
+- add a `ProjectConfig` entry in `pipelines/config/projects.py`
+- decide whether the project has inference and, if yes, define its source and
+  result tables
+- update deployment/bootstrap logic if the project should run on a schedule
+
+To add a new Airbyte data source, use the checklist below.
+
+## Adding a New Airbyte Data Source
+
+Use this checklist whenever we connect a new Airbyte stream and want it to flow
+through the canonical layer and into one or more projects.
 
 1. Define the canonical source name.
 
@@ -143,8 +419,6 @@ flow through the canonical layer and into one or more projects.
 
 10. Validate the full path from canonical to project.
 
-    Recommended commands:
-
 ```bash
 make dbt-deps
 make seed
@@ -154,6 +428,7 @@ make smoke-test
 ```
 
 After that, confirm that:
+
 - the new source appears in canonical silver outputs
 - `respira_gold` only receives it if it was added to
   `dbt/seeds/project_data_sources.csv`
