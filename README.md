@@ -13,6 +13,114 @@ structured as a modular monorepo:
 - `pipelines/config/projects.py`: registry of project-level runtime configuration
 - `scripts/prefect_worker_start.sh`: worker bootstrap, deployment registration, and scheduling
 
+## Deploy Quickstart
+
+For a first working deploy against a clean database that already has raw Airbyte
+tables in `airbyte`, use this sequence.
+
+1. Prepare `.env`.
+
+```bash
+cp .env.example .env
+```
+
+Set at least:
+
+- `REMOTE_PG_HOST`
+- `REMOTE_PG_PORT`
+- `REMOTE_PG_DB`
+- `REMOTE_PG_USER`
+- `REMOTE_PG_PASSWORD`
+- `REMOTE_PG_SSLMODE`
+- `MODEL_6H_PATH`
+- `MODEL_12H_PATH`
+
+Important:
+
+- If the password contains `$`, wrap it in single quotes inside `.env`.
+- `MODEL_6H_PATH` and `MODEL_12H_PATH` must point to files available inside the
+  containers, usually under `/app/models/...`.
+
+2. Start the local stack.
+
+```bash
+docker compose up -d --build
+docker compose ps
+```
+
+3. Validate dbt connectivity.
+
+```bash
+docker compose exec app bash -lc "cd /app/dbt && dbt debug --target prod"
+```
+
+4. Install dbt packages and load seeds.
+
+```bash
+docker compose exec app bash -lc "cd /app/dbt && dbt clean"
+docker compose exec app bash -lc "cd /app/dbt && dbt deps"
+docker compose exec app bash -lc "cd /app/dbt && dbt seed --target prod --full-refresh"
+```
+
+5. Build canonical layers.
+
+```bash
+docker compose exec app bash -lc "cd /app/dbt && dbt run --target prod --selector canonical_core"
+docker compose exec app bash -lc "cd /app/dbt && dbt run --target prod --selector canonical_silver"
+```
+
+6. Create operational and inference tables.
+
+```bash
+docker compose exec app bash -lc "cd /app && python3 pipelines/flows/warehouse_bootstrap.py"
+```
+
+7. Build the project layer.
+
+```bash
+docker compose exec app bash -lc "cd /app/dbt && dbt run --target prod --selector project_respira_gold"
+docker compose exec app bash -lc "cd /app/dbt && dbt test --target prod --selector project_respira_gold_tests"
+```
+
+8. Run inference or the full project pipeline.
+
+```bash
+docker compose exec prefect_worker bash -lc "cd /app && python3 pipelines/flows/project_inference.py"
+docker compose exec prefect_worker bash -lc "cd /app && python3 pipelines/flows/project_pipeline.py"
+```
+
+9. Optional: trigger Prefect deployments from the local server instead of
+running the flow files directly.
+
+```bash
+docker compose exec prefect_server prefect deployment ls
+docker compose exec prefect_server prefect deployment run 'canonical_incremental/canonical-incremental'
+docker compose exec prefect_server prefect deployment run 'project_pipeline/project-pipeline-respira_gold'
+```
+
+## Deploy Notes
+
+- `warehouse_bootstrap.py` uses `create schema if not exists ...`, so the DB
+  runtime user must have `CREATE` on the database, or those bootstrap steps
+  will fail.
+- `station_inference_features` is now a persisted incremental table. If you are
+  upgrading from an older local state where it exists as a view, drop it before
+  rebuilding:
+
+```bash
+docker compose exec app bash -lc 'PGPASSWORD="$REMOTE_PG_PASSWORD" psql "host=$REMOTE_PG_HOST port=$REMOTE_PG_PORT dbname=$REMOTE_PG_DB user=$REMOTE_PG_USER sslmode=$REMOTE_PG_SSLMODE" -c "drop view if exists respira_gold.station_inference_features cascade;"'
+```
+
+- `respira_gold.inference_results` now stores one row per
+  `inference_run_id + station_id` with `forecast_6h`, `forecast_12h`, and
+  `aqi_input`. If you still have the old table shape from a previous run,
+  recreate it before bootstrapping again:
+
+```bash
+docker compose exec app bash -lc 'PGPASSWORD="$REMOTE_PG_PASSWORD" psql "host=$REMOTE_PG_HOST port=$REMOTE_PG_PORT dbname=$REMOTE_PG_DB user=$REMOTE_PG_USER sslmode=$REMOTE_PG_SSLMODE" -c "drop table if exists respira_gold.inference_results cascade;"'
+docker compose exec app bash -lc "cd /app && python3 pipelines/flows/warehouse_bootstrap.py"
+```
+
 ## What a DevOps Teammate Should Know First
 
 - Docker Compose does not start a local Postgres instance. This stack connects
@@ -105,8 +213,9 @@ Optional database setting for Python tasks:
 Prefect and worker settings:
 
 - `PREFECT_API_URL`: defaults to `http://prefect_server:4200/api`
-- `PREFECT_WORK_POOL`: defaults to `default`
 - `PREFECT_WORKER_TYPE`: defaults to `process`
+- `PREFECT_CANONICAL_WORK_POOL`: defaults to `canonical`
+- `PREFECT_PROJECT_RESPIRA_GOLD_WORK_POOL`: defaults to `respira_gold`
 - `PREFECT_SCHEDULE_TIMEZONE`: defaults to `UTC`
 
 Schedule settings:
@@ -168,11 +277,11 @@ make run-project-pipeline
 What happens automatically when `prefect_worker` starts:
 
 - waits for the Prefect API health check
-- creates or updates the `default` work pool
+- creates or updates the `canonical` and `respira_gold` work pools
 - deploys `canonical_incremental`
 - deploys `canonical_full_refresh`
 - deploys `project_pipeline(project_code=respira_gold)`
-- starts polling the work pool
+- starts one worker process per configured work pool
 
 If both `MODEL_6H_PATH` and `MODEL_12H_PATH` are present, the project pipeline
 is deployed with its schedule. If either model path is missing, the deployment
