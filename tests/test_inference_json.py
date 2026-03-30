@@ -101,7 +101,8 @@ def test_predictor_supports_darts_models(monkeypatch):
         as_of=pd.Timestamp("2026-01-01T03:00:00Z"),
     )
 
-    assert captured["frame"]["date_utc"].max() == pd.Timestamp("2026-01-01T03:00:00Z")
+    assert str(captured["frame"]["date_utc"].dtype) == "datetime64[ns]"
+    assert captured["frame"]["date_utc"].max() == pd.Timestamp("2026-01-01T03:00:00")
     assert output["meta"]["model_version"] == "darts-v1"
     assert len(output["points"]) == 6
     assert output["points"][0]["yhat"] == 50.0

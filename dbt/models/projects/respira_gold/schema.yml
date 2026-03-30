@@ -86,12 +86,15 @@ models:
           combination_of_columns: ["region_id", "date_utc"]
 
   - name: station_inference_features
-    description: "Feature view for inference models (station + region + weather)."
+    description: "Incremental feature table for inference models (station + region + weather)."
     columns:
       - name: station_id
         tests: [not_null]
       - name: date_utc
         tests: [not_null]
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns: ["station_id", "date_utc"]
 
   - name: measurements_silver_wide
     description: "Project-scoped wide view over canonical silver measurements."
