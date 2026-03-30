@@ -27,6 +27,16 @@ class WindowPredictor:
             raise ValueError("features_frame is empty")
 
         prepared_frame = _prepare_prediction_frame(features_frame, as_of=as_of)
+        return self.predict_prepared_window(prepared_frame, horizon_hours)
+
+    def predict_prepared_window(
+        self,
+        prepared_frame: pd.DataFrame,
+        horizon_hours: int,
+    ) -> dict[str, Any]:
+        if prepared_frame.empty:
+            raise ValueError("prepared_frame is empty")
+
         raw_predictions = _predict(self.model, prepared_frame, horizon_hours)
         generated_at = datetime.now(timezone.utc).isoformat()
 
@@ -55,6 +65,10 @@ def predict_window(
     )
 
 
+def prepare_prediction_frame(features_frame: pd.DataFrame, as_of: datetime | None = None) -> pd.DataFrame:
+    return _prepare_prediction_frame(features_frame, as_of)
+
+
 def _predict(model: Any, features_frame: pd.DataFrame, horizon_hours: int) -> Any:
     try:
         return _predict_with_darts(model, features_frame, horizon_hours)
@@ -69,8 +83,12 @@ def _predict_with_darts(model: Any, features_frame: pd.DataFrame, horizon_hours:
     series_columns = [TARGET_COLUMN, *[column for column in covariate_columns if column != TARGET_COLUMN]]
     input_frame = features_frame[["date_utc", *series_columns]].copy()
     input_frame["date_utc"] = pd.to_datetime(input_frame["date_utc"], utc=True, errors="coerce")
+    darts_frame = input_frame.copy()
+    # Darts expects a tz-naive datetime index; keep values normalized to UTC and
+    # strip timezone info only for the conversion boundary.
+    darts_frame["date_utc"] = darts_frame["date_utc"].dt.tz_convert(None)
 
-    ts = TimeSeries.from_dataframe(input_frame, time_col="date_utc", value_cols=series_columns, freq="h")
+    ts = TimeSeries.from_dataframe(darts_frame, time_col="date_utc", value_cols=series_columns, freq="h")
     target_series = ts[TARGET_COLUMN]
 
     if covariate_columns:

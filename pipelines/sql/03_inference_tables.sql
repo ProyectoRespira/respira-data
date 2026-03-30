@@ -33,12 +33,11 @@ create table if not exists {inference_results_table} (
     id uuid primary key,
     inference_run_id uuid not null references {inference_runs_table}(id),
     station_id bigint not null,
-    as_of timestamptz not null,
-    horizon_hours int not null check (horizon_hours in (6, 12)),
-    model_version text not null,
-    predictions_json jsonb not null,
+    forecast_6h jsonb not null,
+    forecast_12h jsonb not null,
+    aqi_input jsonb not null,
     created_at timestamptz not null default now(),
-    unique (inference_run_id, station_id, horizon_hours)
+    unique (inference_run_id, station_id)
 );
 
 create index if not exists idx_{schema_name}_inference_results_run_id
@@ -46,6 +45,3 @@ on {inference_results_table} (inference_run_id);
 
 create index if not exists idx_{schema_name}_inference_results_station
 on {inference_results_table} (station_id);
-
-create index if not exists idx_{schema_name}_inference_results_as_of
-on {inference_results_table} (as_of);

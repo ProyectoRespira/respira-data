@@ -1,12 +1,25 @@
-{{ config(materialized='view') }}
+{{ config(
+  materialized='incremental',
+  unique_key=['station_id', 'date_utc'],
+  incremental_strategy='merge',
+  indexes=[
+    {'columns': ['station_id', 'date_utc'], 'unique': true}
+  ]
+) }}
 
 with station_base as (
   select
-    sr.*, 
+    sr.*,
     st.region_id
   from {{ ref('station_readings_gold') }} sr
   join {{ ref('stations') }} st
     on st.id = sr.station_id
+
+  {% if is_incremental() %}
+  where sr.date_localtime >= (
+    select coalesce(max(date_utc), '1970-01-01'::timestamptz) from {{ this }}
+  ) - interval '2 days'
+  {% endif %}
 ),
 
 region_features as (

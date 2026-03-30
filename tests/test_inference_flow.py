@@ -5,8 +5,14 @@ from unittest.mock import MagicMock, patch
 from uuid import uuid4
 
 import pytest
+import pandas as pd
 
-from pipelines.flows.project_inference import InferenceRunParams, _process_single_station
+from pipelines.flows.project_inference import (
+    InferenceRunParams,
+    _aqi_input_points,
+    _process_single_station,
+    _storage_points_from_prediction,
+)
 
 
 def _make_params(**overrides) -> InferenceRunParams:
@@ -74,10 +80,14 @@ def test_process_station_success(mock_load, mock_persist_result, mock_persist_st
     )
 
     assert result == "success"
-    assert mock_persist_result.call_count == 2
+    assert mock_persist_result.call_count == 1
     assert mock_persist_status.call_count == 1
     status_call = mock_persist_status.call_args
     assert status_call.kwargs["status"] == "success"
+    result_call = mock_persist_result.call_args
+    assert "forecast_6h" in result_call.kwargs
+    assert "forecast_12h" in result_call.kwargs
+    assert "aqi_input" in result_call.kwargs
 
 
 @patch("pipelines.flows.project_inference.get_run_logger", return_value=MagicMock())
@@ -127,3 +137,33 @@ def test_process_station_failed_on_exception(mock_load, mock_persist_result, moc
     status_call = mock_persist_status.call_args
     assert status_call.kwargs["status"] == "failed"
     assert "DB connection lost" in status_call.kwargs["reason_detail"]
+
+
+def test_storage_points_from_prediction_uses_value_and_timestamp():
+    prediction = {
+        "meta": {},
+        "points": [
+            {"ts": "2026-03-30T04:00:00Z", "yhat": 50.0},
+            {"ts": "2026-03-30T05:00:00Z", "yhat": 49.2},
+        ],
+    }
+
+    assert _storage_points_from_prediction(prediction) == [
+        {"value": 50, "timestamp": "2026-03-30T04:00:00"},
+        {"value": 49, "timestamp": "2026-03-30T05:00:00"},
+    ]
+
+
+def test_aqi_input_points_uses_value_and_timestamp():
+    frame = pd.DataFrame({
+        "date_utc": [
+            pd.Timestamp("2026-03-29T03:00:00Z"),
+            pd.Timestamp("2026-03-29T04:00:00Z"),
+        ],
+        "aqi_pm2_5": [37.0, 36.0],
+    })
+
+    assert _aqi_input_points(frame) == [
+        {"value": 37, "timestamp": "2026-03-29T03:00:00"},
+        {"value": 36, "timestamp": "2026-03-29T04:00:00"},
+    ]

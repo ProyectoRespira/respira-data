@@ -111,25 +111,24 @@ def _upsert_inference_result_query(project: ProjectConfig):
             id,
             inference_run_id,
             station_id,
-            as_of,
-            horizon_hours,
-            model_version,
-            predictions_json,
+            forecast_6h,
+            forecast_12h,
+            aqi_input,
             created_at
         ) values (
             :id,
             :inference_run_id,
             :station_id,
-            :as_of,
-            :horizon_hours,
-            :model_version,
-            cast(:predictions_json as jsonb),
+            cast(:forecast_6h as jsonb),
+            cast(:forecast_12h as jsonb),
+            cast(:aqi_input as jsonb),
             now()
         )
-        on conflict (inference_run_id, station_id, horizon_hours)
+        on conflict (inference_run_id, station_id)
         do update set
-            model_version = excluded.model_version,
-            predictions_json = excluded.predictions_json
+            forecast_6h = excluded.forecast_6h,
+            forecast_12h = excluded.forecast_12h,
+            aqi_input = excluded.aqi_input
         """
     )
 
@@ -273,10 +272,9 @@ def persist_inference_result(
     project: ProjectConfig,
     inference_run_id: UUID,
     station_id: int,
-    as_of: datetime,
-    horizon_hours: int,
-    model_version: str,
-    predictions_json: dict[str, Any],
+    forecast_6h: list[dict[str, Any]],
+    forecast_12h: list[dict[str, Any]],
+    aqi_input: list[dict[str, Any]],
 ) -> None:
     with engine.begin() as conn:
         conn.execute(
@@ -285,10 +283,9 @@ def persist_inference_result(
                 inference_run_id,
                 {
                     "station_id": station_id,
-                    "as_of": as_of,
-                    "horizon_hours": horizon_hours,
-                    "model_version": model_version,
-                    "predictions_json": predictions_json,
+                    "forecast_6h": forecast_6h,
+                    "forecast_12h": forecast_12h,
+                    "aqi_input": aqi_input,
                 },
             ),
         )
@@ -316,10 +313,9 @@ def _build_inference_result_payload(inference_run_id: UUID, payload: dict[str, A
         "id": str(uuid4()),
         "inference_run_id": str(inference_run_id),
         "station_id": int(payload["station_id"]),
-        "as_of": _ensure_utc(payload["as_of"]),
-        "horizon_hours": int(payload["horizon_hours"]),
-        "model_version": payload["model_version"],
-        "predictions_json": json.dumps(payload["predictions_json"]),
+        "forecast_6h": json.dumps(payload["forecast_6h"]),
+        "forecast_12h": json.dumps(payload["forecast_12h"]),
+        "aqi_input": json.dumps(payload["aqi_input"]),
     }
 
 
