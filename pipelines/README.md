@@ -59,11 +59,10 @@ Desde raíz del repositorio:
 Al iniciar `prefect_worker`, el script de bootstrap:
 
 1. espera a que Prefect API esté lista
-2. crea o actualiza el work pool `default`
-3. despliega `canonical_incremental`
-4. despliega `canonical_full_refresh`
-5. despliega `project_pipeline(project_code=respira_gold)`
-6. inicia el worker
+2. crea o actualiza los work pools `canonical` y `respira_gold`
+3. despliega `canonical_incremental` y `canonical_full_refresh` en `canonical`
+4. despliega `project_pipeline(project_code=respira_gold)` en `respira_gold`
+5. inicia un worker por cada work pool configurado
 
 Si `MODEL_6H_PATH` y `MODEL_12H_PATH` no están definidos, el pipeline del proyecto se registra sin schedule.
 
