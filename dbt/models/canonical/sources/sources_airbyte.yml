@@ -6,8 +6,8 @@ sources:
     quoting:
       identifier: true
     tables:
-      - name: Airelibre_measurements
-      - name: asu_airportasu_airport
+      - name: measurements
+      - name: meteostat_asu_airport
       - name: FIUNA_Estacion1
       - name: FIUNA_Estacion2
       - name: FIUNA_Estacion3

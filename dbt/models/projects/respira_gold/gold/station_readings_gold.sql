@@ -6,7 +6,7 @@
 
 with base as (
   select
-    m.gold_station_id as station_id,
+    m.project_station_id as station_id,
     a.date_localtime,
     a.pm_calibrated,
     a.pm1,

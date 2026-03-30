@@ -1,7 +1,7 @@
 with src as (
 
   select *
-  from {{ source('airbyte', 'asu_airportasu_airport') }}
+  from {{ source('airbyte', 'meteostat_asu_airport') }}
 
 ),
 
