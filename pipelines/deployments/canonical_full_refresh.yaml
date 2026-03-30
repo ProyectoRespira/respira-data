@@ -1,0 +1,12 @@
+name: canonical-full-refresh
+entrypoint: prefect/flows/canonical_full_refresh.py:canonical_full_refresh
+work_pool:
+  name: canonical
+parameters: {}
+concurrency_limit:
+  limit: 1
+  collision_strategy: ENQUEUE
+tags:
+  - dbt
+  - canonical
+  - maintenance

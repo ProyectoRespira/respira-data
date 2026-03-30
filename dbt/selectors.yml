@@ -1,0 +1,45 @@
+selectors:
+  - name: canonical_core
+    description: Canonical staging, intermediate, and core models.
+    definition:
+      union:
+        - method: path
+          value: models/canonical/staging
+        - method: path
+          value: models/canonical/intermediate
+        - method: path
+          value: models/canonical/core
+
+  - name: canonical_silver
+    description: Canonical silver models.
+    definition:
+      method: path
+      value: models/canonical/silver
+
+  - name: project_respira_gold
+    description: respira_gold project models.
+    definition:
+      method: path
+      value: models/projects/respira_gold
+
+  - name: project_respira_gold_tests
+    description: Data tests scoped to respira_gold project models.
+    definition:
+      intersection:
+        - method: resource_type
+          value: test
+        - method: path
+          value: models/projects/respira_gold
+
+  - name: canonical_full_refresh
+    description: Safe full-refresh scope for canonical models.
+    definition:
+      union:
+        - method: path
+          value: models/canonical/staging
+        - method: path
+          value: models/canonical/intermediate
+        - method: path
+          value: models/canonical/core
+        - method: path
+          value: models/canonical/silver
