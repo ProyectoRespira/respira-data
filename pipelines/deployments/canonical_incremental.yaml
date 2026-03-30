@@ -1,0 +1,15 @@
+name: canonical-incremental
+entrypoint: prefect/flows/canonical_incremental.py:canonical_incremental
+work_pool:
+  name: canonical
+parameters: {}
+schedules:
+  - cron: "5 * * * *"
+    timezone: UTC
+    active: true
+concurrency_limit:
+  limit: 1
+  collision_strategy: ENQUEUE
+tags:
+  - dbt
+  - canonical

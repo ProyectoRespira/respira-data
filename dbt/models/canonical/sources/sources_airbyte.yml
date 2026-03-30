@@ -1,0 +1,20 @@
+version: 2
+
+sources:
+  - name: airbyte
+    schema: airbyte
+    quoting:
+      identifier: true
+    tables:
+      - name: measurements
+      - name: meteostat_asu_airport
+      - name: FIUNA_Estacion1
+      - name: FIUNA_Estacion2
+      - name: FIUNA_Estacion3
+      - name: FIUNA_Estacion4
+      - name: FIUNA_Estacion5
+      - name: FIUNA_Estacion6
+      - name: FIUNA_Estacion7
+      - name: FIUNA_Estacion8
+      - name: FIUNA_Estacion9
+      - name: FIUNA_Estacion10
