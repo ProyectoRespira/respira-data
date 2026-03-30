@@ -44,8 +44,9 @@ services:
     environment:
       - DBT_PROFILES_DIR=/app/dbt
       - PREFECT_API_URL=http://prefect_server:4200/api
-      - PREFECT_WORK_POOL=default
       - PREFECT_WORKER_TYPE=process
+      - PREFECT_CANONICAL_WORK_POOL=canonical
+      - PREFECT_PROJECT_RESPIRA_GOLD_WORK_POOL=respira_gold
       - PREFECT_SCHEDULE_TIMEZONE=UTC
     volumes:
       - ./:/app

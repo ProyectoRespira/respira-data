@@ -1,7 +1,7 @@
 name: project-pipeline-respira_gold
 entrypoint: prefect/flows/project_pipeline.py:project_pipeline
 work_pool:
-  name: default
+  name: respira_gold
 parameters:
   project_code: respira_gold
 schedules:

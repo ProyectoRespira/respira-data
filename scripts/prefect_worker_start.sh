@@ -48,13 +48,19 @@ PY
 deploy_flow() {
   local entrypoint="$1"
   local deployment_name="$2"
-  local schedule="${3:-}"
-  shift 3 || true
+  local pool_name="$3"
+  shift 3
+
+  local schedule=""
+  if [[ "$#" -gt 0 ]]; then
+    schedule="$1"
+    shift
+  fi
 
   local cmd=(
     prefect --no-prompt deploy "${entrypoint}"
     --name "${deployment_name}"
-    --pool "${PREFECT_WORK_POOL}"
+    --pool "${pool_name}"
   )
 
   if [[ -n "${schedule}" ]]; then
@@ -68,36 +74,81 @@ deploy_flow() {
   "${cmd[@]}"
 }
 
+ensure_work_pool() {
+  local pool_name="$1"
+
+  log "Ensuring work pool '${pool_name}' exists..."
+  prefect --no-prompt work-pool create \
+    --type "${PREFECT_WORKER_TYPE}" \
+    "${pool_name}" \
+    --overwrite
+}
+
+start_worker_for_pool() {
+  local pool_name="$1"
+
+  log "Starting worker for pool '${pool_name}'..."
+  prefect worker start \
+    --pool "${pool_name}" \
+    --type "${PREFECT_WORKER_TYPE}" &
+
+  WORKER_PIDS+=("$!")
+}
+
+cleanup_workers() {
+  local exit_code="${1:-0}"
+
+  if [[ "${#WORKER_PIDS[@]}" -gt 0 ]]; then
+    kill "${WORKER_PIDS[@]}" 2>/dev/null || true
+    wait "${WORKER_PIDS[@]}" 2>/dev/null || true
+  fi
+
+  exit "${exit_code}"
+}
+
 main() {
   export PREFECT_API_URL="${PREFECT_API_URL:-http://prefect_server:4200/api}"
-  export PREFECT_WORK_POOL="${PREFECT_WORK_POOL:-default}"
   export PREFECT_WORKER_TYPE="${PREFECT_WORKER_TYPE:-process}"
   export PREFECT_SCHEDULE_TIMEZONE="${PREFECT_SCHEDULE_TIMEZONE:-UTC}"
   export PREFECT_CANONICAL_INCREMENTAL_CRON="${PREFECT_CANONICAL_INCREMENTAL_CRON:-5 * * * *}"
   export PREFECT_PROJECT_RESPIRA_GOLD_CRON="${PREFECT_PROJECT_RESPIRA_GOLD_CRON:-20 * * * *}"
+  export PREFECT_CANONICAL_WORK_POOL="${PREFECT_CANONICAL_WORK_POOL:-${PREFECT_WORK_POOL:-canonical}}"
+  export PREFECT_PROJECT_RESPIRA_GOLD_WORK_POOL="${PREFECT_PROJECT_RESPIRA_GOLD_WORK_POOL:-${PREFECT_WORK_POOL:-respira_gold}}"
+
+  declare -a pools=(
+    "${PREFECT_CANONICAL_WORK_POOL}"
+    "${PREFECT_PROJECT_RESPIRA_GOLD_WORK_POOL}"
+  )
+  declare -A seen_pools=()
+  declare -ag WORKER_PIDS=()
 
   wait_for_prefect_api
 
-  log "Ensuring work pool '${PREFECT_WORK_POOL}' exists..."
-  prefect --no-prompt work-pool create \
-    --type "${PREFECT_WORKER_TYPE}" \
-    "${PREFECT_WORK_POOL}" \
-    --overwrite
+  for pool_name in "${pools[@]}"; do
+    if [[ -n "${seen_pools[${pool_name}]:-}" ]]; then
+      continue
+    fi
+    seen_pools["${pool_name}"]=1
+    ensure_work_pool "${pool_name}"
+  done
 
   log "Deploying canonical flows..."
   deploy_flow \
     "pipelines/flows/canonical_incremental.py:canonical_incremental" \
     "canonical-incremental" \
+    "${PREFECT_CANONICAL_WORK_POOL}" \
     "${PREFECT_CANONICAL_INCREMENTAL_CRON}"
   deploy_flow \
     "pipelines/flows/canonical_full_refresh.py:canonical_full_refresh" \
-    "canonical-full-refresh"
+    "canonical-full-refresh" \
+    "${PREFECT_CANONICAL_WORK_POOL}"
 
   if [[ -n "${MODEL_6H_PATH:-}" && -n "${MODEL_12H_PATH:-}" ]]; then
     log "Model paths found. Deploying project pipeline with schedule..."
     deploy_flow \
       "pipelines/flows/project_pipeline.py:project_pipeline" \
       "project-pipeline-respira_gold" \
+      "${PREFECT_PROJECT_RESPIRA_GOLD_WORK_POOL}" \
       "${PREFECT_PROJECT_RESPIRA_GOLD_CRON}" \
       --param "project_code=respira_gold"
   else
@@ -105,14 +156,23 @@ main() {
     deploy_flow \
       "pipelines/flows/project_pipeline.py:project_pipeline" \
       "project-pipeline-respira_gold" \
+      "${PREFECT_PROJECT_RESPIRA_GOLD_WORK_POOL}" \
       "" \
       --param "project_code=respira_gold"
   fi
 
-  log "Starting worker..."
-  exec prefect worker start \
-    --pool "${PREFECT_WORK_POOL}" \
-    --type "${PREFECT_WORKER_TYPE}"
+  trap 'cleanup_workers 0' INT TERM
+
+  for pool_name in "${pools[@]}"; do
+    if [[ -n "${seen_pools[${pool_name}]:-started}" && "${seen_pools[${pool_name}]}" == "started" ]]; then
+      continue
+    fi
+    seen_pools["${pool_name}"]="started"
+    start_worker_for_pool "${pool_name}"
+  done
+
+  wait -n "${WORKER_PIDS[@]}"
+  cleanup_workers $?
 }
 
 main "$@"
