@@ -61,18 +61,36 @@ Table respira_gold.station_readings_gold {
 }
 
 Table respira_gold.inference_runs {
-  id serial [primary key]
-  run_date timestamptz
-  
+  id uuid [primary key]
+  flow_run_id text
+  deployment text
+  as_of timestamptz
+  window_hours integer
+  min_points integer
+  model_6h_version text
+  model_12h_version text
+  model_6h_path text
+  model_12h_path text
+  started_at timestamptz
+  ended_at timestamptz
+  duration_s integer
+  status text
+  stations_total integer
+  stations_success integer
+  stations_skipped integer
+  stations_failed integer
+  error_summary text
+  created_at timestamptz
 }
 
 Table respira_gold.inference_results {
-  id serial [primary key]
-  inference_run_id integer [ref: > inference_runs.id]
+  id uuid [primary key]
+  inference_run_id uuid [ref: > inference_runs.id]
   station_id integer [ref: > stations.id]
   forecast_6h jsonb
   forecast_12h jsonb
   aqi_input jsonb
+  created_at timestamptz
 }
 
 ### Internal (not part of backend contract)
@@ -90,6 +108,6 @@ Table respira_gold.inference_results {
 - Otherwise dbt falls back to `calibration_factors_seed` (seed uses `station_code`, joined to `dim_stations`).
 
 ### Inference tables
-- `inference_runs` and `inference_results` are stubbed and disabled by default.
-- Enable creation with `--vars '{build_inference_tables: true}'` if needed.
-
+- The dbt models for `inference_runs` and `inference_results` are still stubbed and disabled by default.
+- The production-shaped tables are created and maintained by the inference pipeline SQL in [`pipelines/sql/03_inference_tables.sql`](/home/fer-dev/projects/respira/respira-data/pipelines/sql/03_inference_tables.sql).
+- Backend code should treat `run_date` as an application alias over `as_of` when preserving the existing API response shape.
