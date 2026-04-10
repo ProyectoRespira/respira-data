@@ -1,5 +1,7 @@
 {% macro aqi_linear(value, c_lo, c_hi, i_lo, i_hi) -%}
-  (({{ i_hi }} - {{ i_lo }}) / ({{ c_hi }} - {{ c_lo }})) * ({{ value }} - {{ c_lo }}) + {{ i_lo }}
+  (
+    (({{ i_hi }} - {{ i_lo }}) / ({{ c_hi }} - {{ c_lo }})) * ({{ value }} - {{ c_lo }}) + {{ i_lo }}
+  )::integer
 {%- endmacro %}
 
 {% macro aqi_pm25(value) -%}
