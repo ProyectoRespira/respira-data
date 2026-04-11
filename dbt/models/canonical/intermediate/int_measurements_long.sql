@@ -1,3 +1,13 @@
+{{ config(
+  materialized='incremental',
+  unique_key=['source_row_id', 'variable_code'],
+  incremental_strategy='merge',
+  indexes=[
+    {'columns': ['source_row_id', 'variable_code'], 'unique': true},
+    {'columns': ['extracted_at']}
+  ]
+) }}
+
 {%- set sources_cfg = var('measurements_sources') -%}
 
 with long as (
@@ -14,4 +24,4 @@ with long as (
 
 )
 
-select * from long
+  select * from long
