@@ -1,7 +1,13 @@
 {{ config(
   materialized='incremental',
   unique_key=['stream_id','timestamp'],
-  incremental_strategy='merge'
+  incremental_strategy='merge',
+  indexes=[
+    {'columns': ['stream_id', 'timestamp'], 'unique': true},
+    {'columns': ['timestamp']},
+    {'columns': ['ingested_at']},
+    {'columns': ['source_row_id']}
+  ]
 ) }}
 
 with m as (
@@ -21,20 +27,15 @@ joined as (
     s.stream_id,
     m.measured_at_silver as timestamp,
     m.value_silver as value_parsed,
-
-    -- prefer this if available in m:
-    -- m._airbyte_extracted_at as ingested_at
-    now()::timestamptz as ingested_at,
-
-    m.raw_payload
+    m.extracted_at as ingested_at
   from m
   join streams s
     on s.code = (m.station_code || '_' || m.variable_code || '_' || m.data_source_name)
 
   {% if is_incremental() %}
-  where m.measured_at_silver >= (
-    select coalesce(max(timestamp), '1970-01-01'::timestamptz) from {{ this }}
-  ) - interval '2 days'
+  where m.extracted_at >= (
+    select coalesce(max(ingested_at), '1970-01-01'::timestamptz) from {{ this }}
+  )
   {% endif %}
 ),
 
