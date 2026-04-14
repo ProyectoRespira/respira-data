@@ -24,6 +24,7 @@ streams as (
 
 joined as (
   select
+    m.source_row_id,
     s.stream_id,
     m.measured_at_silver as timestamp,
     m.value_silver as value_parsed,
@@ -54,9 +55,9 @@ deduped as (
 )
 
 select
+  source_row_id,
   stream_id,
   timestamp,
   value_parsed,
-  ingested_at,
-  raw_payload
+  ingested_at
 from deduped

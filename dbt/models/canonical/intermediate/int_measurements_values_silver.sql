@@ -27,6 +27,8 @@ joined as (
 final as (
   select
     -- keys
+    source_row_id,
+    extracted_at,
     data_source_name,
     station_code,
     cursor_id,
@@ -42,7 +44,6 @@ final as (
     -- raw and parsed
     value_raw,
     value_parsed,
-    raw_payload,
 
     -- validation result
     case
