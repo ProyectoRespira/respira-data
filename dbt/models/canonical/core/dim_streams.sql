@@ -1,7 +1,10 @@
 {{ config(
   materialized='incremental',
   unique_key='code',
-  incremental_strategy='merge'
+  incremental_strategy='merge',
+  indexes=[
+    {'columns': ['code'], 'unique': true}
+  ]
 ) }}
 
 with stations as (
@@ -17,7 +20,15 @@ data_sources as (
   from {{ ref('dim_data_sources') }}
 ),
 candidates as (
-  select * from {{ ref('int_streams_candidates') }}
+  select *
+  from {{ ref('int_streams_candidates') }}
+
+  {% if is_incremental() %}
+  where code not in (
+    select code
+    from {{ this }}
+  )
+  {% endif %}
 ),
 
 joined as (
