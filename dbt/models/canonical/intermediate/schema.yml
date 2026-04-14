@@ -1,6 +1,29 @@
 version: 2
 
 models:
+  - name: int_measurement_payloads
+    description: >
+      One-row-per-source-record payload store for audit/debug.
+      Keeps raw JSON exactly once per ingested source row.
+    columns:
+      - name: source_row_id
+        tests: [not_null]
+      - name: extracted_at
+        tests: [not_null]
+      - name: data_source_name
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_data_sources')
+                field: name
+      - name: raw_payload
+        tests: [not_null]
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns: ["data_source_name", "source_row_id"]
+
   - name: int_measurements_long
     description: >
       Canonical long-form measurements union across sources defined in vars.measurements_sources.
@@ -27,11 +50,13 @@ models:
               arguments:
                 to: ref('dim_variables')
                 field: code
+      - name: source_row_id
+        tests: [not_null]
+      - name: extracted_at
+        tests: [not_null]
       - name: value_raw
         tests: [not_null]
       - name: value_parsed
-      - name: raw_payload
-        tests: [not_null]
 
     tests:
       - dbt_utils.expression_is_true:
@@ -82,8 +107,6 @@ models:
       - name: value_parsed
       - name: value_silver
         description: "Validated/cleaned final numeric value. Null when invalid."
-      - name: raw_payload
-        tests: [not_null]
 
     tests:
       - dbt_utils.expression_is_true:
@@ -121,4 +144,5 @@ models:
         tests: [not_null]
     tests:
       - dbt_utils.unique_combination_of_columns:
-          combination_of_columns: ["code"]
+          arguments:
+            combination_of_columns: ["code"]
