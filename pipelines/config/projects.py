@@ -6,6 +6,10 @@ from dataclasses import dataclass
 _SAFE_SQL_IDENTIFIER = re.compile(r"^[a-z_][a-z0-9_.]*$")
 
 
+def is_safe_sql_identifier(value: str) -> bool:
+    return bool(value) and isinstance(value, str) and _SAFE_SQL_IDENTIFIER.match(value) is not None
+
+
 @dataclass(frozen=True)
 class ProjectConfig:
     project_code: str
