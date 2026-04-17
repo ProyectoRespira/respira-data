@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import shlex
 import subprocess
-import importlib
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -124,81 +123,7 @@ def _run_subprocess(settings, command: str, selector: str | None, full_refresh: 
     )
 
 
-def _resolve_prefect_dbt_operation():
-    candidates = [
-        ("prefect_dbt.cli.commands", "DbtCoreOperation"),
-        ("prefect_dbt.cli", "DbtCoreOperation"),
-    ]
-    for module_name, class_name in candidates:
-        try:
-            module = importlib.import_module(module_name)
-            op_class = getattr(module, class_name, None)
-            if op_class is not None:
-                return op_class
-        except Exception:  # noqa: BLE001
-            continue
-    return None
-
-
-def _run_with_prefect_dbt_if_available(settings, command: str, selector: str | None, full_refresh: bool) -> DbtTaskResult | None:
-    logger = get_run_logger()
-    operation_class = _resolve_prefect_dbt_operation()
-    if operation_class is None:
-        return None
-
-    timeout_s = _timeout_for_command(settings, command, selector)
-    cmd = _build_dbt_command(settings, command, selector, full_refresh)
-    cmd_with_binary = shlex.join(cmd)
-    started_at = datetime.now(timezone.utc)
-
-    try:
-        logger.info("Running dbt via prefect-dbt: %s", cmd_with_binary)
-        operation = operation_class(
-            commands=[cmd_with_binary],
-            project_dir=settings.DBT_PROJECT_DIR,
-            profiles_dir=settings.DBT_PROFILES_DIR,
-            overwrite_profiles=False,
-            stream_output=True,
-        )
-        operation.run()
-        status = "success"
-        stdout = None
-        stderr = None
-    except Exception as exc:  # noqa: BLE001
-        logger.warning("prefect-dbt path failed, falling back to subprocess: %s", exc)
-        return None
-
-    ended_at = datetime.now(timezone.utc)
-    artifact_dir = str(Path(settings.DBT_PROJECT_DIR) / "target")
-    run_results_path = str(Path(artifact_dir) / "run_results.json")
-
-    duration_s = int((ended_at - started_at).total_seconds())
-    if duration_s > timeout_s:
-        status = "failed"
-        stderr = f"Command exceeded configured timeout of {timeout_s}s"
-
-    final_run_results_path = (
-        run_results_path if _command_has_run_results(command) and Path(run_results_path).exists() else None
-    )
-
-    return DbtTaskResult(
-        status=status,
-        started_at=started_at,
-        ended_at=ended_at,
-        duration_s=duration_s,
-        command=shlex.join(cmd),
-        selector=selector,
-        artifact_dir=artifact_dir,
-        run_results_path=final_run_results_path,
-        stdout=stdout,
-        stderr=stderr,
-    )
-
-
 def _run_dbt(settings, command: str, selector: str | None, full_refresh: bool) -> DbtTaskResult:
-    pref_result = _run_with_prefect_dbt_if_available(settings, command, selector, full_refresh)
-    if pref_result is not None:
-        return pref_result
     return _run_subprocess(settings, command, selector, full_refresh)
 
 
