@@ -77,7 +77,7 @@ def _predict(model: Any, features_frame: pd.DataFrame, horizon_hours: int) -> An
 
 
 def _predict_with_darts(model: Any, features_frame: pd.DataFrame, horizon_hours: int) -> Any:
-    from darts import TimeSeries
+    from darts import TimeSeries  # type: ignore[import-untyped]
 
     covariate_columns = [column for column in features_frame.columns if column not in NON_COVARIATE_COLUMNS]
     series_columns = [TARGET_COLUMN, *[column for column in covariate_columns if column != TARGET_COLUMN]]
@@ -191,11 +191,17 @@ class _IterableNormalizer:
 
 class _ScalarNormalizer:
     def can_handle(self, raw: Any) -> bool:
+        import numbers
+
+        if isinstance(raw, bool):
+            return False
+        if isinstance(raw, numbers.Number):
+            return True
         try:
             float(raw)
-            return True
         except (TypeError, ValueError):
-            return True  # fallback: handles everything
+            return False
+        return True
 
     def normalize(self, raw: Any, timestamps: list[Any], horizon_hours: int) -> list[dict[str, Any]]:
         ts = _fallback_ts(timestamps, horizon_hours)

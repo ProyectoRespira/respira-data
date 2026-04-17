@@ -110,7 +110,7 @@ def test_predictor_supports_darts_models(monkeypatch):
 
 # --- R7.2: Normalizer-specific tests ---
 
-from inference.predictor import (
+from inference.predictor import (  # noqa: E402
     _DartsSeriesNormalizer,
     _DataFrameNormalizer,
     _DictNormalizer,
@@ -182,11 +182,24 @@ def test_iterable_normalizer():
 def test_scalar_normalizer():
     n = _ScalarNormalizer()
     assert n.can_handle(42.0)
-    assert n.can_handle("not_a_number")
+    assert n.can_handle(42)
+    assert n.can_handle("3.14")  # numeric strings are coercible
+    assert not n.can_handle("not_a_number")
+    assert not n.can_handle(True)  # booleans are not treated as scalars
+    assert not n.can_handle(object())
+
     points = n.normalize(42.0, _SAMPLE_TIMESTAMPS, 6)
     assert len(points) == 1
     assert points[0]["yhat"] == 42.0
 
-    points_bad = n.normalize("not_a_number", _SAMPLE_TIMESTAMPS, 6)
-    assert len(points_bad) == 1
-    assert points_bad[0]["yhat"] is None
+
+def test_normalize_predictions_falls_back_for_unknown_type():
+    from inference.predictor import _normalize_predictions
+
+    class Opaque:
+        pass
+
+    frame = pd.DataFrame({"date_utc": _SAMPLE_TIMESTAMPS})
+    points = _normalize_predictions(Opaque(), frame, horizon_hours=6)
+    assert len(points) == 1
+    assert points[0]["yhat"] is None
