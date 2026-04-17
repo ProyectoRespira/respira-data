@@ -120,6 +120,7 @@ main() {
     "${PREFECT_PROJECT_RESPIRA_GOLD_WORK_POOL}"
   )
   declare -A seen_pools=()
+  declare -A started_pools=()
   declare -ag WORKER_PIDS=()
 
   wait_for_prefect_api
@@ -164,10 +165,10 @@ main() {
   trap 'cleanup_workers 0' INT TERM
 
   for pool_name in "${pools[@]}"; do
-    if [[ -n "${seen_pools[${pool_name}]:-started}" && "${seen_pools[${pool_name}]}" == "started" ]]; then
+    if [[ -n "${started_pools[${pool_name}]:-}" ]]; then
       continue
     fi
-    seen_pools["${pool_name}"]="started"
+    started_pools["${pool_name}"]=1
     start_worker_for_pool "${pool_name}"
   done
 

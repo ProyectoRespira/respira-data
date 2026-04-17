@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import subprocess
 from pathlib import Path
 
 from pipelines.compat import flow, get_flow_context, get_run_logger
@@ -11,24 +10,9 @@ from pipelines.tasks.db import ensure_ops_audit_tables, get_engine
 from pipelines.tasks.dbt_tasks import dbt_deps, dbt_run_selector
 from pipelines.tasks.gates import raise_if_failed
 from pipelines.tasks.notifications import notify_flow_failure
+from pipelines.utils.git import git_sha
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-
-
-def _git_sha() -> str | None:
-    try:
-        completed = subprocess.run(
-            ["git", "rev-parse", "--short", "HEAD"],
-            cwd=REPO_ROOT,
-            capture_output=True,
-            text=True,
-            check=False,
-        )
-        if completed.returncode == 0:
-            return completed.stdout.strip() or None
-    except Exception:  # noqa: BLE001
-        return None
-    return None
 
 
 def _summary_from_result(result) -> dict:
@@ -47,7 +31,7 @@ def canonical_incremental() -> None:
     ctx.update(
         {
             "target": settings.DBT_TARGET,
-            "git_sha": _git_sha(),
+            "git_sha": git_sha(),
             "project_code": None,
             "slack_webhook_url": settings.SLACK_WEBHOOK_URL,
             "flow_name": "canonical_incremental",

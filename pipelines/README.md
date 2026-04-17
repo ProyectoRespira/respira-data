@@ -38,11 +38,11 @@ Alertas:
 
 ## Flujos disponibles
 
-- `prefect/flows/warehouse_bootstrap.py:warehouse_bootstrap`
-- `prefect/flows/canonical_incremental.py:canonical_incremental`
-- `prefect/flows/canonical_full_refresh.py:canonical_full_refresh`
-- `prefect/flows/project_inference.py:project_inference`
-- `prefect/flows/project_pipeline.py:project_pipeline`
+- `pipelines/flows/warehouse_bootstrap.py:warehouse_bootstrap`
+- `pipelines/flows/canonical_incremental.py:canonical_incremental`
+- `pipelines/flows/canonical_full_refresh.py:canonical_full_refresh`
+- `pipelines/flows/project_inference.py:project_inference`
+- `pipelines/flows/project_pipeline.py:project_pipeline`
 
 ## Ejecución local
 
@@ -68,12 +68,12 @@ Si `MODEL_6H_PATH` y `MODEL_12H_PATH` no están definidos, el pipeline del proye
 
 ## Auditoría operativa
 
-`prefect/sql/02_ops_audit.sql` crea:
+`pipelines/sql/02_ops_audit.sql` crea:
 
 - `ops.dbt_run_audit`
 - `ops.inference_station_status`
 
-Además, `warehouse_bootstrap` crea tablas de inferencia por proyecto según `prefect/config/projects.py`. Para `respira_gold`:
+Además, `warehouse_bootstrap` crea tablas de inferencia por proyecto según `pipelines/config/projects.py`. Para `respira_gold`:
 
 - `respira_gold.inference_runs`
 - `respira_gold.inference_results`

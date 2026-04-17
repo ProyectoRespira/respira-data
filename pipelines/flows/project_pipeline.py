@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import subprocess
 from datetime import datetime
 from pathlib import Path
 
@@ -13,26 +12,9 @@ from pipelines.tasks.db import ensure_ops_audit_tables, get_engine
 from pipelines.tasks.dbt_tasks import dbt_deps, dbt_run_selector, dbt_test_selector
 from pipelines.tasks.gates import format_test_alert, raise_if_failed, should_alert_on_tests
 from pipelines.tasks.notifications import notify_dbt_tests_failed, notify_flow_failure
+from pipelines.utils.git import git_sha
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-
-
-def _git_sha() -> str | None:
-    try:
-        completed = subprocess.run(
-            ["git", "rev-parse", "--short", "HEAD"],
-            cwd=REPO_ROOT,
-            capture_output=True,
-            text=True,
-            check=False,
-        )
-        if completed.returncode == 0:
-            return completed.stdout.strip() or None
-    except Exception:  # noqa: BLE001
-        return None
-    return None
-
-
 def _summary_from_result(result) -> dict:
     run_results = load_run_results(result.run_results_path) if result.run_results_path else {}
     return summarize_run_results(run_results)
@@ -50,7 +32,7 @@ def project_pipeline(project_code: str, as_of: datetime | None = None) -> None:
     ctx.update(
         {
             "target": settings.DBT_TARGET,
-            "git_sha": _git_sha(),
+            "git_sha": git_sha(),
             "project_code": project.project_code,
             "slack_webhook_url": settings.SLACK_WEBHOOK_URL,
             "flow_name": "project_pipeline",
