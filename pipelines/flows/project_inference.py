@@ -16,6 +16,7 @@ from inference.feature_adapter import REQUIRED_FEATURE_COLUMNS, rows_to_feature_
 from inference.model_loader import load_pickle_model
 from inference.predictor import WindowPredictor, prepare_prediction_frame
 from pipelines.tasks.db import ensure_ops_audit_tables, ensure_project_inference_tables, get_engine
+from pipelines.tasks.redaction import safe_error_str
 from pipelines.tasks.inference_tasks import (
     create_inference_run,
     filter_complete_rows,
@@ -155,7 +156,7 @@ def _process_single_station(
             station_id,
             forecast_6h=_storage_points_from_prediction(prediction_6h),
             forecast_12h=_storage_points_from_prediction(prediction_12h),
-            aqi_input=_aqi_input_points(prepared_frame),
+            aqi_input=_aqi_input_points(feature_frame),
         )
         persist_seconds = perf_counter() - persist_started
 
@@ -186,7 +187,7 @@ def _process_single_station(
         _persist_status(
             engine, project, inference_run_id, station_id, station_started,
             status="failed", reason_code="exception",
-            reason_detail=str(exc)[:500],
+            reason_detail=safe_error_str(exc, max_len=500),
         )
         return "failed"
 
@@ -365,7 +366,7 @@ def project_inference(
         logger.exception("Inference flow failed for project_code=%s", project.project_code)
         finalize_inference_run(
             engine, project, inference_run_id,
-            counters=counters, status="failed", error_summary=str(exc)[:1000],
+            counters=counters, status="failed", error_summary=safe_error_str(exc, max_len=1000),
         )
         raise
     finally:

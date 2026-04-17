@@ -1,10 +1,10 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+from typing import Any
 from unittest.mock import MagicMock, patch
 from uuid import uuid4
 
-import pytest
 import pandas as pd
 
 from pipelines.flows.project_inference import (
@@ -15,8 +15,8 @@ from pipelines.flows.project_inference import (
 )
 
 
-def _make_params(**overrides) -> InferenceRunParams:
-    defaults = {
+def _make_params(**overrides: Any) -> InferenceRunParams:
+    defaults: dict[str, Any] = {
         "as_of": datetime(2025, 1, 1, 12, 0, tzinfo=timezone.utc),
         "window_hours": 24,
         "min_points": 18,
@@ -65,9 +65,9 @@ def test_process_station_success(mock_load, mock_persist_result, mock_persist_st
     mock_load.return_value = rows
 
     predictor_6h = MagicMock()
-    predictor_6h.predict_window.return_value = {"meta": {}, "points": [{"ts": "t", "yhat": 1.0}]}
+    predictor_6h.predict_prepared_window.return_value = {"meta": {}, "points": [{"ts": "t", "yhat": 1.0}]}
     predictor_12h = MagicMock()
-    predictor_12h.predict_window.return_value = {"meta": {}, "points": [{"ts": "t", "yhat": 2.0}]}
+    predictor_12h.predict_prepared_window.return_value = {"meta": {}, "points": [{"ts": "t", "yhat": 2.0}]}
 
     result = _process_single_station(
         engine=MagicMock(),
@@ -82,11 +82,15 @@ def test_process_station_success(mock_load, mock_persist_result, mock_persist_st
     assert result == "success"
     assert mock_persist_result.call_count == 1
     assert mock_persist_status.call_count == 1
+    predictor_6h.predict_prepared_window.assert_called_once()
+    predictor_12h.predict_prepared_window.assert_called_once()
+    assert predictor_6h.predict_prepared_window.call_args.kwargs["horizon_hours"] == 6
+    assert predictor_12h.predict_prepared_window.call_args.kwargs["horizon_hours"] == 12
     status_call = mock_persist_status.call_args
     assert status_call.kwargs["status"] == "success"
     result_call = mock_persist_result.call_args
-    assert "forecast_6h" in result_call.kwargs
-    assert "forecast_12h" in result_call.kwargs
+    assert result_call.kwargs["forecast_6h"][0]["value"] == 1.0
+    assert result_call.kwargs["forecast_12h"][0]["value"] == 2.0
     assert "aqi_input" in result_call.kwargs
 
 

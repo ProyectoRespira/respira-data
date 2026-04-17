@@ -5,6 +5,7 @@ from typing import Any
 from urllib import request
 
 from pipelines.compat import get_run_logger, task
+from pipelines.tasks.redaction import redact_dsn
 
 
 def _send_slack(webhook_url: str | None, message: str) -> None:
@@ -13,7 +14,8 @@ def _send_slack(webhook_url: str | None, message: str) -> None:
         logger.info("Slack webhook not configured. Skipping alert.")
         return
 
-    payload = json.dumps({"text": message}).encode("utf-8")
+    safe_message = redact_dsn(message)
+    payload = json.dumps({"text": safe_message}).encode("utf-8")
     req = request.Request(
         webhook_url,
         data=payload,
