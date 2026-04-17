@@ -184,4 +184,4 @@ run-project-pipeline:
 
 .PHONY: smoke-test
 smoke-test:
-	poetry run pytest -q tests/test_artifacts.py tests/test_dbt_tasks_command.py tests/test_gates.py tests/test_inference_json.py tests/test_projects_config.py tests/test_inference_flow.py
+	poetry run pytest -q tests/test_artifacts.py tests/test_dbt_tasks_command.py tests/test_gates.py tests/test_inference_json.py tests/test_projects_config.py tests/test_inference_flow.py tests/test_model_loader_security.py tests/test_redaction.py tests/test_settings_dsn.py tests/test_db_sql.py

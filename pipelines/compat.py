@@ -34,13 +34,14 @@ if _PREFECT is not None:
     task = _PREFECT.task
 
     def get_run_logger() -> Any:
+        assert _PREFECT is not None
         return _PREFECT.get_run_logger()
 
 else:
     flow = _identity_decorator
     task = _identity_decorator
 
-    def get_run_logger() -> logging.Logger:
+    def get_run_logger() -> Any:
         return logging.getLogger("prefect-fallback")
 
 

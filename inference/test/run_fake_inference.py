@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import json
-from pathlib import Path
 
 from harness import TEST_DIR, dump_results, run_fake_inference
 

@@ -27,6 +27,7 @@ prefect-dbt = "^0.7.19"
 pytest = "^8.2.0"
 ruff = "^0.5.0"
 mypy = "^1.10.0"
+pandas-stubs = "^2.2.0"
 
 
 [tool.poetry.group.inference.dependencies]

@@ -1,13 +1,12 @@
 from __future__ import annotations
 
-import json
 from pathlib import Path
 
 import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 
-from harness import CSV_PATH, TEST_DIR, run_fake_inference
+from harness import TEST_DIR, run_fake_inference
 
 
 st.set_page_config(page_title="Inference Test Harness", layout="wide")
