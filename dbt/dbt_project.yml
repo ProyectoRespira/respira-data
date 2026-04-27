@@ -1,0 +1,82 @@
+name: "respira_data"
+version: "0.1.0"
+config-version: 2
+
+profile: "respira_data"
+
+model-paths: ["models"]
+macro-paths: ["macros"]
+test-paths: ["tests"]
+seed-paths: ["seeds"]
+
+models:
+  respira_data:
+    canonical:
+      sources:
+        +schema: staging
+      staging:
+        +schema: staging
+        +materialized: view
+      intermediate:
+        +schema: intermediate
+        +materialized: view
+      core:
+        +schema: core
+      silver:
+        +schema: silver
+
+    projects:
+      +materialized: table
+      respira_gold:
+        gold:
+          +schema: respira_gold
+        inference:
+          +schema: respira_gold
+seeds:
+  respira_data:
+    +schema: core
+vars:
+  default_region_code: GRAN_ASUNCION
+  measurements_sources:
+    fiuna_airbyte:
+      relation: stg_fiuna_measurements
+      station_code_col: station_code
+      measured_at_col: measured_at_parsed
+      raw_payload_col: raw_payload
+      cursor_id_col: cursor_id
+      is_measured_at_valid_col: is_measured_at_valid
+      variables:
+        pm1: pm1
+        pm25: pm25
+        pm10: pm10
+        temperature_c: temperature_c
+        hum: hum
+        pres: pres
+        battery: battery
+
+    airelibre_airbyte:
+      relation: stg_airelibre_measurements
+      station_code_col: station_code
+      measured_at_col: measured_at_parsed
+      raw_payload_col: raw_payload
+      is_measured_at_valid_col: is_measured_at_valid
+      variables:
+        pm1: pm1
+        pm25: pm25
+        pm10: pm10
+
+    meteostat_airbyte:
+      relation: stg_meteostat_weather
+      station_code_col: station_code
+      measured_at_col: measured_at_parsed
+      raw_payload_col: raw_payload
+      is_measured_at_valid_col: is_measured_at_valid
+      variables:
+        temperature_c: temperature_c
+        hum: hum
+        pres: pres
+        prcp: prcp
+        wspd: wspd
+        wdir: wdir
+        dwpt: dwpt
+        coco: coco

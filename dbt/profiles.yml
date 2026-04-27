@@ -1,0 +1,24 @@
+respira_data:
+  target: dev
+  outputs:
+    dev:
+      type: postgres
+      host: "{{ env_var('REMOTE_PG_HOST') }}"
+      port: "{{ env_var('REMOTE_PG_PORT') | int }}"
+      user: "{{ env_var('REMOTE_PG_USER') }}"
+      password: "{{ env_var('REMOTE_PG_PASSWORD') }}"
+      dbname: "{{ env_var('REMOTE_PG_DB') }}"
+      schema: core
+      threads: 4
+      sslmode: "{{ env_var('REMOTE_PG_SSLMODE', 'prefer') }}"
+
+    prod:
+      type: postgres
+      host: "{{ env_var('REMOTE_PG_HOST') }}"
+      port: "{{ env_var('REMOTE_PG_PORT') | int }}"
+      user: "{{ env_var('REMOTE_PG_USER') }}"
+      password: "{{ env_var('REMOTE_PG_PASSWORD') }}"
+      dbname: "{{ env_var('REMOTE_PG_DB') }}"
+      schema: core
+      threads: 4
+      sslmode: "{{ env_var('REMOTE_PG_SSLMODE', 'prefer') }}"
