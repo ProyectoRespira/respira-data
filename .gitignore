@@ -205,3 +205,12 @@ cython_debug/
 marimo/_static/
 marimo/_lsp/
 __marimo__/
+
+# Local dbt profiles
+profiles.yml
+#  Ignore local dbt profiles to prevent sensitive information from being committed.
+#  For more information, see https://docs.getdbt.com/dbt-cli/configure-your-profile
+dbt/target/
+dbt/logs/
+dbt/dbt_packages/
+dbt/.user.yml

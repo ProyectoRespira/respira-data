@@ -1,0 +1,30 @@
+version: 2
+
+models:
+  - name: fct_measurements_silver
+    description: >
+      Canonical validated measurements fact table (silver).
+      Each row is a single stream measurement at a canonical timestamp.
+      Only includes records with non-null measured_at_silver and non-null value_silver.
+    columns:
+      - name: source_row_id
+        tests: [not_null]
+      - name: stream_id
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_streams')
+                field: id
+      - name: timestamp
+        tests: [not_null]
+      - name: value_parsed
+        description: "Validated numeric value (post silver validation)."
+        tests: [not_null]
+      - name: ingested_at
+        tests: [not_null]
+
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns: ["stream_id", "timestamp"]

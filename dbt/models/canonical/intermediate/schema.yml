@@ -1,0 +1,148 @@
+version: 2
+
+models:
+  - name: int_measurement_payloads
+    description: >
+      One-row-per-source-record payload store for audit/debug.
+      Keeps raw JSON exactly once per ingested source row.
+    columns:
+      - name: source_row_id
+        tests: [not_null]
+      - name: extracted_at
+        tests: [not_null]
+      - name: data_source_name
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_data_sources')
+                field: name
+      - name: raw_payload
+        tests: [not_null]
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns: ["data_source_name", "source_row_id"]
+
+  - name: int_measurements_long
+    description: >
+      Canonical long-form measurements union across sources defined in vars.measurements_sources.
+      Contains station_code, data_source_name, measured_at_parsed, cursor_id (nullable), validity flag, variable_code and raw/parsed values.
+    columns:
+      - name: station_code
+        tests: [not_null]
+      - name: data_source_name
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_data_sources')
+                field: name
+      - name: measured_at_parsed
+        description: "Raw parsed timestamp (UTC) from source."
+      - name: cursor_id
+        description: "Continuity cursor. Present for FIUNA; null for AireLibre and Meteostat."
+      - name: is_measured_at_valid
+      - name: variable_code
+        tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_variables')
+                field: code
+      - name: source_row_id
+        tests: [not_null]
+      - name: extracted_at
+        tests: [not_null]
+      - name: value_raw
+        tests: [not_null]
+      - name: value_parsed
+
+    tests:
+      - dbt_utils.expression_is_true:
+          expression: "variable_code in (select code from {{ ref('variables') }})"
+
+  # - name: int_measurements_time_silver
+  #   description: >
+  #     Silver time cleaning/imputation output. Produces measured_at_silver and metadata about whether time was imputed.
+  #     For FIUNA, cursor_id is the continuity key with expected 5-minute interval.
+  #   columns:
+  #     - name: data_source_name
+  #       tests: [not_null]
+  #     - name: station_code
+  #       tests: [not_null]
+  #     - name: cursor_id
+  #       description: "Continuity cursor for sources that have it (FIUNA)."
+  #     - name: measured_at_parsed
+  #     - name: is_measured_at_valid
+  #       tests: [not_null]
+  #     - name: measured_at_silver
+  #       description: "Final canonical timestamp after time cleaning. May be null when no valid timestamp exists and no imputation is possible."
+  #     - name: is_time_imputed
+  #       tests: [not_null]
+  #     - name: time_impute_method
+  #       description: "Method identifier for time imputation."
+  #     - name: raw_payload
+  #       tests: [not_null]
+
+  #   tests:
+  #     - dbt_utils.unique_combination_of_columns:
+  #         combination_of_columns: ["data_source_name", "station_code", "measured_at_silver", "variable_code"]
+
+  - name: int_measurements_values_silver
+    description: >
+      Silver value validation/cleaning output. Joins time silver + long values; applies variable-specific validation to produce value_silver.
+      The fact model should only consume rows where measured_at_silver is not null and value_silver is not null.
+    columns:
+      - name: data_source_name
+        tests: [not_null]
+      - name: station_code
+        tests: [not_null]
+      - name: variable_code
+        tests: [not_null]
+      - name: cursor_id
+      - name: measured_at_silver
+      - name: value_raw
+        tests: [not_null]
+      - name: value_parsed
+      - name: value_silver
+        description: "Validated/cleaned final numeric value. Null when invalid."
+
+    tests:
+      - dbt_utils.expression_is_true:
+          expression: "variable_code in (select code from {{ ref('variables') }})"
+
+  - name: int_stations_candidates
+    description: "Union of stations from static seed plus AireLibre latest geolocated stations."
+    columns:
+      - name: code
+        tests: [not_null]
+      - name: name
+        tests: [not_null]
+      - name: latitude
+      - name: longitude
+      - name: status
+        tests:
+          - not_null
+          - accepted_values:
+              values: ["active", "inactive"]
+      - name: properties
+        tests: [not_null]
+
+  - name: int_streams_candidates
+    description: "Distinct station_code x variable_code x data_source_name combinations derived from int_measurements_long."
+    columns:
+      - name: station_code
+        tests: [not_null]
+      - name: variable_code
+        tests: [not_null]
+      - name: data_source_name
+        tests: [not_null]
+      - name: code
+        tests: [not_null]
+      - name: name
+        tests: [not_null]
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns: ["code"]
