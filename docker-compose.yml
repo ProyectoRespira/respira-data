@@ -4,8 +4,9 @@ services:
     image: prefecthq/prefect:3.6.20-python3.12
     container_name: prefect_server
     environment:
-      PREFECT_UI_URL: http://localhost:4200
-      PREFECT_UI_API_URL: http://127.0.0.1:4200/api
+      PREFECT_UI_URL: ${PREFECT_UI_URL:-http://localhost:4200}
+      PREFECT_UI_API_URL: ${PREFECT_UI_API_URL:-http://localhost:4200/api}
+      PREFECT_UI_SERVE_BASE: ${PREFECT_UI_SERVE_BASE:-/}
       PREFECT_SERVER_API_HOST: 0.0.0.0
       PREFECT_SERVER_API_PORT: 4200
     command: ["prefect", "server", "start", "--host", "0.0.0.0", "--port", "4200"]
@@ -43,7 +44,7 @@ services:
     working_dir: /app
     environment:
       - DBT_PROFILES_DIR=/app/dbt
-      - PREFECT_API_URL=http://prefect_server:4200/api
+      - PREFECT_API_URL=${PREFECT_API_URL:-http://prefect_server:4200/api}
       - PREFECT_WORKER_TYPE=process
       - PREFECT_CANONICAL_WORK_POOL=canonical
       - PREFECT_PROJECT_RESPIRA_GOLD_WORK_POOL=respira_gold

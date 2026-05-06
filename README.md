@@ -155,6 +155,11 @@ Important runtime details:
   dependencies.
 - `app` uses `Dockerfile` and is the default place for dbt commands.
 - `make smoke-test` runs with host `poetry`, not inside Docker Compose.
+- For production, the Prefect dashboard must advertise your public URL instead
+  of `localhost`. Set `PREFECT_UI_URL` and `PREFECT_UI_API_URL` to the
+  externally reachable hostname, while keeping `PREFECT_API_URL` as the
+  container-internal API address unless your worker must reach Prefect through a
+  proxy.
 
 ## Repository Layout
 
@@ -213,6 +218,11 @@ Optional database setting for Python tasks:
 Prefect and worker settings:
 
 - `PREFECT_API_URL`: defaults to `http://prefect_server:4200/api`
+- `PREFECT_UI_URL`: defaults to `http://localhost:4200` for local-only access
+- `PREFECT_UI_API_URL`: defaults to `http://localhost:4200/api` for local-only
+  access
+- `PREFECT_UI_SERVE_BASE`: defaults to `/`; set this if you serve Prefect under
+  a subpath behind a reverse proxy
 - `PREFECT_WORKER_TYPE`: defaults to `process`
 - `PREFECT_CANONICAL_WORK_POOL`: defaults to `canonical`
 - `PREFECT_PROJECT_RESPIRA_GOLD_WORK_POOL`: defaults to `respira_gold`
