@@ -1,12 +1,10 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from unittest.mock import MagicMock, patch
 from uuid import uuid4
 
-import pytest
 import pandas as pd
-
 from pipelines.flows.project_inference import (
     InferenceRunParams,
     _aqi_input_points,
@@ -17,7 +15,7 @@ from pipelines.flows.project_inference import (
 
 def _make_params(**overrides) -> InferenceRunParams:
     defaults = {
-        "as_of": datetime(2025, 1, 1, 12, 0, tzinfo=timezone.utc),
+        "as_of": datetime(2025, 1, 1, 12, 0, tzinfo=UTC),
         "window_hours": 24,
         "min_points": 18,
         "model_6h_path": "/models/6h.pkl",
@@ -49,7 +47,7 @@ def _make_row(date_hour: int) -> dict:
 
     row = {
         "station_id": 1,
-        "date_utc": datetime(2025, 1, 1, date_hour, 0, tzinfo=timezone.utc),
+        "date_utc": datetime(2025, 1, 1, date_hour, 0, tzinfo=UTC),
     }
     for col in REQUIRED_FEATURE_COLUMNS:
         row[col] = 1.0
@@ -60,14 +58,22 @@ def _make_row(date_hour: int) -> dict:
 @patch("pipelines.flows.project_inference.persist_station_status")
 @patch("pipelines.flows.project_inference.persist_inference_result")
 @patch("pipelines.flows.project_inference.load_station_window")
-def test_process_station_success(mock_load, mock_persist_result, mock_persist_status, _mock_logger):
+def test_process_station_success(
+    mock_load, mock_persist_result, mock_persist_status, _mock_logger
+):
     rows = [_make_row(h) for h in range(18)]
     mock_load.return_value = rows
 
     predictor_6h = MagicMock()
-    predictor_6h.predict_window.return_value = {"meta": {}, "points": [{"ts": "t", "yhat": 1.0}]}
+    predictor_6h.predict_window.return_value = {
+        "meta": {},
+        "points": [{"ts": "t", "yhat": 1.0}],
+    }
     predictor_12h = MagicMock()
-    predictor_12h.predict_window.return_value = {"meta": {}, "points": [{"ts": "t", "yhat": 2.0}]}
+    predictor_12h.predict_window.return_value = {
+        "meta": {},
+        "points": [{"ts": "t", "yhat": 2.0}],
+    }
 
     result = _process_single_station(
         engine=MagicMock(),
@@ -94,7 +100,9 @@ def test_process_station_success(mock_load, mock_persist_result, mock_persist_st
 @patch("pipelines.flows.project_inference.persist_station_status")
 @patch("pipelines.flows.project_inference.persist_inference_result")
 @patch("pipelines.flows.project_inference.load_station_window")
-def test_process_station_skipped_insufficient_rows(mock_load, mock_persist_result, mock_persist_status, _mock_logger):
+def test_process_station_skipped_insufficient_rows(
+    mock_load, mock_persist_result, mock_persist_status, _mock_logger
+):
     mock_load.return_value = [_make_row(h) for h in range(5)]
 
     result = _process_single_station(
@@ -118,7 +126,9 @@ def test_process_station_skipped_insufficient_rows(mock_load, mock_persist_resul
 @patch("pipelines.flows.project_inference.persist_station_status")
 @patch("pipelines.flows.project_inference.persist_inference_result")
 @patch("pipelines.flows.project_inference.load_station_window")
-def test_process_station_failed_on_exception(mock_load, mock_persist_result, mock_persist_status, _mock_logger):
+def test_process_station_failed_on_exception(
+    mock_load, mock_persist_result, mock_persist_status, _mock_logger
+):
     mock_load.side_effect = RuntimeError("DB connection lost")
 
     result = _process_single_station(
@@ -155,13 +165,15 @@ def test_storage_points_from_prediction_uses_value_and_timestamp():
 
 
 def test_aqi_input_points_uses_value_and_timestamp():
-    frame = pd.DataFrame({
-        "date_utc": [
-            pd.Timestamp("2026-03-29T03:00:00Z"),
-            pd.Timestamp("2026-03-29T04:00:00Z"),
-        ],
-        "aqi_pm2_5": [37.0, 36.0],
-    })
+    frame = pd.DataFrame(
+        {
+            "date_utc": [
+                pd.Timestamp("2026-03-29T03:00:00Z"),
+                pd.Timestamp("2026-03-29T04:00:00Z"),
+            ],
+            "aqi_pm2_5": [37.0, 36.0],
+        }
+    )
 
     assert _aqi_input_points(frame) == [
         {"value": 37, "timestamp": "2026-03-29T03:00:00"},

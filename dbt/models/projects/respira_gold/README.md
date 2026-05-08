@@ -9,12 +9,12 @@ Table respira_gold.regions {
   bbox varchar
   has_weather_data bool
   has_pattern_data bool
-  
+
 }
 
 Table respira_gold.stations {
   id integer [primary key]
-  name varchar 
+  name varchar
   latitude float
   longitude float
   region_id varchar [ref: > regions.id]
@@ -34,7 +34,7 @@ Table respira_gold.station_readings_gold {
   id serial [primary key]
   station_id integer [ref: > stations.id]
   airnow_id integer [ref: - airnow_readings_silver.id]
-  date_localtime timestamptz 
+  date_localtime timestamptz
   pm_calibrated bool
   pm1 float
   pm2_5 float
