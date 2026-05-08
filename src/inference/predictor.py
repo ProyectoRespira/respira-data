@@ -1,10 +1,9 @@
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import pandas as pd
-
 
 TARGET_COLUMN = "aqi_pm2_5"
 NON_COVARIATE_COLUMNS = {"date_utc", "station_id"}
@@ -38,7 +37,7 @@ class WindowPredictor:
             raise ValueError("prepared_frame is empty")
 
         raw_predictions = _predict(self.model, prepared_frame, horizon_hours)
-        generated_at = datetime.now(timezone.utc).isoformat()
+        generated_at = datetime.now(UTC).isoformat()
 
         points = _normalize_predictions(raw_predictions, prepared_frame, horizon_hours)
         return {
@@ -65,7 +64,9 @@ def predict_window(
     )
 
 
-def prepare_prediction_frame(features_frame: pd.DataFrame, as_of: datetime | None = None) -> pd.DataFrame:
+def prepare_prediction_frame(
+    features_frame: pd.DataFrame, as_of: datetime | None = None
+) -> pd.DataFrame:
     return _prepare_prediction_frame(features_frame, as_of)
 
 
@@ -76,27 +77,44 @@ def _predict(model: Any, features_frame: pd.DataFrame, horizon_hours: int) -> An
         return model.predict(features_frame)
 
 
-def _predict_with_darts(model: Any, features_frame: pd.DataFrame, horizon_hours: int) -> Any:
+def _predict_with_darts(
+    model: Any, features_frame: pd.DataFrame, horizon_hours: int
+) -> Any:
     from darts import TimeSeries
 
-    covariate_columns = [column for column in features_frame.columns if column not in NON_COVARIATE_COLUMNS]
-    series_columns = [TARGET_COLUMN, *[column for column in covariate_columns if column != TARGET_COLUMN]]
+    covariate_columns = [
+        column
+        for column in features_frame.columns
+        if column not in NON_COVARIATE_COLUMNS
+    ]
+    series_columns = [
+        TARGET_COLUMN,
+        *[column for column in covariate_columns if column != TARGET_COLUMN],
+    ]
     input_frame = features_frame[["date_utc", *series_columns]].copy()
-    input_frame["date_utc"] = pd.to_datetime(input_frame["date_utc"], utc=True, errors="coerce")
+    input_frame["date_utc"] = pd.to_datetime(
+        input_frame["date_utc"], utc=True, errors="coerce"
+    )
     darts_frame = input_frame.copy()
     # Darts expects a tz-naive datetime index; keep values normalized to UTC and
     # strip timezone info only for the conversion boundary.
     darts_frame["date_utc"] = darts_frame["date_utc"].dt.tz_convert(None)
 
-    ts = TimeSeries.from_dataframe(darts_frame, time_col="date_utc", value_cols=series_columns, freq="h")
+    ts = TimeSeries.from_dataframe(
+        darts_frame, time_col="date_utc", value_cols=series_columns, freq="h"
+    )
     target_series = ts[TARGET_COLUMN]
 
     if covariate_columns:
-        return model.predict(horizon_hours, series=target_series, past_covariates=ts[covariate_columns])
+        return model.predict(
+            horizon_hours, series=target_series, past_covariates=ts[covariate_columns]
+        )
     return model.predict(horizon_hours, series=target_series)
 
 
-def _prepare_prediction_frame(features_frame: pd.DataFrame, as_of: datetime | None) -> pd.DataFrame:
+def _prepare_prediction_frame(
+    features_frame: pd.DataFrame, as_of: datetime | None
+) -> pd.DataFrame:
     frame = features_frame.reset_index(drop=True).copy()
     frame["date_utc"] = pd.to_datetime(frame["date_utc"], utc=True, errors="coerce")
     frame = frame.dropna(subset=["date_utc"]).sort_values("date_utc", ascending=True)
@@ -105,12 +123,23 @@ def _prepare_prediction_frame(features_frame: pd.DataFrame, as_of: datetime | No
     if duplicate_mask.any():
         frame = frame[~duplicate_mask]
 
-    end_ts = pd.to_datetime(as_of, utc=True) if as_of is not None else frame["date_utc"].max()
+    end_ts = (
+        pd.to_datetime(as_of, utc=True)
+        if as_of is not None
+        else frame["date_utc"].max()
+    )
     if pd.isna(end_ts):
         raise ValueError("Unable to determine prediction end timestamp")
 
-    full_range = pd.date_range(start=frame["date_utc"].min(), end=end_ts, freq="h", tz="UTC")
-    frame = frame.set_index("date_utc").reindex(full_range).rename_axis("date_utc").reset_index()
+    full_range = pd.date_range(
+        start=frame["date_utc"].min(), end=end_ts, freq="h", tz="UTC"
+    )
+    frame = (
+        frame.set_index("date_utc")
+        .reindex(full_range)
+        .rename_axis("date_utc")
+        .reset_index()
+    )
 
     value_columns = [column for column in frame.columns if column != "date_utc"]
     if value_columns:
@@ -123,7 +152,9 @@ class _DartsSeriesNormalizer:
     def can_handle(self, raw: Any) -> bool:
         return hasattr(raw, "pd_series")
 
-    def normalize(self, raw: Any, timestamps: list[Any], horizon_hours: int) -> list[dict[str, Any]]:
+    def normalize(
+        self, raw: Any, timestamps: list[Any], horizon_hours: int
+    ) -> list[dict[str, Any]]:
         pandas_series = raw.pd_series().round(0)
         return [_point(ts, value, None, None) for ts, value in pandas_series.items()]
 
@@ -132,11 +163,17 @@ class _DataFrameNormalizer:
     def can_handle(self, raw: Any) -> bool:
         return isinstance(raw, pd.DataFrame)
 
-    def normalize(self, raw: Any, timestamps: list[Any], horizon_hours: int) -> list[dict[str, Any]]:
+    def normalize(
+        self, raw: Any, timestamps: list[Any], horizon_hours: int
+    ) -> list[dict[str, Any]]:
         points: list[dict[str, Any]] = []
         for _, row in raw.iterrows():
             ts = row.get("ts") or row.get("date_utc") or row.get("timestamp")
-            points.append(_point(ts, row.get("yhat"), row.get("yhat_lower"), row.get("yhat_upper")))
+            points.append(
+                _point(
+                    ts, row.get("yhat"), row.get("yhat_lower"), row.get("yhat_upper")
+                )
+            )
         return points
 
 
@@ -144,7 +181,9 @@ class _DictNormalizer:
     def can_handle(self, raw: Any) -> bool:
         return isinstance(raw, dict)
 
-    def normalize(self, raw: Any, timestamps: list[Any], horizon_hours: int) -> list[dict[str, Any]]:
+    def normalize(
+        self, raw: Any, timestamps: list[Any], horizon_hours: int
+    ) -> list[dict[str, Any]]:
         existing_points = raw.get("points")
         if isinstance(existing_points, list):
             return _normalize_point_dicts(existing_points)
@@ -157,7 +196,9 @@ class _IterableNormalizer:
     def can_handle(self, raw: Any) -> bool:
         return isinstance(raw, (list, tuple))
 
-    def normalize(self, raw: Any, timestamps: list[Any], horizon_hours: int) -> list[dict[str, Any]]:
+    def normalize(
+        self, raw: Any, timestamps: list[Any], horizon_hours: int
+    ) -> list[dict[str, Any]]:
         points: list[dict[str, Any]] = []
         start_ts = _fallback_ts(timestamps, 1)
 
@@ -166,7 +207,9 @@ class _IterableNormalizer:
                 points.append(
                     _point(
                         item.get("ts") or _shift_ts(start_ts, idx),
-                        item.get("yhat"), item.get("yhat_lower"), item.get("yhat_upper"),
+                        item.get("yhat"),
+                        item.get("yhat_lower"),
+                        item.get("yhat_upper"),
                     )
                 )
                 continue
@@ -182,10 +225,14 @@ class _IterableNormalizer:
             else:
                 yhat = item
 
-            points.append(_point(_shift_ts(start_ts, idx), yhat, yhat_lower, yhat_upper))
+            points.append(
+                _point(_shift_ts(start_ts, idx), yhat, yhat_lower, yhat_upper)
+            )
 
         if not points:
-            points.append(_point(_fallback_ts(timestamps, horizon_hours), None, None, None))
+            points.append(
+                _point(_fallback_ts(timestamps, horizon_hours), None, None, None)
+            )
         return points
 
 
@@ -197,7 +244,9 @@ class _ScalarNormalizer:
         except (TypeError, ValueError):
             return True  # fallback: handles everything
 
-    def normalize(self, raw: Any, timestamps: list[Any], horizon_hours: int) -> list[dict[str, Any]]:
+    def normalize(
+        self, raw: Any, timestamps: list[Any], horizon_hours: int
+    ) -> list[dict[str, Any]]:
         ts = _fallback_ts(timestamps, horizon_hours)
         try:
             return [_point(ts, float(raw), None, None)]
@@ -214,10 +263,12 @@ NORMALIZERS: list[Any] = [
 ]
 
 
-def _normalize_predictions(raw_predictions: Any, features_frame: pd.DataFrame, horizon_hours: int) -> list[dict[str, Any]]:
+def _normalize_predictions(
+    raw_predictions: Any, features_frame: pd.DataFrame, horizon_hours: int
+) -> list[dict[str, Any]]:
     timestamps = list(features_frame["date_utc"])
     if not timestamps:
-        timestamps = [datetime.now(timezone.utc)]
+        timestamps = [datetime.now(UTC)]
 
     for normalizer in NORMALIZERS:
         if normalizer.can_handle(raw_predictions):
@@ -231,7 +282,14 @@ def _normalize_point_dicts(points: list[Any]) -> list[dict[str, Any]]:
     normalized: list[dict[str, Any]] = []
     for item in points:
         if isinstance(item, dict):
-            normalized.append(_point(item.get("ts"), item.get("yhat"), item.get("yhat_lower"), item.get("yhat_upper")))
+            normalized.append(
+                _point(
+                    item.get("ts"),
+                    item.get("yhat"),
+                    item.get("yhat_lower"),
+                    item.get("yhat_upper"),
+                )
+            )
     return normalized
 
 
@@ -242,9 +300,9 @@ def _fallback_ts(timestamps: list[Any], horizon_hours: int) -> str:
             ts = ts.to_pydatetime()
         if isinstance(ts, datetime):
             if ts.tzinfo is None:
-                ts = ts.replace(tzinfo=timezone.utc)
+                ts = ts.replace(tzinfo=UTC)
             return (ts + timedelta(hours=horizon_hours)).isoformat()
-    return datetime.now(timezone.utc).isoformat()
+    return datetime.now(UTC).isoformat()
 
 
 def _shift_ts(start_ts: str, hours: int) -> str:
@@ -256,7 +314,7 @@ def _shift_ts(start_ts: str, hours: int) -> str:
 def _point(ts: Any, yhat: Any, yhat_lower: Any, yhat_upper: Any) -> dict[str, Any]:
     ts_parsed = pd.to_datetime(ts, utc=True, errors="coerce")
     if pd.isna(ts_parsed):
-        ts_value = datetime.now(timezone.utc).isoformat()
+        ts_value = datetime.now(UTC).isoformat()
     else:
         ts_value = ts_parsed.isoformat()
 

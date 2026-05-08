@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 import logging
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 from uuid import UUID, uuid4
@@ -73,10 +73,14 @@ def summarize_run_results(run_results: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def persist_dbt_audit(engine, dbt_result: DbtTaskResult, summary: dict[str, Any], ctx: dict[str, Any]) -> UUID:
+def persist_dbt_audit(
+    engine, dbt_result: DbtTaskResult, summary: dict[str, Any], ctx: dict[str, Any]
+) -> UUID:
     audit_id = uuid4()
     run_results_json = (
-        load_run_results(dbt_result.run_results_path) if dbt_result.run_results_path else None
+        load_run_results(dbt_result.run_results_path)
+        if dbt_result.run_results_path
+        else None
     )
 
     query = text(
@@ -125,7 +129,7 @@ def persist_dbt_audit(engine, dbt_result: DbtTaskResult, summary: dict[str, Any]
         """
     )
 
-    created_at = datetime.now(timezone.utc)
+    created_at = datetime.now(UTC)
     payload = {
         "id": str(audit_id),
         "flow_run_id": ctx.get("flow_run_id", "unknown"),
@@ -144,7 +148,9 @@ def persist_dbt_audit(engine, dbt_result: DbtTaskResult, summary: dict[str, Any]
         "tests_passed": int(summary.get("tests_passed", 0)),
         "tests_failed": int(summary.get("tests_failed", 0)),
         "error_summary": summary.get("error_summary"),
-        "run_results_json": json.dumps(run_results_json) if run_results_json is not None else None,
+        "run_results_json": json.dumps(run_results_json)
+        if run_results_json is not None
+        else None,
         "created_at": created_at,
     }
 

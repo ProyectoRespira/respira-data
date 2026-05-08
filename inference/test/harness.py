@@ -7,14 +7,13 @@ import os
 import sys
 import warnings
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from time import perf_counter
 from typing import Any
 from uuid import uuid4
 
 import pandas as pd
-
 
 TEST_DIR = Path(__file__).resolve().parent
 REPO_ROOT = TEST_DIR.parents[1]
@@ -43,7 +42,6 @@ _configure_runtime_noise()
 from inference.feature_adapter import REQUIRED_FEATURE_COLUMNS, rows_to_feature_frame
 from inference.model_loader import load_pickle_model
 from inference.predictor import WindowPredictor
-
 
 CSV_PATH = TEST_DIR / "fake_station_inference_features.csv"
 MODELS_DIR = REPO_ROOT / "models"
@@ -86,16 +84,24 @@ def load_predictors(
     model_12h_path: Path | None = None,
 ) -> LoadedPredictors:
     resolved_model_6h_path, resolved_model_12h_path = (
-        Path(model_6h_path),
-        Path(model_12h_path),
-    ) if model_6h_path and model_12h_path else resolve_default_model_paths()
+        (
+            Path(model_6h_path),
+            Path(model_12h_path),
+        )
+        if model_6h_path and model_12h_path
+        else resolve_default_model_paths()
+    )
 
     model_6h = load_pickle_model(str(resolved_model_6h_path))
     model_12h = load_pickle_model(str(resolved_model_12h_path))
 
     return LoadedPredictors(
-        predictor_6h=WindowPredictor(model=model_6h.model, model_version=resolved_model_6h_path.stem),
-        predictor_12h=WindowPredictor(model=model_12h.model, model_version=resolved_model_12h_path.stem),
+        predictor_6h=WindowPredictor(
+            model=model_6h.model, model_version=resolved_model_6h_path.stem
+        ),
+        predictor_12h=WindowPredictor(
+            model=model_12h.model, model_version=resolved_model_12h_path.stem
+        ),
         model_6h_path=resolved_model_6h_path,
         model_12h_path=resolved_model_12h_path,
         model_6h_version=resolved_model_6h_path.stem,
@@ -126,10 +132,12 @@ def run_fake_inference(
     window_hours: int = DEFAULT_WINDOW_HOURS,
     min_points: int = DEFAULT_MIN_POINTS,
 ) -> dict[str, Any]:
-    started_at = datetime.now(timezone.utc)
+    started_at = datetime.now(UTC)
     dataset = load_fake_data(csv_path)
     as_of_value = _ensure_utc(as_of or default_as_of(dataset))
-    predictors = load_predictors(model_6h_path=model_6h_path, model_12h_path=model_12h_path)
+    predictors = load_predictors(
+        model_6h_path=model_6h_path, model_12h_path=model_12h_path
+    )
 
     station_statuses: list[dict[str, Any]] = []
     inference_results: list[dict[str, Any]] = []
@@ -144,14 +152,17 @@ def run_fake_inference(
     }
 
     window_start = as_of_value - timedelta(hours=window_hours)
-    station_ids = sorted(int(station_id) for station_id in dataset["station_id"].unique())
+    station_ids = sorted(
+        int(station_id) for station_id in dataset["station_id"].unique()
+    )
     counters["stations_total"] = len(station_ids)
 
     for station_id in station_ids:
         station_started = perf_counter()
         station_all_rows = dataset[dataset["station_id"] == station_id].copy()
         station_rows = station_all_rows[
-            (station_all_rows["date_utc"] > window_start) & (station_all_rows["date_utc"] <= as_of_value)
+            (station_all_rows["date_utc"] > window_start)
+            & (station_all_rows["date_utc"] <= as_of_value)
         ].copy()
 
         summary = {
@@ -199,8 +210,12 @@ def run_fake_inference(
             feature_frame = rows_to_feature_frame(complete_rows)
             station_inputs[station_id] = _aqi_input_points(feature_frame)
 
-            prediction_6h = predictors.predictor_6h.predict_window(feature_frame, horizon_hours=6, as_of=as_of_value)
-            prediction_12h = predictors.predictor_12h.predict_window(feature_frame, horizon_hours=12, as_of=as_of_value)
+            prediction_6h = predictors.predictor_6h.predict_window(
+                feature_frame, horizon_hours=6, as_of=as_of_value
+            )
+            prediction_12h = predictors.predictor_12h.predict_window(
+                feature_frame, horizon_hours=12, as_of=as_of_value
+            )
 
             if run_id is None:
                 run_id = str(uuid4())
@@ -252,7 +267,7 @@ def run_fake_inference(
             )
             station_summaries.append(summary)
 
-    ended_at = datetime.now(timezone.utc)
+    ended_at = datetime.now(UTC)
     inference_run = None
     if run_id is not None:
         inference_run = {
@@ -269,7 +284,9 @@ def run_fake_inference(
             "started_at": started_at.isoformat(),
             "ended_at": ended_at.isoformat(),
             "duration_s": int((ended_at - started_at).total_seconds()),
-            "status": "success" if counters["stations_success"] > 0 and counters["stations_failed"] == 0 else "partial",
+            "status": "success"
+            if counters["stations_success"] > 0 and counters["stations_failed"] == 0
+            else "partial",
             "stations_total": counters["stations_total"],
             "stations_success": counters["stations_success"],
             "stations_skipped": counters["stations_skipped"],
@@ -305,7 +322,9 @@ def dump_results(output_dir: Path, payload: dict[str, Any]) -> dict[str, str]:
         "station_status": output_dir / "station_status.json",
     }
 
-    paths["full_payload"].write_text(json.dumps(payload, indent=2, ensure_ascii=True), encoding="utf-8")
+    paths["full_payload"].write_text(
+        json.dumps(payload, indent=2, ensure_ascii=True), encoding="utf-8"
+    )
     paths["inference_run"].write_text(
         json.dumps(payload.get("inference_run"), indent=2, ensure_ascii=True),
         encoding="utf-8",
@@ -390,8 +409,8 @@ def _inference_result(
 
 def _ensure_utc(value: datetime) -> datetime:
     if value.tzinfo is None:
-        return value.replace(tzinfo=timezone.utc)
-    return value.astimezone(timezone.utc)
+        return value.replace(tzinfo=UTC)
+    return value.astimezone(UTC)
 
 
 def _elapsed_seconds(started_at: float) -> int:

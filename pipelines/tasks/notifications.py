@@ -51,5 +51,7 @@ def notify_dbt_tests_failed(ctx: dict[str, Any], summary: dict[str, Any]) -> Non
 def notify_flow_failure(ctx: dict[str, Any], message: str) -> None:
     flow_name = ctx.get("flow_name", "unknown_flow")
     flow_run_id = ctx.get("flow_run_id", "unknown")
-    alert_message = f"[Respira] Flow failure in '{flow_name}' ({flow_run_id}): {message}"
+    alert_message = (
+        f"[Respira] Flow failure in '{flow_name}' ({flow_run_id}): {message}"
+    )
     _send_slack(ctx.get("slack_webhook_url"), alert_message)

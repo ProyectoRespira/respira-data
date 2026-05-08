@@ -5,7 +5,6 @@ from typing import Any
 
 import pandas as pd
 
-
 logger = logging.getLogger(__name__)
 
 REQUIRED_FEATURE_COLUMNS = [
@@ -65,7 +64,10 @@ def rows_to_feature_frame(rows: list[dict[str, Any]]) -> pd.DataFrame:
     duplicate_mask = frame.duplicated(subset=["date_utc"], keep="last")
     if duplicate_mask.any():
         duplicate_count = int(duplicate_mask.sum())
-        logger.warning("Dropping %s duplicated date_utc rows and keeping the last occurrence", duplicate_count)
+        logger.warning(
+            "Dropping %s duplicated date_utc rows and keeping the last occurrence",
+            duplicate_count,
+        )
         frame = frame[~duplicate_mask]
 
     frame = frame.set_index("date_utc", drop=False)

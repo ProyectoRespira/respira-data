@@ -6,7 +6,11 @@ import types
 
 import pandas as pd
 
-from inference.feature_adapter import REQUIRED_COLUMNS, REQUIRED_FEATURE_COLUMNS, rows_to_feature_frame
+from inference.feature_adapter import (
+    REQUIRED_COLUMNS,
+    REQUIRED_FEATURE_COLUMNS,
+    rows_to_feature_frame,
+)
 from inference.predictor import WindowPredictor
 
 
@@ -63,12 +67,16 @@ def test_predictor_supports_darts_models(monkeypatch):
             return self._series
 
     class FakeTimeSeries:
-        def __init__(self, frame: pd.DataFrame, selected_columns: list[str] | None = None):
+        def __init__(
+            self, frame: pd.DataFrame, selected_columns: list[str] | None = None
+        ):
             self._frame = frame.reset_index(drop=True)
             self._selected_columns = selected_columns
 
         @classmethod
-        def from_dataframe(cls, frame: pd.DataFrame, time_col: str, value_cols: list[str], freq: str):
+        def from_dataframe(
+            cls, frame: pd.DataFrame, time_col: str, value_cols: list[str], freq: str
+        ):
             captured["frame"] = frame.copy()
             assert time_col == "date_utc"
             assert freq == "h"
@@ -118,7 +126,10 @@ from inference.predictor import (
     _ScalarNormalizer,
 )
 
-_SAMPLE_TIMESTAMPS = [pd.Timestamp("2026-01-01T00:00:00Z"), pd.Timestamp("2026-01-01T01:00:00Z")]
+_SAMPLE_TIMESTAMPS = [
+    pd.Timestamp("2026-01-01T00:00:00Z"),
+    pd.Timestamp("2026-01-01T01:00:00Z"),
+]
 _POINT_KEYS = {"ts", "yhat", "yhat_lower", "yhat_upper"}
 
 
@@ -138,12 +149,14 @@ def test_darts_series_normalizer():
 
 
 def test_dataframe_normalizer():
-    df = pd.DataFrame({
-        "ts": ["2026-01-01T00:00:00Z", "2026-01-01T01:00:00Z"],
-        "yhat": [1.5, 2.5],
-        "yhat_lower": [1.0, 2.0],
-        "yhat_upper": [2.0, 3.0],
-    })
+    df = pd.DataFrame(
+        {
+            "ts": ["2026-01-01T00:00:00Z", "2026-01-01T01:00:00Z"],
+            "yhat": [1.5, 2.5],
+            "yhat_lower": [1.0, 2.0],
+            "yhat_upper": [2.0, 3.0],
+        }
+    )
     n = _DataFrameNormalizer()
     assert n.can_handle(df)
     assert not n.can_handle({"a": 1})
