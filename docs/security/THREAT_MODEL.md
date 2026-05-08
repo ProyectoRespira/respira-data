@@ -28,7 +28,7 @@ Because instances are operator-maintained, security concerns shift from centrali
 
 Users rely on Respira to display trustworthy environmental information. If data is altered, corrupted, or presented incorrectly, decisions based on that information can be harmed.
 
-**Why it matters:**  
+**Why it matters:**
 Public health decisions (air quality warnings, operational planning) depend on accurate data. Compromised data undermines the value and trust in the platform.
 
 **High-level mitigations:**
@@ -43,7 +43,7 @@ Public health decisions (air quality warnings, operational planning) depend on a
 
 As a self-hosted platform distributed as source code, users depend on this repository being the authoritative source of the application. Compromised code can affect every instance built from it.
 
-**Why it matters:**  
+**Why it matters:**
 Unlike SaaS platforms, malicious code in this repository directly impacts all downstream deployments.
 
 **High-level mitigations:**
@@ -58,7 +58,7 @@ Unlike SaaS platforms, malicious code in this repository directly impacts all do
 
 Because each user builds and deploys their own instance, they are responsible for secure deployment practices. However, the codebase should provide secure defaults and clear guidance.
 
-**Why it matters:**  
+**Why it matters:**
 Weak deployment practices (hardcoded secrets, insecure network exposure, unpatched containers) can compromise individual instances.
 
 **High-level mitigations:**
@@ -73,7 +73,7 @@ Weak deployment practices (hardcoded secrets, insecure network exposure, unpatch
 
 Operational interfaces and sensitive actions should be protected from unauthorized access. This is especially important for GitHub maintainers, deployment operators, database access, and orchestration surfaces such as Prefect.
 
-**Why it matters:**  
+**Why it matters:**
 Unauthorized access can modify pipeline code, alter warehouse data, expose secrets, or interfere with scheduled operations.
 
 **High-level mitigations:**
@@ -88,7 +88,7 @@ Unauthorized access can modify pipeline code, alter warehouse data, expose secre
 
 The platform may unintentionally reveal sensitive operational details through logs, error messages, deployment configuration, orchestration surfaces, or documentation.
 
-**Why it matters:**  
+**Why it matters:**
 Unnecessary disclosure makes exploitation easier and can expose confidential configuration or internal state.
 
 **High-level mitigations:**
@@ -103,7 +103,7 @@ Unnecessary disclosure makes exploitation easier and can expose confidential con
 
 The application depends on third-party libraries and frameworks. Vulnerabilities in those dependencies can be inherited by Respira.
 
-**Why it matters:**  
+**Why it matters:**
 Dependencies are supply chain risks that can be exploited through the application if not kept current.
 
 **High-level mitigations:**
@@ -118,7 +118,7 @@ Dependencies are supply chain risks that can be exploited through the applicatio
 
 Security work is harder when important actions cannot be traced after the fact. A clear incident response process enables faster detection and recovery.
 
-**Why it matters:**  
+**Why it matters:**
 Good visibility reduces response time and improves recovery. In self-hosted scenarios, maintainers need a clear process to communicate patches to users.
 
 **High-level mitigations:**

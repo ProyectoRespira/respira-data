@@ -39,9 +39,12 @@ def _configure_runtime_noise() -> None:
 
 _configure_runtime_noise()
 
-from inference.feature_adapter import REQUIRED_FEATURE_COLUMNS, rows_to_feature_frame
-from inference.model_loader import load_pickle_model
-from inference.predictor import WindowPredictor
+from inference.feature_adapter import (  # noqa: E402
+    REQUIRED_FEATURE_COLUMNS,
+    rows_to_feature_frame,
+)
+from inference.model_loader import load_pickle_model  # noqa: E402
+from inference.predictor import WindowPredictor  # noqa: E402
 
 CSV_PATH = TEST_DIR / "fake_station_inference_features.csv"
 MODELS_DIR = REPO_ROOT / "models"

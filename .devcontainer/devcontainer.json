@@ -47,6 +47,12 @@
 			"plugins": "ssh-agent npm",
 			"omzPlugins": "https://github.com/zsh-users/zsh-autosuggestions",
 			"username": "respira"
+		},
+		"ghcr.io/devcontainers/features/conda:2": {
+			"version": "latest"
+		},
+		"features": {
+    		"ghcr.io/devcontainers-extra/features/poetry:2": {}
 		}
 	},
 	"remoteUser": "respira",

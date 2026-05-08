@@ -22,3 +22,13 @@ repos:
         types_or: [python, pyi]
       - id: ruff-format
         types_or: [python, pyi]
+
+  - repo: local
+    hooks:
+      - id: smoke-test
+        name: smoke-test
+        entry: bash -lc 'POETRY_VIRTUALENVS_CREATE=false poetry run pytest -q tests/test_artifacts.py tests/test_dbt_tasks_command.py tests/test_gates.py tests/test_inference_json.py tests/test_projects_config.py tests/test_inference_flow.py'
+        language: system
+        pass_filenames: false
+        always_run: true
+        stages: [pre-push]

@@ -21,7 +21,7 @@ Unlike centralized platforms, security patches for Respira are distributed throu
 2. Rebuild their Docker container
 3. Deploy to their instance
 
-This means patch adoption is **staggered**—not all instances update simultaneously. 
+This means patch adoption is **staggered**—not all instances update simultaneously.
 
 **For operators:** Monitor GitHub Releases and Security Advisories for critical patches. Subscribe to notifications in the repository settings.
 

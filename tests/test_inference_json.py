@@ -11,7 +11,14 @@ from inference.feature_adapter import (
     REQUIRED_FEATURE_COLUMNS,
     rows_to_feature_frame,
 )
-from inference.predictor import WindowPredictor
+from inference.predictor import (
+    WindowPredictor,
+    _DartsSeriesNormalizer,
+    _DataFrameNormalizer,
+    _DictNormalizer,
+    _IterableNormalizer,
+    _ScalarNormalizer,
+)
 
 
 class DummyModel:
@@ -117,14 +124,6 @@ def test_predictor_supports_darts_models(monkeypatch):
 
 
 # --- R7.2: Normalizer-specific tests ---
-
-from inference.predictor import (
-    _DartsSeriesNormalizer,
-    _DataFrameNormalizer,
-    _DictNormalizer,
-    _IterableNormalizer,
-    _ScalarNormalizer,
-)
 
 _SAMPLE_TIMESTAMPS = [
     pd.Timestamp("2026-01-01T00:00:00Z"),
