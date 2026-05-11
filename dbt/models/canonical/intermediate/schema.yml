@@ -91,7 +91,8 @@ models:
 
   - name: int_measurements_values_silver
     description: >
-      Silver value validation/cleaning output. Joins time silver + long values; applies variable-specific validation to produce value_silver.
+      Silver value validation/cleaning output. Joins time silver + long values; applies variable-specific validation and
+      forward-fills missing values from the last valid observation in the same source/station/variable stream to produce value_silver.
       The fact model should only consume rows where measured_at_silver is not null and value_silver is not null.
     columns:
       - name: data_source_name
@@ -105,6 +106,10 @@ models:
       - name: value_raw
         tests: [not_null]
       - name: value_parsed
+      - name: is_value_imputed
+        description: "True when value_silver was forward-filled from the last valid observation."
+      - name: value_impute_method
+        description: "Method used to repair missing values or the reason a value could not be repaired."
       - name: value_silver
         description: "Validated/cleaned final numeric value. Null when invalid."
 

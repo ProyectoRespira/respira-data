@@ -39,18 +39,17 @@
     {%- for variable_code, col_name in vars_map.items() %}
       (
         '{{ variable_code }}',
-        {{ col_name }}::text,
+        coalesce({{ col_name }}::text, ''),
         {{ col_name }}::double precision
       ){% if not loop.last %},{% endif %}
     {%- endfor %}
   ) as v(variable_code, value_raw, value_parsed)
-  where v.value_raw is not null
-    {% if is_incremental() %}
-    and {{ extracted_col }} >= (
+  {% if is_incremental() %}
+  where {{ extracted_col }} >= (
       select coalesce(max(extracted_at), '1970-01-01'::timestamptz)
       from {{ this }}
     )
-    {% endif %}
+  {% endif %}
 {%- endmacro %}
 
 {% macro measurement_payloads_from_source(source_name, source_cfg) -%}
