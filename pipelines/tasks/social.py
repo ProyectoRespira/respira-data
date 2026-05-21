@@ -106,36 +106,60 @@ def extract_social_snapshot(
     return {"project_code": project_code, "as_of": as_of_utc.isoformat(), "regions": regions}
 
 
+_AQI_LEVELS = [
+    (0, 50, "Bueno 😁"),
+    (51, 100, "Moderado 🙂"),
+    (101, 150, "Insalubre para grupos sensibles 😷"),
+    (151, 200, "Insalubre 😶‍🌫️"),
+    (201, 300, "Muy insalubre 😰"),
+    (301, 500, "Peligroso 💀"),
+]
+
+_AQI_MESSAGES = [
+    (0, 50, "🟢 ¡Hoy es un excelente día para estar al aire libre! 🏃‍♂️🍃"),
+    (51, 100, "🟡 Hoy es un buen día para estar al aire libre para la mayoría de las personas. 👍🏻"),
+    (101, 150, "🟠 Las personas sensibles deben prestar atención a síntomas 😷"),
+    (151, 200, "🔴 Hoy es un mal día para estar al aire libre.\nSe recomienda el uso de tapabocas para la población general 💨😷"),
+    (201, 300, "🟣 Hoy es un muy mal día para estar al aire libre.\nSe recomienda el uso de tapabocas para la población general 🔥😷"),
+    (301, 500, "⚫ Evite la exposición al aire libre. 💀😷\nAnte la aparición de síntomas, consulte a su médico."),
+]
+
+
+def _aqi_label(value: int) -> str:
+    for lo, hi, label in _AQI_LEVELS:
+        if lo <= value <= hi:
+            return label
+    return "Fuera del AQI 💀🤯"
+
+
+def _aqi_message(value: int) -> str:
+    for lo, hi, msg in _AQI_MESSAGES:
+        if lo <= value <= hi:
+            return msg
+    return ""
+
+
 @task(name="build_regional_average_message")
 def build_regional_average_message(payload: dict[str, Any]) -> str:
     regions = payload.get("regions", [])
     if not regions:
         raise RuntimeError("Cannot build social message without regions")
 
-    as_of = payload.get("as_of", "unknown")
-    project_code = payload.get("project_code", "respira_gold")
-
-    lines = [
-        f"Respira AQI - {project_code}",
-        f"Corte: {as_of}",
-        "",
-    ]
-
+    lines = []
     for region in regions:
+        avg = region["avg_aqi"]
+        max_ = region["max_aqi"]
+        min_ = region["min_aqi"]
         lines.append(
-            (
-                f"{region['region_name']}: "
-                f"prom {region['avg_aqi']} | "
-                f"max {region['max_aqi']} | "
-                f"min {region['min_aqi']} "
-                f"({region['station_count']} estaciones)"
-            )
+            f"📊 *Reporte de Calidad del Aire para {region['region_name']} - Pronóstico de 12 horas*\n"
+            f"🔹 *AQI Promedio:* {avg} ({_aqi_label(avg)})\n"
+            f"🔺 *AQI Máximo:* {max_} ({_aqi_label(max_)})\n"
+            f"🔻 *AQI Mínimo:* {min_} ({_aqi_label(min_)})\n\n"
+            f"{_aqi_message(avg)}\n\n"
+            "🔗 Podés acceder al pronóstico actualizado en tu zona ingresando a www.proyectorespira.net"
         )
 
-    lines.append("")
-    lines.append("Fuente: respira_gold.inference_results + respira_gold.inference_runs")
-
-    return "\n".join(lines)
+    return "\n\n---\n\n".join(lines)
 
 
 @task(name="post_to_x", retries=2, retry_delay_seconds=30)
@@ -195,6 +219,7 @@ def post_to_telegram(settings, message: str, dry_run: bool | None = None) -> Non
     bot.send_message(
         chat_id=settings.TELEGRAM_CHAT_ID,
         text=message,
+        parse_mode="Markdown",
         disable_web_page_preview=True,
     )
     logger.info("Telegram message sent successfully to chat_id=%s", settings.TELEGRAM_CHAT_ID)
