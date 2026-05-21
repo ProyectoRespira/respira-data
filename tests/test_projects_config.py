@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import pytest
-
 from pipelines.config.projects import get_project_config, list_project_configs
 
 

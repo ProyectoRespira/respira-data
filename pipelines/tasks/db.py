@@ -9,7 +9,6 @@ from sqlalchemy.exc import SQLAlchemyError
 
 from pipelines.config.projects import ProjectConfig
 
-
 PIPELINES_ROOT = Path(__file__).resolve().parents[1]
 SQL_DIR = PIPELINES_ROOT / "sql"
 OPS_AUDIT_SQL = SQL_DIR / "02_ops_audit.sql"
@@ -18,7 +17,11 @@ logger = logging.getLogger(__name__)
 
 
 def get_engine(settings) -> Engine:
-    dsn = settings.database_dsn() if hasattr(settings, "database_dsn") else settings.DB_DSN
+    dsn = (
+        settings.database_dsn()
+        if hasattr(settings, "database_dsn")
+        else settings.DB_DSN
+    )
     if not dsn:
         raise ValueError("Database DSN is required.")
     return create_engine(dsn, pool_pre_ping=True)
@@ -67,4 +70,8 @@ def ensure_project_inference_tables(engine: Engine, project: ProjectConfig) -> N
     try:
         execute_statements(engine, statements)
     except SQLAlchemyError as exc:
-        logger.warning("Unable to ensure inference tables for project %s: %s", project.project_code, exc)
+        logger.warning(
+            "Unable to ensure inference tables for project %s: %s",
+            project.project_code,
+            exc,
+        )

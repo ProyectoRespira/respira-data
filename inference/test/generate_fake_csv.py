@@ -1,11 +1,10 @@
 from __future__ import annotations
 
 import math
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pandas as pd
-
 
 TEST_DIR = Path(__file__).resolve().parent
 CSV_PATH = TEST_DIR / "fake_station_inference_features.csv"
@@ -15,7 +14,9 @@ def build_dataset(as_of: datetime | None = None) -> pd.DataFrame:
     as_of_value = _reference_as_of(as_of)
     rows: list[dict] = []
 
-    rows.extend(_station_rows(1, as_of_value, start_offset_hours=23, end_offset_hours=0))
+    rows.extend(
+        _station_rows(1, as_of_value, start_offset_hours=23, end_offset_hours=0)
+    )
     rows.extend(
         _station_rows(
             2,
@@ -33,9 +34,20 @@ def build_dataset(as_of: datetime | None = None) -> pd.DataFrame:
             missing_offsets={3, 5, 10, 11, 12, 13, 14, 15},
         )
     )
-    rows.extend(_station_rows(4, as_of_value - timedelta(hours=8), start_offset_hours=23, end_offset_hours=0))
+    rows.extend(
+        _station_rows(
+            4,
+            as_of_value - timedelta(hours=8),
+            start_offset_hours=23,
+            end_offset_hours=0,
+        )
+    )
 
-    frame = pd.DataFrame(rows).sort_values(["station_id", "date_utc"]).reset_index(drop=True)
+    frame = (
+        pd.DataFrame(rows)
+        .sort_values(["station_id", "date_utc"])
+        .reset_index(drop=True)
+    )
     return frame
 
 
@@ -74,7 +86,7 @@ def _build_row(station_id: int, ts: datetime) -> dict:
 
     return {
         "station_id": station_id,
-        "date_utc": ts.astimezone(timezone.utc).isoformat(),
+        "date_utc": ts.astimezone(UTC).isoformat(),
         "scenario": {
             1: "24h completas hasta as_of",
             2: "datos viejos; ultima lectura hace un mes",
@@ -113,8 +125,8 @@ def _build_row(station_id: int, ts: datetime) -> dict:
 
 
 def _reference_as_of(as_of: datetime | None) -> datetime:
-    value = as_of or datetime.now(timezone.utc)
-    value = value.astimezone(timezone.utc)
+    value = as_of or datetime.now(UTC)
+    value = value.astimezone(UTC)
     return value.replace(minute=0, second=0, microsecond=0)
 
 

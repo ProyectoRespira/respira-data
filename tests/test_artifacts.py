@@ -10,9 +10,17 @@ def test_load_run_results_and_summarize(tmp_path):
     payload = {
         "results": [
             {"unique_id": "model.respira_data.ok_model", "status": "success"},
-            {"unique_id": "model.respira_data.bad_model", "status": "error", "message": "model failed"},
+            {
+                "unique_id": "model.respira_data.bad_model",
+                "status": "error",
+                "message": "model failed",
+            },
             {"unique_id": "test.respira_data.ok_test", "status": "pass"},
-            {"unique_id": "test.respira_data.bad_test", "status": "fail", "message": "test failed"},
+            {
+                "unique_id": "test.respira_data.bad_test",
+                "status": "fail",
+                "message": "test failed",
+            },
         ]
     }
     run_results_path.write_text(json.dumps(payload), encoding="utf-8")
