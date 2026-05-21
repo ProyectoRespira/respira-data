@@ -112,12 +112,15 @@ main() {
   export PREFECT_SCHEDULE_TIMEZONE="${PREFECT_SCHEDULE_TIMEZONE:-UTC}"
   export PREFECT_CANONICAL_INCREMENTAL_CRON="${PREFECT_CANONICAL_INCREMENTAL_CRON:-5 * * * *}"
   export PREFECT_PROJECT_RESPIRA_GOLD_CRON="${PREFECT_PROJECT_RESPIRA_GOLD_CRON:-20 * * * *}"
+  export PREFECT_SOCIAL_BROADCAST_CRON="${PREFECT_SOCIAL_BROADCAST_CRON:-35 * * * *}"
   export PREFECT_CANONICAL_WORK_POOL="${PREFECT_CANONICAL_WORK_POOL:-${PREFECT_WORK_POOL:-canonical}}"
   export PREFECT_PROJECT_RESPIRA_GOLD_WORK_POOL="${PREFECT_PROJECT_RESPIRA_GOLD_WORK_POOL:-${PREFECT_WORK_POOL:-respira_gold}}"
+  export PREFECT_SOCIAL_BROADCAST_WORK_POOL="${PREFECT_SOCIAL_BROADCAST_WORK_POOL:-${PREFECT_PROJECT_RESPIRA_GOLD_WORK_POOL}}"
 
   declare -a pools=(
     "${PREFECT_CANONICAL_WORK_POOL}"
     "${PREFECT_PROJECT_RESPIRA_GOLD_WORK_POOL}"
+    "${PREFECT_SOCIAL_BROADCAST_WORK_POOL}"
   )
   declare -A seen_pools=()
   declare -ag WORKER_PIDS=()
@@ -160,6 +163,14 @@ main() {
       "" \
       --param "project_code=respira_gold"
   fi
+
+  log "Deploying social broadcast flow..."
+  deploy_flow \
+    "pipelines/flows/social_broadcast.py:social_broadcast" \
+    "social-broadcast" \
+    "${PREFECT_SOCIAL_BROADCAST_WORK_POOL}" \
+    "${PREFECT_SOCIAL_BROADCAST_CRON}" \
+    --param "project_code=respira_gold"
 
   trap 'cleanup_workers 0' INT TERM
 

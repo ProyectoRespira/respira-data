@@ -4224,6 +4224,31 @@ files = [
 diagrams = ["jinja2", "railroad-diagrams"]
 
 [[package]]
+name = "pytelegrambotapi"
+version = "4.33.0"
+description = "Python Telegram bot API."
+optional = false
+python-versions = ">=3.10"
+groups = ["main"]
+files = [
+    {file = "pytelegrambotapi-4.33.0-py3-none-any.whl", hash = "sha256:0c34ded8c6f7afe41b8d591ef102aeaa9ca158d97ec50309279d09a6603e0ffb"},
+    {file = "pytelegrambotapi-4.33.0.tar.gz", hash = "sha256:df35be14d015d6ac874768db848d0c6d7864f586b242d4902efa2244efca6512"},
+]
+
+[package.dependencies]
+requests = "*"
+
+[package.extras]
+coloredlogs = ["coloredlogs"]
+fastapi = ["fastapi"]
+json = ["ujson"]
+pil = ["pillow"]
+psutil = ["psutil"]
+redis = ["redis (>=3.4.1)"]
+uvicorn = ["uvicorn"]
+watchdog = ["watchdog"]
+
+[[package]]
 name = "pytest"
 version = "9.0.3"
 description = "pytest: simple powerful testing with Python"
@@ -5653,6 +5678,28 @@ six = "*"
 ciso8601 = ["ciso8601"]
 
 [[package]]
+name = "tweepy"
+version = "4.16.0"
+description = "Library for accessing the X API (Twitter)"
+optional = false
+python-versions = ">=3.9"
+groups = ["main"]
+files = [
+    {file = "tweepy-4.16.0-py3-none-any.whl", hash = "sha256:48d1a1eb311d2c4b8990abcfa6f9fa2b2ad61be05c723b1a9b4f242656badae2"},
+    {file = "tweepy-4.16.0.tar.gz", hash = "sha256:1d95cbdc50bf6353a387f881f2584eaf60d14e00dbbdd8872a73de79c66878e3"},
+]
+
+[package.dependencies]
+oauthlib = ">=3.2.0,<4"
+requests = ">=2.27.0,<3"
+requests-oauthlib = ">=1.2.0,<3"
+
+[package.extras]
+async = ["aiohttp (>=3.7.3,<4)", "async-lru (>=1.0.3,<3)"]
+dev = ["coverage (>=4.4.2)", "coveralls (>=2.1.0)", "tox (>=3.21.0)"]
+test = ["urllib3 (<2)", "vcrpy (>=1.10.3)"]
+
+[[package]]
 name = "typer"
 version = "0.25.0"
 description = "Typer, build great CLIs. Easy to code. Based on Python type hints."
@@ -6118,4 +6165,4 @@ type = ["pytest-mypy"]
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.12,<3.15"
-content-hash = "f45ef495fec1a29fefb18386e0b80210e8384f3f4a15f9a706f9ac38dd6d433f"
+content-hash = "e0916a1da289139c1aadeac7b7ff4287ebf912bf8574adda45522569b406639d"

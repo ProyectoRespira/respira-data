@@ -36,6 +36,21 @@ class RuntimeSettings(BaseSettings):
 
     SLACK_WEBHOOK_URL: str | None = None
 
+    SOCIAL_DRY_RUN: bool = True
+    SOCIAL_DATA_MAX_AGE_HOURS: int = 6
+    SOCIAL_MIN_STATIONS_PER_REGION: int = 1
+
+    TELEGRAM_ENABLED: bool = False
+    TELEGRAM_BOT_TOKEN: str | None = None
+    TELEGRAM_CHAT_ID: str | None = None
+
+    TWITTER_ENABLED: bool = False
+    TWITTER_BEARER_TOKEN: str | None = None
+    TWITTER_API_KEY: str | None = None
+    TWITTER_API_SECRET: str | None = None
+    TWITTER_ACCESS_TOKEN: str | None = None
+    TWITTER_ACCESS_TOKEN_SECRET: str | None = None
+
     def database_dsn(self) -> str:
         if self.DB_DSN:
             return self.DB_DSN
