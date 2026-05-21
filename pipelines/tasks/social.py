@@ -1,13 +1,12 @@
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import telebot
 import tweepy
-from sqlalchemy import text
-
 from prefect.cache_policies import NO_CACHE
+from sqlalchemy import text
 
 from pipelines.compat import get_run_logger, task
 
@@ -15,7 +14,9 @@ from pipelines.compat import get_run_logger, task
 def _safe_project_table(project_code: str) -> str:
     normalized = project_code.strip().lower()
     if normalized != "respira_gold":
-        raise ValueError(f"Unsupported project_code for social broadcast: {project_code}")
+        raise ValueError(
+            f"Unsupported project_code for social broadcast: {project_code}"
+        )
     return normalized
 
 
@@ -72,14 +73,20 @@ def extract_social_snapshot(
     )
 
     with engine.connect() as conn:
-        rows = conn.execute(query, {"min_stations": int(min_stations_per_region)}).mappings().all()
+        rows = (
+            conn.execute(query, {"min_stations": int(min_stations_per_region)})
+            .mappings()
+            .all()
+        )
 
     if not rows:
-        raise RuntimeError("No regional AQI rows were produced from latest inference snapshot")
+        raise RuntimeError(
+            "No regional AQI rows were produced from latest inference snapshot"
+        )
 
     as_of = rows[0]["as_of"]
-    as_of_utc = as_of if as_of.tzinfo else as_of.replace(tzinfo=timezone.utc)
-    age = datetime.now(timezone.utc) - as_of_utc.astimezone(timezone.utc)
+    as_of_utc = as_of if as_of.tzinfo else as_of.replace(tzinfo=UTC)
+    age = datetime.now(UTC) - as_of_utc.astimezone(UTC)
     if age > timedelta(hours=max_age_hours):
         raise RuntimeError(
             f"Latest inference snapshot is stale: as_of={as_of_utc.isoformat()} age_hours={age.total_seconds() / 3600:.2f}"
@@ -103,7 +110,11 @@ def extract_social_snapshot(
         as_of_utc.isoformat(),
         len(regions),
     )
-    return {"project_code": project_code, "as_of": as_of_utc.isoformat(), "regions": regions}
+    return {
+        "project_code": project_code,
+        "as_of": as_of_utc.isoformat(),
+        "regions": regions,
+    }
 
 
 _AQI_LEVELS = [
@@ -117,11 +128,27 @@ _AQI_LEVELS = [
 
 _AQI_MESSAGES = [
     (0, 50, "🟢 ¡Hoy es un excelente día para estar al aire libre! 🏃‍♂️🍃"),
-    (51, 100, "🟡 Hoy es un buen día para estar al aire libre para la mayoría de las personas. 👍🏻"),
+    (
+        51,
+        100,
+        "🟡 Hoy es un buen día para estar al aire libre para la mayoría de las personas. 👍🏻",
+    ),
     (101, 150, "🟠 Las personas sensibles deben prestar atención a síntomas 😷"),
-    (151, 200, "🔴 Hoy es un mal día para estar al aire libre.\nSe recomienda el uso de tapabocas para la población general 💨😷"),
-    (201, 300, "🟣 Hoy es un muy mal día para estar al aire libre.\nSe recomienda el uso de tapabocas para la población general 🔥😷"),
-    (301, 500, "⚫ Evite la exposición al aire libre. 💀😷\nAnte la aparición de síntomas, consulte a su médico."),
+    (
+        151,
+        200,
+        "🔴 Hoy es un mal día para estar al aire libre.\nSe recomienda el uso de tapabocas para la población general 💨😷",
+    ),
+    (
+        201,
+        300,
+        "🟣 Hoy es un muy mal día para estar al aire libre.\nSe recomienda el uso de tapabocas para la población general 🔥😷",
+    ),
+    (
+        301,
+        500,
+        "⚫ Evite la exposición al aire libre. 💀😷\nAnte la aparición de síntomas, consulte a su médico.",
+    ),
 ]
 
 
@@ -222,4 +249,6 @@ def post_to_telegram(settings, message: str, dry_run: bool | None = None) -> Non
         parse_mode="Markdown",
         disable_web_page_preview=True,
     )
-    logger.info("Telegram message sent successfully to chat_id=%s", settings.TELEGRAM_CHAT_ID)
+    logger.info(
+        "Telegram message sent successfully to chat_id=%s", settings.TELEGRAM_CHAT_ID
+    )

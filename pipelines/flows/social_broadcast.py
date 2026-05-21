@@ -13,7 +13,9 @@ from pipelines.tasks.social import (
 
 
 @flow(name="social_broadcast")
-def social_broadcast(project_code: str = "respira_gold", dry_run: bool | None = None) -> None:
+def social_broadcast(
+    project_code: str = "respira_gold", dry_run: bool | None = None
+) -> None:
     logger = get_run_logger()
     settings = get_settings()
     engine = get_engine(settings)
@@ -36,7 +38,9 @@ def social_broadcast(project_code: str = "respira_gold", dry_run: bool | None = 
         )
         message = build_regional_average_message(payload)
 
-        effective_dry_run = settings.SOCIAL_DRY_RUN if dry_run is None else bool(dry_run)
+        effective_dry_run = (
+            settings.SOCIAL_DRY_RUN if dry_run is None else bool(dry_run)
+        )
         post_to_x(settings, message, dry_run=effective_dry_run)
         post_to_telegram(settings, message, dry_run=effective_dry_run)
 
