@@ -1,6 +1,6 @@
 with m as (
   select *
-  from {{ ref('int_measurements_time_silver') }}
+  from {{ ref('int_measurements_long') }}
   where measured_at_silver is not null
 ),
 
