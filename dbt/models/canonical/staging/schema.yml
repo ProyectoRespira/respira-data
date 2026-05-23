@@ -71,6 +71,25 @@ models:
       - name: raw_payload
         tests: [not_null]
 
+  - name: stg_mades_open_stations_cache
+    description: "Persisted staging cache for MADES Open stations. Keeps the last known row per source_station_id so downstream models do not depend on the Airbyte table retaining historical rows."
+    columns:
+      - name: _airbyte_raw_id
+        tests: [not_null]
+      - name: extracted_at
+        tests: [not_null]
+      - name: data_source_name
+        tests:
+          - not_null
+          - accepted_values:
+              values: ["mades_open_airbyte"]
+      - name: source_station_id
+        tests: [not_null, unique]
+      - name: station_code
+        tests: [not_null]
+      - name: raw_payload
+        tests: [not_null]
+
   - name: stg_mades_open_measurements
     description: "Staging view for MADES Open PM10/PM2.5 Airbyte tables. Joins canonical station metadata and exposes pm10/pm25."
     columns:
