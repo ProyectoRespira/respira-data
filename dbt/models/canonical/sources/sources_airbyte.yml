@@ -8,6 +8,9 @@ sources:
     tables:
       - name: measurements
       - name: meteostat_asu_airport
+      - name: MADES_Open_stations
+      - name: MADES_Open_pm10_data
+      - name: MADES_Open_pm25_data
       - name: FIUNA_Estacion1
       - name: FIUNA_Estacion2
       - name: FIUNA_Estacion3

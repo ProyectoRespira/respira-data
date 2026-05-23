@@ -41,7 +41,7 @@ models:
       - name: measured_at_parsed
         description: "Raw parsed timestamp (UTC) from source."
       - name: cursor_id
-        description: "Continuity cursor. Present for FIUNA; null for AireLibre and Meteostat."
+        description: "Continuity cursor. Present for FIUNA; null for AireLibre, MADES Open, and Meteostat."
       - name: is_measured_at_valid
       - name: variable_code
         tests:
@@ -113,7 +113,7 @@ models:
           expression: "variable_code in (select code from {{ ref('variables') }})"
 
   - name: int_stations_candidates
-    description: "Union of stations from static seed plus AireLibre latest geolocated stations."
+    description: "Union of stations from static seed plus dynamically discovered AireLibre and MADES Open stations."
     columns:
       - name: code
         tests: [not_null]
