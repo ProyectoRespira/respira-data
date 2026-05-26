@@ -5,7 +5,7 @@ from pathlib import Path
 
 from pipelines.compat import flow, get_flow_context, get_run_logger
 from pipelines.config.selectors import (
-    SELECTOR_CANONICAL_CORE,
+    SELECTOR_CANONICAL_INCREMENTAL_CORE,
     SELECTOR_CANONICAL_SILVER,
 )
 from pipelines.config.settings import get_settings
@@ -69,7 +69,10 @@ def canonical_incremental() -> None:
         persist_dbt_audit(engine, deps_result, deps_summary, ctx)
         raise_if_failed(deps_result, "dbt deps failed")
 
-        core_result = dbt_run_selector(settings, selector=SELECTOR_CANONICAL_CORE)
+        core_result = dbt_run_selector(
+            settings,
+            selector=SELECTOR_CANONICAL_INCREMENTAL_CORE,
+        )
         core_summary = _summary_from_result(core_result)
         persist_dbt_audit(engine, core_result, core_summary, ctx)
         raise_if_failed(core_result, "canonical core stage failed")
