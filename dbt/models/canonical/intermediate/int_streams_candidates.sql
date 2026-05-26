@@ -10,19 +10,19 @@
 
 with source_rows as (
 
-  select
-    m.extracted_at,
-    m.station_code,
-    m.variable_code,
-    m.data_source_name
-  from {{ ref('int_measurements_long') }} m
+  {%- set sources_cfg = var('measurements_sources') -%}
+  {%- set selected_source_names = get_selected_measurement_sources(sources_cfg) -%}
 
-  {% if is_incremental() %}
-  where m.extracted_at >= (
-    select coalesce(max(extracted_at), '1970-01-01'::timestamptz)
-    from {{ this }}
-  )
-  {% endif %}
+  {%- for source_name in selected_source_names %}
+  {%- set cfg = sources_cfg[source_name] %}
+
+    {{ measurement_stream_candidates_from_source(source_name, cfg) }}
+
+    {%- if not loop.last %}
+    union all
+    {%- endif %}
+
+  {%- endfor %}
 
 ),
 

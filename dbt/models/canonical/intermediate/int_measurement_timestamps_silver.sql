@@ -10,21 +10,27 @@
 ) }}
 
 {%- set sources_cfg = var('measurements_sources') -%}
+{%- set ingest_batch_from = measurement_batch_extracted_at_from() -%}
+{%- set selected_source_names = get_selected_measurement_sources(sources_cfg) -%}
 
 with cutoff as (
 
-  {% if is_incremental() %}
+  {% if ingest_batch_from is not none %}
+  select cast({{ measurement_sql_string(ingest_batch_from) }} as timestamptz) as extracted_at_cutoff
+  {% elif is_incremental() and not measurement_has_ingest_batch_scope() %}
   select coalesce(max(extracted_at), '1970-01-01'::timestamptz) as extracted_at_cutoff
   from {{ this }}
+  where data_source_name = 'fiuna_airbyte'
   {% else %}
-  select '1970-01-01'::timestamptz as extracted_at_cutoff
+  select null::timestamptz as extracted_at_cutoff
   {% endif %}
 
 ),
 
 source_rows as (
 
-  {%- for source_name, cfg in sources_cfg.items() %}
+  {%- for source_name in selected_source_names %}
+  {%- set cfg = sources_cfg[source_name] %}
 
     {{ measurement_timestamps_from_source(source_name, cfg) }}
 
@@ -67,6 +73,8 @@ fiuna_anchor as (
       and extracted_at < (select extracted_at_cutoff from cutoff)
     order by station_code, cursor_id desc, extracted_at desc
   ) a
+  join cutoff c
+    on c.extracted_at_cutoff is not null
   join fiuna_new_stations s
     on s.station_code = a.station_code
   {% else %}
