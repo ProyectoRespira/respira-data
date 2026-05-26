@@ -1,0 +1,65 @@
+# Git
+.git
+.gitignore
+.gitattributes
+
+# Environment
+.env
+.env.*.local
+.env.*.example
+
+# Python
+__pycache__
+*.py[cod]
+*$py.class
+*.egg-info
+*.egg
+.Python
+pip-log.txt
+pip-delete-this-directory.txt
+.tox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+.hypothesis/
+.pytest_cache/
+*.prof
+
+# Virtual environments
+venv/
+env/
+ENV/
+
+# IDE
+.vscode
+.idea
+*.swp
+*.swo
+*~
+.DS_Store
+
+# dbt
+dbt/target/
+dbt/logs/
+dbt/packages/
+dbt/dbt_packages/
+
+# Docker
+docker-compose*.yml
+Dockerfile*
+.dockerignore
+
+# CI/CD
+.github
+.gitlab-ci.yml
+
+# Others
+.pre-commit-config.yaml
+Makefile
+README.md
+LICENSE
+SECURITY.md
+docs/

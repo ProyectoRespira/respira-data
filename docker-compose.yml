@@ -11,12 +11,13 @@ services:
     command: ["prefect", "server", "start", "--host", "0.0.0.0", "--port", "4200"]
     ports:
       - "4200:4200"
+    # Health check using curl (simpler and more portable than urllib)
     healthcheck:
-      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:4200/api/health', timeout=5)\""]
-      interval: 5s
+      test: ["CMD-SHELL", "curl -f http://127.0.0.1:4200/api/health || exit 1"]
+      interval: 10s
       timeout: 5s
       retries: 20
-      start_period: 10s
+      start_period: 15s
 
   app:
     build:
@@ -32,6 +33,13 @@ services:
       - .env
     ports:
       - "8000:8000"
+    # Health check for app container readiness
+    healthcheck:
+      test: ["CMD", "python", "-c", "import sys; sys.exit(0)"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
     depends_on:
       prefect_server:
         condition: service_healthy
@@ -53,6 +61,13 @@ services:
       - ./:/app
     env_file:
       - .env
+    # Health check to verify Prefect worker is operational
+    healthcheck:
+      test: ["CMD-SHELL", "prefect worker ps > /dev/null 2>&1 || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
     depends_on:
       prefect_server:
         condition: service_healthy
