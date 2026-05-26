@@ -52,27 +52,8 @@ models:
       - name: raw_payload
         tests: [not_null]
 
-  - name: stg_mades_open_stations
-    description: "Staging view for MADES Open stations table. Normalizes station metadata and canonical station_code."
-    columns:
-      - name: _airbyte_raw_id
-        tests: [not_null]
-      - name: extracted_at
-        tests: [not_null]
-      - name: data_source_name
-        tests:
-          - not_null
-          - accepted_values:
-              values: ["mades_open_airbyte"]
-      - name: source_station_id
-        tests: [not_null, unique]
-      - name: station_code
-        tests: [not_null]
-      - name: raw_payload
-        tests: [not_null]
-
   - name: stg_mades_open_stations_cache
-    description: "Persisted staging cache for MADES Open stations. Keeps the last known row per source_station_id so downstream models do not depend on the Airbyte table retaining historical rows."
+    description: "Persisted staging cache for MADES Open stations. Reads directly from the Airbyte source, normalizes station metadata, and keeps the last known row per source_station_id so downstream models do not depend on the raw table retaining historical rows."
     columns:
       - name: _airbyte_raw_id
         tests: [not_null]
