@@ -64,7 +64,7 @@ models:
   - name: int_measurements_long
     description: >
       Canonical long-form measurements union across sources defined in vars.measurements_sources.
-      Contains raw parsed time plus row-level time-silver outputs joined before the source rows are exploded by variable.
+      Selects eligible source rows from int_measurement_timestamps_silver first, then explodes each row by configured variable.
     columns:
       - name: station_code
         tests: [not_null]
@@ -131,8 +131,13 @@ models:
     description: >
       Silver value validation/cleaning output. Applies variable-specific validation and
       forward-fills missing values from the last valid observation in the same source/station/variable stream to produce value_silver.
+      Materialized incrementally with per-stream anchor rows so downstream silver facts do not need to recompute the full value window on every run.
       The fact model should only consume rows where measured_at_silver is not null and value_silver is not null.
     columns:
+      - name: source_row_id
+        tests: [not_null]
+      - name: extracted_at
+        tests: [not_null]
       - name: data_source_name
         tests: [not_null]
       - name: station_code
@@ -141,6 +146,7 @@ models:
         tests: [not_null]
       - name: cursor_id
       - name: measured_at_silver
+        tests: [not_null]
       - name: value_raw
         tests: [not_null]
       - name: value_parsed
@@ -152,6 +158,9 @@ models:
         description: "Validated/cleaned final numeric value. Null when invalid."
 
     tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns: ["source_row_id", "variable_code"]
       - dbt_utils.expression_is_true:
           expression: "variable_code in (select code from {{ ref('variables') }})"
 
@@ -173,7 +182,7 @@ models:
         tests: [not_null]
 
   - name: int_streams_candidates
-    description: "Distinct station_code x variable_code x data_source_name combinations derived from int_measurements_long."
+    description: "Distinct station_code x variable_code x data_source_name combinations derived from int_measurement_timestamps_silver plus the source registry."
     columns:
       - name: station_code
         tests: [not_null]

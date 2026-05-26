@@ -10,16 +10,53 @@
   ]
 ) }}
 
-with m as (
-  select *
-  from {{ ref('int_measurements_values_silver') }}
-  where measured_at_silver is not null
-    and value_silver is not null
+with streams as (
+  select
+    id as stream_id,
+    code,
+    data_source_id
+  from {{ ref('dim_streams') }}
 ),
 
-streams as (
-  select id as stream_id, code
-  from {{ ref('dim_streams') }}
+data_sources as (
+  select
+    id as data_source_id,
+    name as data_source_name
+  from {{ ref('dim_data_sources') }}
+),
+
+existing_source_cutoffs as (
+  {% if is_incremental() %}
+  select
+    ds.data_source_name,
+    max(f.ingested_at) as max_ingested_at
+  from {{ this }} f
+  join streams s
+    on s.stream_id = f.stream_id
+  join data_sources ds
+    on ds.data_source_id = s.data_source_id
+  group by ds.data_source_name
+  {% else %}
+  select
+    null::text as data_source_name,
+    null::timestamptz as max_ingested_at
+  where false
+  {% endif %}
+),
+
+m as (
+  select
+    msrc.*
+  from {{ ref('int_measurements_values_silver') }} msrc
+  left join existing_source_cutoffs c
+    on c.data_source_name = msrc.data_source_name
+  where msrc.measured_at_silver is not null
+    and msrc.value_silver is not null
+  {% if measurement_has_process_batch_scope() %}
+    and {{ measurement_process_row_predicate('msrc.data_source_name', 'msrc.measured_at_silver') }}
+  {% elif is_incremental() %}
+    and msrc.extracted_at >= coalesce(c.max_ingested_at, '1970-01-01'::timestamptz)
+  {% endif %}
 ),
 
 joined as (
@@ -32,12 +69,6 @@ joined as (
   from m
   join streams s
     on s.code = (m.station_code || '_' || m.variable_code || '_' || m.data_source_name)
-
-  {% if is_incremental() %}
-  where m.extracted_at >= (
-    select coalesce(max(ingested_at), '1970-01-01'::timestamptz) from {{ this }}
-  )
-  {% endif %}
 ),
 
 deduped as (
