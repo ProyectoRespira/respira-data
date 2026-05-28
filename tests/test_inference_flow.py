@@ -13,18 +13,16 @@ from pipelines.flows.project_inference import (
 )
 
 
-def _make_params(**overrides) -> InferenceRunParams:
-    defaults = {
-        "as_of": datetime(2025, 1, 1, 12, 0, tzinfo=UTC),
-        "window_hours": 24,
-        "min_points": 18,
-        "model_6h_path": "/models/6h.pkl",
-        "model_12h_path": "/models/12h.pkl",
-        "model_6h_version": "v1",
-        "model_12h_version": "v1",
-    }
-    defaults.update(overrides)
-    return InferenceRunParams(**defaults)
+def _make_params() -> InferenceRunParams:
+    return InferenceRunParams(
+        as_of=datetime(2025, 1, 1, 12, 0, tzinfo=UTC),
+        window_hours=24,
+        min_points=18,
+        model_6h_path="/models/6h.pkl",
+        model_12h_path="/models/12h.pkl",
+        model_6h_version="v1",
+        model_12h_version="v1",
+    )
 
 
 def _make_project():
