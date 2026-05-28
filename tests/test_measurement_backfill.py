@@ -5,7 +5,6 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
-
 from pipelines.tasks.measurement_backfill import (
     _build_measured_at_windows,
     _load_measurement_source_registry,

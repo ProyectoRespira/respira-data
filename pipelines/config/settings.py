@@ -58,6 +58,12 @@ class RuntimeSettings(BaseSettings):
                 "Missing DB connection settings. Set DB_DSN or REMOTE_PG_* environment variables."
             )
 
+        assert host is not None
+        assert port is not None
+        assert user is not None
+        assert password is not None
+        assert dbname is not None
+
         user_enc = quote_plus(user)
         password_enc = quote_plus(password)
         return (

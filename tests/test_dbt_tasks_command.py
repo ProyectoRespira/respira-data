@@ -68,4 +68,6 @@ def test_timeout_for_command_disables_zero_timeout():
         DBT_TIMEOUT_PROJECT_S=1200,
     )
 
-    assert _timeout_for_command(settings, command="run", selector="canonical_core") is None
+    assert (
+        _timeout_for_command(settings, command="run", selector="canonical_core") is None
+    )

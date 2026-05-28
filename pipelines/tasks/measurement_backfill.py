@@ -3,20 +3,29 @@ from __future__ import annotations
 import csv
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Any
+from typing import Any, TypedDict
 
-import yaml
+import yaml  # type: ignore[import-untyped]
 from sqlalchemy import text
 
 from pipelines.compat import task
 
+NO_CACHE: Any | None
 try:
-    from prefect.cache_policies import NO_CACHE
+    from prefect.cache_policies import NO_CACHE as _PREFECT_NO_CACHE
 except Exception:  # noqa: BLE001
     NO_CACHE = None
+else:
+    NO_CACHE = _PREFECT_NO_CACHE
 
 INTERMEDIATE_SCHEMA = "intermediate"
 TIMESTAMPS_TABLE = "int_measurement_timestamps_silver"
+
+
+class MeasurementProcessBounds(TypedDict):
+    min_measured_at: datetime | None
+    max_measured_at: datetime | None
+    null_time_row_count: int
 
 
 def _read_csv_column(path: Path, column_name: str) -> set[str]:
@@ -36,10 +45,12 @@ def _dbt_root(settings) -> Path:
 def _load_measurement_source_registry(settings) -> dict[str, Any]:
     project_path = _dbt_root(settings) / "dbt_project.yml"
     data = yaml.safe_load(project_path.read_text(encoding="utf-8")) or {}
-    registry = ((data.get("vars") or {}).get("measurements_sources") or {})
+    registry = (data.get("vars") or {}).get("measurements_sources") or {}
 
     if not isinstance(registry, dict) or not registry:
-        raise ValueError("vars.measurements_sources is missing or empty in dbt_project.yml")
+        raise ValueError(
+            "vars.measurements_sources is missing or empty in dbt_project.yml"
+        )
 
     return registry
 
@@ -105,7 +116,9 @@ def _validate_measurement_sources(
     return validated_sources
 
 
-def _get_measurement_process_bounds(engine, data_source_name: str) -> dict[str, Any]:
+def _get_measurement_process_bounds(
+    engine, data_source_name: str
+) -> MeasurementProcessBounds:
     query = text(
         f"""
         select
@@ -118,7 +131,9 @@ def _get_measurement_process_bounds(engine, data_source_name: str) -> dict[str, 
     )
 
     with engine.begin() as conn:
-        row = conn.execute(query, {"data_source_name": data_source_name}).mappings().one()
+        row = (
+            conn.execute(query, {"data_source_name": data_source_name}).mappings().one()
+        )
 
     return {
         "min_measured_at": row["min_measured_at"],
@@ -135,7 +150,11 @@ def _build_measured_at_windows(
     if batch_hours <= 0:
         raise ValueError("process_batch_hours must be greater than zero.")
 
-    if measured_at_from is None or measured_at_to is None or measured_at_from >= measured_at_to:
+    if (
+        measured_at_from is None
+        or measured_at_to is None
+        or measured_at_from >= measured_at_to
+    ):
         return []
 
     windows: list[dict[str, datetime]] = []
@@ -173,7 +192,9 @@ def validate_measurement_sources(
     name="get_measurement_process_bounds",
     **({"cache_policy": NO_CACHE} if NO_CACHE is not None else {}),
 )
-def get_measurement_process_bounds(engine, data_source_name: str) -> dict[str, Any]:
+def get_measurement_process_bounds(
+    engine, data_source_name: str
+) -> MeasurementProcessBounds:
     return _get_measurement_process_bounds(engine, data_source_name)
 
 

@@ -80,7 +80,7 @@ def _predict(model: Any, features_frame: pd.DataFrame, horizon_hours: int) -> An
 def _predict_with_darts(
     model: Any, features_frame: pd.DataFrame, horizon_hours: int
 ) -> Any:
-    from darts import TimeSeries
+    from darts import TimeSeries  # type: ignore[import-untyped]
 
     covariate_columns = [
         column
@@ -194,7 +194,7 @@ class _DictNormalizer:
 
 class _IterableNormalizer:
     def can_handle(self, raw: Any) -> bool:
-        return isinstance(raw, (list, tuple))
+        return isinstance(raw, list | tuple)
 
     def normalize(
         self, raw: Any, timestamps: list[Any], horizon_hours: int
@@ -215,7 +215,7 @@ class _IterableNormalizer:
                 continue
 
             yhat, yhat_lower, yhat_upper = None, None, None
-            if isinstance(item, (list, tuple)):
+            if isinstance(item, list | tuple):
                 if len(item) > 0:
                     yhat = item[0]
                 if len(item) > 1:

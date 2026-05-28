@@ -3,8 +3,8 @@ from __future__ import annotations
 import importlib
 import json
 import os
-import signal
 import shlex
+import signal
 import subprocess
 import threading
 import time
@@ -211,7 +211,7 @@ def _run_subprocess(
         else:
             process.wait(timeout=timeout_s)
         status = "success" if process.returncode == 0 else "failed"
-    except subprocess.TimeoutExpired as exc:
+    except subprocess.TimeoutExpired:
         if process is not None:
             _terminate_process_group(process)
         status = "failed"

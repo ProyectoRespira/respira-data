@@ -23,6 +23,7 @@ from pipelines.tasks.db import ensure_ops_audit_tables, get_engine
 from pipelines.tasks.dbt_tasks import dbt_deps, dbt_run_selector, dbt_test_selector
 from pipelines.tasks.gates import raise_if_failed
 from pipelines.tasks.measurement_backfill import (
+    MeasurementProcessBounds,
     build_measured_at_windows,
     get_measurement_process_bounds,
     load_measurement_source_registry,
@@ -96,19 +97,27 @@ def _build_process_vars(
 
 
 def _effective_process_bounds(
-    source_bounds: dict[str, object],
+    source_bounds: MeasurementProcessBounds,
     process_measured_at_from: datetime | None,
     process_measured_at_to: datetime | None,
 ) -> tuple[datetime | None, datetime | None]:
-    source_min = source_bounds.get("min_measured_at")
-    source_max = source_bounds.get("max_measured_at")
+    source_min = source_bounds["min_measured_at"]
+    source_max = source_bounds["max_measured_at"]
     if source_min is None or source_max is None:
         return None, None
 
-    source_max_exclusive = source_max + timedelta(microseconds=1)
+    source_max_exclusive: datetime = source_max + timedelta(microseconds=1)
 
-    effective_from = max(source_min, process_measured_at_from) if process_measured_at_from else source_min
-    effective_to = min(source_max_exclusive, process_measured_at_to) if process_measured_at_to else source_max_exclusive
+    effective_from: datetime = (
+        max(source_min, process_measured_at_from)
+        if process_measured_at_from
+        else source_min
+    )
+    effective_to: datetime = (
+        min(source_max_exclusive, process_measured_at_to)
+        if process_measured_at_to
+        else source_max_exclusive
+    )
 
     if effective_from >= effective_to:
         return None, None
@@ -294,7 +303,9 @@ def canonical_measurement_backfill(
 
         if run_project_models_after:
             for project in list_project_configs():
-                project_result = dbt_run_selector(settings, selector=project.dbt_selector)
+                project_result = dbt_run_selector(
+                    settings, selector=project.dbt_selector
+                )
                 _persist_result(engine, project_result, ctx)
                 raise_if_failed(
                     project_result,
