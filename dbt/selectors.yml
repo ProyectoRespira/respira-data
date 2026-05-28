@@ -16,6 +16,71 @@ selectors:
       method: path
       value: models/canonical/silver
 
+  - name: canonical_incremental_core
+    description: Canonical runtime core path for normal incrementals. Skips recreating pure staging views.
+    definition:
+      union:
+        - method: path
+          value: models/canonical/staging/stg_mades_open_stations_cache.sql
+        - method: path
+          value: models/canonical/intermediate
+        - method: path
+          value: models/canonical/core
+
+  - name: canonical_batch_prep
+    description: Staging and prerequisite canonical dimensions for measurement backfills.
+    definition:
+      union:
+        - method: path
+          value: models/canonical/staging
+        - method: path
+          value: models/canonical/intermediate/int_stations_candidates.sql
+        - method: path
+          value: models/canonical/core/dim_organizations.sql
+        - method: path
+          value: models/canonical/core/dim_data_sources.sql
+        - method: path
+          value: models/canonical/core/dim_variables.sql
+        - method: path
+          value: models/canonical/core/dim_stations.sql
+
+  - name: canonical_batch_ingest
+    description: Source-row ingest path for batched measurement backfills.
+    definition:
+      union:
+        - method: path
+          value: models/canonical/intermediate/int_measurement_timestamps_silver.sql
+        - method: path
+          value: models/canonical/intermediate/int_streams_candidates.sql
+        - method: path
+          value: models/canonical/core/dim_streams.sql
+
+  - name: canonical_batch_payload_audit
+    description: Optional raw payload audit path for batched measurement backfills.
+    definition:
+      method: path
+      value: models/canonical/intermediate/int_measurement_payloads.sql
+
+  - name: canonical_batch_process
+    description: Post-validation measured-time processing path for batched measurement backfills.
+    definition:
+      union:
+        - method: path
+          value: models/canonical/intermediate/int_measurements_long.sql
+        - method: path
+          value: models/canonical/intermediate/int_measurements_values_silver.sql
+        - method: path
+          value: models/canonical/silver/fct_measurements_silver.sql
+
+  - name: canonical_batch_smoke_tests
+    description: Source-scoped smoke tests for measurement backfills.
+    definition:
+      intersection:
+        - method: resource_type
+          value: test
+        - method: path
+          value: tests/batch_smoke
+
   - name: project_respira_gold
     description: respira_gold project models.
     definition:

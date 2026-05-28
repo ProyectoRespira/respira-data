@@ -48,6 +48,7 @@ help:
 	@echo "  prefect-bootstrap Ensure ops tables and project inference tables"
 	@echo "  run-canonical-incremental Run canonical_incremental flow"
 	@echo "  run-canonical-full-refresh Run canonical_full_refresh flow (manual)"
+	@echo "  run-canonical-measurement-backfill Run canonical_measurement_backfill flow (manual)"
 	@echo "  run-project-pipeline Run project_pipeline for respira_gold"
 	@echo "  run-project-inference Run project_inference for respira_gold"
 	@echo "  smoke-test        Run minimal unit tests for orchestration"
@@ -164,15 +165,19 @@ quick:
 # -----------------------
 .PHONY: prefect-bootstrap
 prefect-bootstrap:
-	$(PREFECT_RUN) "python3 pipelines/flows/warehouse_bootstrap.py"
+	$(PREFECT_RUN) "python3 scripts/wait_for_prefect.py && python3 pipelines/flows/warehouse_bootstrap.py"
 
 .PHONY: run-canonical-incremental
 run-canonical-incremental:
-	$(PREFECT_RUN) "python3 pipelines/flows/canonical_incremental.py"
+	$(PREFECT_RUN) "python3 scripts/wait_for_prefect.py && python3 pipelines/flows/canonical_incremental.py"
 
 .PHONY: run-canonical-full-refresh
 run-canonical-full-refresh:
-	$(PREFECT_RUN) "python3 pipelines/flows/canonical_full_refresh.py"
+	$(PREFECT_RUN) "python3 scripts/wait_for_prefect.py && python3 pipelines/flows/canonical_full_refresh.py"
+
+.PHONY: run-canonical-measurement-backfill
+run-canonical-measurement-backfill:
+	$(PREFECT_RUN) "python3 scripts/wait_for_prefect.py && python3 pipelines/flows/canonical_measurement_backfill.py"
 
 .PHONY: run-project-inference
 run-project-inference:
@@ -184,4 +189,4 @@ run-project-pipeline:
 
 .PHONY: smoke-test
 smoke-test:
-	poetry run pytest -q tests/test_artifacts.py tests/test_dbt_tasks_command.py tests/test_gates.py tests/test_inference_json.py tests/test_projects_config.py tests/test_inference_flow.py
+	poetry run pytest -q tests/test_artifacts.py tests/test_dbt_tasks_command.py tests/test_gates.py tests/test_inference_json.py tests/test_projects_config.py tests/test_inference_flow.py tests/test_measurement_backfill.py

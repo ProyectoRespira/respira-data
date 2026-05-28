@@ -1,6 +1,19 @@
 {% set stations_relation = source('airbyte', 'MADES_Open_stations') %}
 {% set stations_meta_col = first_existing_column(stations_relation, ['_airbyte_metadata', '_airbyte_meta']) %}
 
+{{ config(
+  materialized='incremental',
+  unique_key='source_station_id',
+  incremental_strategy='merge',
+  on_schema_change='sync_all_columns',
+  full_refresh=false,
+  indexes=[
+    {'columns': ['source_station_id'], 'unique': true},
+    {'columns': ['station_code']},
+    {'columns': ['extracted_at']}
+  ]
+) }}
+
 with src as (
 
   select *
@@ -70,6 +83,30 @@ deduped as (
   ) ranked
   where rn = 1
 
+),
+
+current_source_rows as (
+
+  select
+    _airbyte_raw_id,
+    extracted_at,
+    _airbyte_metadata,
+    _airbyte_generation_id,
+    data_source_name,
+    source_station_id,
+    source_station_code,
+    station_code,
+    station_name,
+    station_city,
+    station_type,
+    latitude,
+    longitude,
+    is_active,
+    is_collecting_data,
+    is_under_maintenance,
+    raw_payload
+  from deduped
+
 )
 
 select
@@ -90,4 +127,4 @@ select
   is_collecting_data,
   is_under_maintenance,
   raw_payload
-from deduped
+from current_source_rows

@@ -12,7 +12,7 @@ with src as (
 
 stations as (
   select *
-  from {{ ref('stg_mades_open_stations') }}
+  from {{ ref('stg_mades_open_stations_cache') }}
 ),
 
 typed as (

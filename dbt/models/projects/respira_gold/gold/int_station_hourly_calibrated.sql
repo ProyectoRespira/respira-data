@@ -1,7 +1,7 @@
 {{ config(materialized='view') }}
 
 with base as (
-  select * from {{ ref('int_station_hourly_wide') }}
+  select * from {{ ref('int_station_hourly_filled') }}
 ),
 
 factors as (
