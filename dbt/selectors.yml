@@ -90,11 +90,17 @@ selectors:
   - name: project_respira_gold_tests
     description: Data tests scoped to respira_gold project models.
     definition:
-      intersection:
-        - method: resource_type
-          value: test
-        - method: path
-          value: models/projects/respira_gold
+      union:
+        - intersection:
+            - method: resource_type
+              value: test
+            - method: path
+              value: models/projects/respira_gold
+        - intersection:
+            - method: resource_type
+              value: test
+            - method: path
+              value: tests/respira_gold
 
   - name: canonical_full_refresh
     description: Safe full-refresh scope for canonical models.
