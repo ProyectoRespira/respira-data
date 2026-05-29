@@ -52,7 +52,7 @@ models:
                 field: id
 
   - name: station_readings_gold
-    description: "Hourly station readings with calibration, AQI, and rolling stats."
+    description: "Hourly station readings with calibration, AQI derived from rolling 24-hour PM averages, and rolling stats."
     columns:
       - name: station_id
         tests:

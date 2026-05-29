@@ -56,6 +56,7 @@ Table respira_gold.station_readings_gold {
 
   Note {
     " Frequency for readings should be 1 hour"
+    " AQI columns are derived from rolling 24-hour PM averages."
   }
 
 }
