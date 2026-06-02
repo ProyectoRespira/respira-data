@@ -91,7 +91,7 @@ models:
             group_by_columns: ["station_id"]
 
   - name: region_readings_gold
-    description: "Hourly region aggregations derived from station_readings_gold."
+    description: "Hourly region aggregations derived from station_readings_gold, using each station's latest reading within a bounded carry-forward window."
     columns:
       - name: region_id
         tests:
