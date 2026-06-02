@@ -51,6 +51,7 @@ help:
 	@echo "  run-canonical-measurement-backfill Run canonical_measurement_backfill flow (manual)"
 	@echo "  run-project-pipeline Run project_pipeline for respira_gold"
 	@echo "  run-project-inference Run project_inference for respira_gold"
+	@echo "  run-social-broadcast Run social_broadcast flow for respira_gold"
 	@echo "  smoke-test        Run minimal unit tests for orchestration"
 	@echo ""
 	@echo "Selection helpers:"
@@ -190,3 +191,7 @@ run-project-pipeline:
 .PHONY: smoke-test
 smoke-test:
 	poetry run pytest -q tests/test_artifacts.py tests/test_dbt_tasks_command.py tests/test_gates.py tests/test_inference_json.py tests/test_projects_config.py tests/test_inference_flow.py tests/test_measurement_backfill.py
+
+.PHONY: run-social-broadcast
+run-social-broadcast:
+	$(WORKER_RUN) "python3 pipelines/flows/social_broadcast.py"
