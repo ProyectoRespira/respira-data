@@ -18,10 +18,13 @@ dbt:
 - `DBT_PROFILES_DIR` default `./dbt`
 - `DBT_TARGET` default `prod`
 - `DBT_THREADS` default `1`
-- `DBT_TIMEOUT_CANONICAL_CORE_S` default `900`
+- `DBT_USE_PREFECT_DBT` default `false`
+- `DBT_TIMEOUT_CANONICAL_CORE_S` default `0` (`0` disables the timeout)
+- `DBT_TIMEOUT_CANONICAL_BATCH_INGEST_S` default `3600`
 - `DBT_TIMEOUT_CANONICAL_SILVER_S` default `1800`
 - `DBT_TIMEOUT_PROJECT_S` default `1200`
 - `DBT_TIMEOUT_TESTS_S` default `1200`
+- `MEASUREMENT_BACKFILL_PROCESS_BATCH_HOURS` default `720`
 
 Inferencia:
 
@@ -41,6 +44,7 @@ Alertas:
 - `prefect/flows/warehouse_bootstrap.py:warehouse_bootstrap`
 - `prefect/flows/canonical_incremental.py:canonical_incremental`
 - `prefect/flows/canonical_full_refresh.py:canonical_full_refresh`
+- `prefect/flows/canonical_measurement_backfill.py:canonical_measurement_backfill`
 - `prefect/flows/project_inference.py:project_inference`
 - `prefect/flows/project_pipeline.py:project_pipeline`
 
@@ -51,8 +55,12 @@ Desde raíz del repositorio:
 - `make prefect-bootstrap`
 - `make run-canonical-incremental`
 - `make run-canonical-full-refresh`
+- `make run-canonical-measurement-backfill`
 - `make run-project-pipeline`
 - `make run-project-inference`
+
+`canonical_measurement_backfill` no reconstruye `int_measurement_payloads` por defecto. Ese modelo queda como auditoria opcional de payloads crudos y se puede activar con `include_payload_audit=True` cuando haga falta.
+Tambien admite `run_prep=False` y `run_ingest=False` para retomar una corrida pesada ya materializada sin rehacer staging global ni el aterrizaje row-grain.
 
 ## Deployments automáticos
 
@@ -81,6 +89,7 @@ Además, `warehouse_bootstrap` crea tablas de inferencia por proyecto según `pr
 ## Política actual
 
 - `canonical_incremental` falla si falla `dbt deps`, `canonical_core` o `canonical_silver`
+- `canonical_incremental` usa `canonical_incremental_core`, que omite la recreacion de staging views puras para evitar esperas largas por locks. Si cambias SQL de staging o bootstrappeas un entorno nuevo, corre `canonical_full_refresh` o `canonical_batch_prep` primero.
 - `project_pipeline` falla si falla el run dbt del proyecto
 - `project_pipeline` alerta por Slack si fallan tests del proyecto, pero no corta el pipeline por fallas de data tests
 - `project_pipeline` corre inferencia solo si el proyecto la tiene habilitada

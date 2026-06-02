@@ -1,0 +1,66 @@
+version: 2
+updates:
+  - package-ecosystem: "pip"
+    directories:
+      - "/"
+      - "/inference/test"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "04:00"
+      timezone: "UTC"
+    cooldown:
+      semver-major-days: 14
+      semver-minor-days: 5
+      semver-patch-days: 2
+    open-pull-requests-limit: 5
+    groups:
+      all-non-major:
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
+          - "patch"
+      all-security:
+        applies-to: "security-updates"
+        patterns:
+          - "*"
+    allow:
+      - dependency-name: "*"
+        update-types:
+          - "version-update:semver-minor"
+          - "version-update:semver-patch"
+
+  - package-ecosystem: "docker"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "04:00"
+      timezone: "UTC"
+    open-pull-requests-limit: 5
+    groups:
+      all-non-major:
+        patterns:
+          - "*"
+      all-security:
+        applies-to: "security-updates"
+        patterns:
+          - "*"
+
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "04:00"
+      timezone: "UTC"
+    open-pull-requests-limit: 5
+    groups:
+      all-non-major:
+        patterns:
+          - "*"
+      all-security:
+        applies-to: "security-updates"
+        patterns:
+          - "*"

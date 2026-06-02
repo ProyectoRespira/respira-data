@@ -8,10 +8,18 @@ from pipelines.compat import flow, get_flow_context, get_run_logger
 from pipelines.config.projects import get_project_config
 from pipelines.config.settings import get_settings
 from pipelines.flows.project_inference import project_inference
-from pipelines.tasks.artifacts import load_run_results, persist_dbt_audit, summarize_run_results
+from pipelines.tasks.artifacts import (
+    load_run_results,
+    persist_dbt_audit,
+    summarize_run_results,
+)
 from pipelines.tasks.db import ensure_ops_audit_tables, get_engine
 from pipelines.tasks.dbt_tasks import dbt_deps, dbt_run_selector, dbt_test_selector
-from pipelines.tasks.gates import format_test_alert, raise_if_failed, should_alert_on_tests
+from pipelines.tasks.gates import (
+    format_test_alert,
+    raise_if_failed,
+    should_alert_on_tests,
+)
 from pipelines.tasks.notifications import notify_dbt_tests_failed, notify_flow_failure
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -34,7 +42,9 @@ def _git_sha() -> str | None:
 
 
 def _summary_from_result(result) -> dict:
-    run_results = load_run_results(result.run_results_path) if result.run_results_path else {}
+    run_results = (
+        load_run_results(result.run_results_path) if result.run_results_path else {}
+    )
     return summarize_run_results(run_results)
 
 
@@ -66,14 +76,21 @@ def project_pipeline(project_code: str, as_of: datetime | None = None) -> None:
         project_result = dbt_run_selector(settings, selector=project.dbt_selector)
         project_summary = _summary_from_result(project_result)
         persist_dbt_audit(engine, project_result, project_summary, ctx)
-        raise_if_failed(project_result, f"dbt project stage failed for {project.project_code}")
+        raise_if_failed(
+            project_result, f"dbt project stage failed for {project.project_code}"
+        )
 
         test_result = dbt_test_selector(settings, selector=project.dbt_tests_selector)
         test_summary = _summary_from_result(test_result)
         persist_dbt_audit(engine, test_result, test_summary, ctx)
 
-        if test_result.status != "success" and int(test_summary.get("tests_failed", 0)) <= 0:
-            raise RuntimeError(f"dbt project tests command failed unexpectedly for {project.project_code}")
+        if (
+            test_result.status != "success"
+            and int(test_summary.get("tests_failed", 0)) <= 0
+        ):
+            raise RuntimeError(
+                f"dbt project tests command failed unexpectedly for {project.project_code}"
+            )
 
         if should_alert_on_tests(test_summary):
             ctx["selector"] = project.dbt_tests_selector
@@ -81,9 +98,13 @@ def project_pipeline(project_code: str, as_of: datetime | None = None) -> None:
             logger.warning(format_test_alert(test_summary, project.dbt_tests_selector))
 
         if project.inference_enabled:
-            project_inference(project_code=project.project_code, as_of=as_of, engine=engine)
+            project_inference(
+                project_code=project.project_code, as_of=as_of, engine=engine
+            )
 
-        logger.info("project_pipeline completed for project_code=%s", project.project_code)
+        logger.info(
+            "project_pipeline completed for project_code=%s", project.project_code
+        )
     except Exception as exc:  # noqa: BLE001
         notify_flow_failure(ctx, str(exc))
         raise

@@ -1,0 +1,16 @@
+# CodeQL Configuration for Respira Data
+# Reference: https://docs.github.com/en/code-security/code-scanning/codeql-cli/using-the-codeql-cli
+
+name: Respira Data CodeQL Configuration
+
+# Query suites to run during analysis
+# Reference: https://docs.github.com/en/code-security/code-scanning/codeql-cli/query-pack-reference
+queries:
+  # security-extended: Includes additional security-focused queries beyond default set
+  # This provides more comprehensive vulnerability detection
+  - uses: security-extended
+
+# Exclude non-code documentation paths from CodeQL analysis
+paths-ignore:
+  - '**/*.md'              # Exclude all Markdown documentation files
+  - 'docs/**'             # Exclude documentation directory

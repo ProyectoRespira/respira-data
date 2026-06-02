@@ -52,7 +52,7 @@ models:
                 field: id
 
   - name: station_readings_gold
-    description: "Hourly station readings with calibration, AQI, and rolling stats."
+    description: "Hourly station readings with calibration, AQI derived from rolling 24-hour PM averages, and rolling stats."
     columns:
       - name: station_id
         tests:
@@ -63,10 +63,32 @@ models:
                 field: id
       - name: date_localtime
         tests: [not_null]
+      - name: pm1
+        tests: [not_null]
+      - name: pm2_5
+        tests: [not_null]
+      - name: pm10
+        tests: [not_null]
+      - name: pm2_5_skew_6h
+        tests: [not_null]
+      - name: aqi_pm2_5
+        tests: [not_null]
+      - name: aqi_pm10
+        tests: [not_null]
+      - name: aqi_level
+        tests: [not_null]
+      - name: aqi_pm2_5_skew_24h
+        tests: [not_null]
 
     tests:
       - dbt_utils.unique_combination_of_columns:
           combination_of_columns: ["station_id", "date_localtime"]
+      - dbt_utils.sequential_values:
+          arguments:
+            column_name: date_localtime
+            interval: 1
+            datepart: hour
+            group_by_columns: ["station_id"]
 
   - name: region_readings_gold
     description: "Hourly region aggregations derived from station_readings_gold."
@@ -79,6 +101,10 @@ models:
                 to: ref('regions')
                 field: id
       - name: date_utc
+        tests: [not_null]
+      - name: pm2_5_region_skew
+        tests: [not_null]
+      - name: aqi_region_skew
         tests: [not_null]
 
     tests:

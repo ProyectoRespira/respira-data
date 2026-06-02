@@ -49,13 +49,19 @@ select
   date_utc,
   pm2_5_region_avg,
   pm2_5_region_max,
-  (pm2_5_m3 - 3 * pm2_5_region_avg * pm2_5_m2 + 2 * power(pm2_5_region_avg, 3))
-    / nullif(power(pm2_5_region_std, 3), 0) as pm2_5_region_skew,
+  coalesce(
+    (pm2_5_m3 - 3 * pm2_5_region_avg * pm2_5_m2 + 2 * power(pm2_5_region_avg, 3))
+      / nullif(power(pm2_5_region_std, 3), 0),
+    0.0
+  ) as pm2_5_region_skew,
   pm2_5_region_std,
   aqi_region_avg,
   aqi_region_max,
-  (aqi_m3 - 3 * aqi_region_avg * aqi_m2 + 2 * power(aqi_region_avg, 3))
-    / nullif(power(aqi_region_std, 3), 0) as aqi_region_skew,
+  coalesce(
+    (aqi_m3 - 3 * aqi_region_avg * aqi_m2 + 2 * power(aqi_region_avg, 3))
+      / nullif(power(aqi_region_std, 3), 0),
+    0.0
+  ) as aqi_region_skew,
   aqi_region_std,
   level_region_max
 from agg

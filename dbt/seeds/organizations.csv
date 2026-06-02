@@ -3,3 +3,4 @@ Respira,respira,client,PY,{}
 FIUNA,fiuna,operator,PY,{}
 AireLibre,airelibre,data_provider,PY,{}
 Meteostat,meteostat,data_provider,GLOBAL,{}
+MADES Open,mades_open,data_provider,PY,{}

@@ -1,10 +1,7 @@
 {{ config(materialized='view') }}
 
 with weather as (
-  select w.*
-  from {{ ref('int_station_hourly_wide') }} w
-  join {{ ref('int_weather_stations') }} s
-    on s.code = w.station_code
+  select * from {{ ref('int_weather_hourly_filled') }}
 ),
 
 station_map as (
@@ -22,8 +19,8 @@ select
   avg(w.humidity) as humidity,
   avg(w.pressure) as pressure,
   avg(w.wind_speed) as wind_speed,
-  avg(sin(radians(w.wind_dir))) as wind_dir_sin,
-  avg(cos(radians(w.wind_dir))) as wind_dir_cos
+  avg(w.wind_dir_sin) as wind_dir_sin,
+  avg(w.wind_dir_cos) as wind_dir_cos
 from weather w
 join station_map m
   on m.station_code = w.station_code
