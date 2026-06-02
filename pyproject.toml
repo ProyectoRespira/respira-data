@@ -42,7 +42,7 @@ pre-commit = "^4.0.0"
 
 
 [tool.poetry.group.inference.dependencies]
-u8darts = "0.30.0"
+u8darts = "0.41.0"
 lightgbm = "^4.6.0"
 
 [build-system]
