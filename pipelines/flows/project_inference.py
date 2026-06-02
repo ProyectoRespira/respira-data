@@ -1,21 +1,25 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
-from datetime import datetime, timezone
 import logging
+import warnings
+from dataclasses import dataclass
+from datetime import UTC, datetime
 from time import perf_counter
 from typing import Any
-import warnings
 
 import pandas as pd
 
-from pipelines.compat import flow, get_flow_context, get_run_logger
-from pipelines.config.projects import ProjectConfig, get_project_config
-from pipelines.config.settings import RuntimeSettings, get_settings
 from inference.feature_adapter import REQUIRED_FEATURE_COLUMNS, rows_to_feature_frame
 from inference.model_loader import load_pickle_model
 from inference.predictor import WindowPredictor, prepare_prediction_frame
-from pipelines.tasks.db import ensure_ops_audit_tables, ensure_project_inference_tables, get_engine
+from pipelines.compat import flow, get_flow_context, get_run_logger
+from pipelines.config.projects import ProjectConfig, get_project_config
+from pipelines.config.settings import RuntimeSettings, get_settings
+from pipelines.tasks.db import (
+    ensure_ops_audit_tables,
+    ensure_project_inference_tables,
+    get_engine,
+)
 from pipelines.tasks.inference_tasks import (
     create_inference_run,
     filter_complete_rows,
@@ -64,7 +68,7 @@ def _resolve_params(
         raise ValueError("Both model_6h_path and model_12h_path are required")
 
     return InferenceRunParams(
-        as_of=as_of.astimezone(timezone.utc) if as_of else datetime.now(timezone.utc),
+        as_of=as_of.astimezone(UTC) if as_of else datetime.now(UTC),
         window_hours=int(window_hours or settings.DEFAULT_WINDOW_HOURS),
         min_points=int(min_points or settings.INFERENCE_MIN_POINTS),
         model_6h_path=resolved_6h,
@@ -74,7 +78,9 @@ def _resolve_params(
     )
 
 
-def _load_inference_models(params: InferenceRunParams) -> tuple[WindowPredictor, WindowPredictor]:
+def _load_inference_models(
+    params: InferenceRunParams,
+) -> tuple[WindowPredictor, WindowPredictor]:
     model_6h = load_pickle_model(params.model_6h_path)
     model_12h = load_pickle_model(params.model_12h_path)
     return (
@@ -93,17 +99,24 @@ def _process_single_station(
     inference_run_id: Any,
 ) -> str:
     logger = get_run_logger()
-    station_started = datetime.now(timezone.utc)
+    station_started = datetime.now(UTC)
     timer_started = perf_counter()
 
     try:
         load_started = perf_counter()
-        rows = load_station_window(engine, project, station_id, params.as_of, params.window_hours)
+        rows = load_station_window(
+            engine, project, station_id, params.as_of, params.window_hours
+        )
         load_seconds = perf_counter() - load_started
         if not validate_min_points(rows, params.min_points):
             _persist_status(
-                engine, project, inference_run_id, station_id, station_started,
-                status="skipped", reason_code="min_points",
+                engine,
+                project,
+                inference_run_id,
+                station_id,
+                station_started,
+                status="skipped",
+                reason_code="min_points",
                 reason_detail=f"Rows in window: {len(rows)}",
             )
             logger.info(
@@ -120,8 +133,13 @@ def _process_single_station(
         filter_seconds = perf_counter() - filter_started
         if not validate_min_points(complete_rows, params.min_points):
             _persist_status(
-                engine, project, inference_run_id, station_id, station_started,
-                status="skipped", reason_code="min_points_or_nulls",
+                engine,
+                project,
+                inference_run_id,
+                station_id,
+                station_started,
+                status="skipped",
+                reason_code="min_points_or_nulls",
                 reason_detail=f"Rows after null filter: {len(complete_rows)}",
             )
             logger.info(
@@ -140,11 +158,15 @@ def _process_single_station(
         prepare_seconds = perf_counter() - prepare_started
 
         predict_6h_started = perf_counter()
-        prediction_6h = predictor_6h.predict_prepared_window(prepared_frame, horizon_hours=6)
+        prediction_6h = predictor_6h.predict_prepared_window(
+            prepared_frame, horizon_hours=6
+        )
         predict_6h_seconds = perf_counter() - predict_6h_started
 
         predict_12h_started = perf_counter()
-        prediction_12h = predictor_12h.predict_prepared_window(prepared_frame, horizon_hours=12)
+        prediction_12h = predictor_12h.predict_prepared_window(
+            prepared_frame, horizon_hours=12
+        )
         predict_12h_seconds = perf_counter() - predict_12h_started
 
         persist_started = perf_counter()
@@ -160,8 +182,14 @@ def _process_single_station(
         persist_seconds = perf_counter() - persist_started
 
         _persist_status(
-            engine, project, inference_run_id, station_id, station_started,
-            status="success", reason_code=None, reason_detail=None,
+            engine,
+            project,
+            inference_run_id,
+            station_id,
+            station_started,
+            status="success",
+            reason_code=None,
+            reason_detail=None,
         )
         logger.info(
             "Inference completed for station_id=%s in %.2fs (load=%.2fs filter=%.2fs prepare=%.2fs predict_6h=%.2fs predict_12h=%.2fs persist=%.2fs rows=%s complete_rows=%s)",
@@ -181,11 +209,17 @@ def _process_single_station(
     except Exception as exc:  # noqa: BLE001
         logger.exception(
             "Station inference failed for project_code=%s station_id=%s",
-            project.project_code, station_id,
+            project.project_code,
+            station_id,
         )
         _persist_status(
-            engine, project, inference_run_id, station_id, station_started,
-            status="failed", reason_code="exception",
+            engine,
+            project,
+            inference_run_id,
+            station_id,
+            station_started,
+            status="failed",
+            reason_code="exception",
             reason_detail=str(exc)[:500],
         )
         return "failed"
@@ -195,8 +229,12 @@ def _storage_points_from_prediction(prediction: dict[str, Any]) -> list[dict[str
     points = prediction.get("points", []) if isinstance(prediction, dict) else []
     return [
         {
-            "value": _normalize_forecast_value(_first_non_none(point.get("yhat"), point.get("value"))),
-            "timestamp": _normalize_timestamp(_first_non_none(point.get("ts"), point.get("timestamp"))),
+            "value": _normalize_forecast_value(
+                _first_non_none(point.get("yhat"), point.get("value"))
+            ),
+            "timestamp": _normalize_timestamp(
+                _first_non_none(point.get("ts"), point.get("timestamp"))
+            ),
         }
         for point in points
     ]
@@ -262,11 +300,16 @@ def _persist_status(
     reason_code: str | None,
     reason_detail: str | None,
 ) -> None:
-    duration_s = int((datetime.now(timezone.utc) - station_started).total_seconds())
+    duration_s = int((datetime.now(UTC) - station_started).total_seconds())
     persist_station_status(
-        engine, project.project_code, inference_run_id, station_id,
-        status=status, reason_code=reason_code,
-        reason_detail=reason_detail, duration_s=duration_s,
+        engine,
+        project.project_code,
+        inference_run_id,
+        station_id,
+        status=status,
+        reason_code=reason_code,
+        reason_detail=reason_detail,
+        duration_s=duration_s,
     )
 
 
@@ -293,9 +336,13 @@ def project_inference(
 
     params = _resolve_params(
         settings,
-        as_of=as_of, window_hours=window_hours, min_points=min_points,
-        model_6h_path=model_6h_path, model_12h_path=model_12h_path,
-        model_6h_version=model_6h_version, model_12h_version=model_12h_version,
+        as_of=as_of,
+        window_hours=window_hours,
+        min_points=min_points,
+        model_6h_path=model_6h_path,
+        model_12h_path=model_12h_path,
+        model_6h_version=model_6h_version,
+        model_12h_version=model_12h_version,
     )
 
     logger.info(
@@ -329,7 +376,7 @@ def project_inference(
         "model_12h_version": params.model_12h_version,
         "model_6h_path": params.model_6h_path,
         "model_12h_path": params.model_12h_path,
-        "started_at": datetime.now(timezone.utc),
+        "started_at": datetime.now(UTC),
         "status": "running",
     }
 
@@ -342,30 +389,48 @@ def project_inference(
     }
 
     try:
-        stations = list_candidate_stations(engine, project, params.as_of, params.window_hours)
+        stations = list_candidate_stations(
+            engine, project, params.as_of, params.window_hours
+        )
         counters["stations_total"] = len(stations)
         logger.info(
             "Found %s candidate stations for inference in project_code=%s",
-            len(stations), project.project_code,
+            len(stations),
+            project.project_code,
         )
 
         for station_id in stations:
             result = _process_single_station(
-                engine, project, station_id, params,
-                predictor_6h, predictor_12h, inference_run_id,
+                engine,
+                project,
+                station_id,
+                params,
+                predictor_6h,
+                predictor_12h,
+                inference_run_id,
             )
             counters[f"stations_{result}"] += 1
 
         finalize_inference_run(
-            engine, project, inference_run_id,
-            counters=counters, status="success", error_summary=None,
+            engine,
+            project,
+            inference_run_id,
+            counters=counters,
+            status="success",
+            error_summary=None,
         )
 
     except Exception as exc:  # noqa: BLE001
-        logger.exception("Inference flow failed for project_code=%s", project.project_code)
+        logger.exception(
+            "Inference flow failed for project_code=%s", project.project_code
+        )
         finalize_inference_run(
-            engine, project, inference_run_id,
-            counters=counters, status="failed", error_summary=str(exc)[:1000],
+            engine,
+            project,
+            inference_run_id,
+            counters=counters,
+            status="failed",
+            error_summary=str(exc)[:1000],
         )
         raise
     finally:

@@ -4,9 +4,16 @@ import subprocess
 from pathlib import Path
 
 from pipelines.compat import flow, get_flow_context, get_run_logger
-from pipelines.config.selectors import SELECTOR_CANONICAL_CORE, SELECTOR_CANONICAL_SILVER
+from pipelines.config.selectors import (
+    SELECTOR_CANONICAL_INCREMENTAL_CORE,
+    SELECTOR_CANONICAL_SILVER,
+)
 from pipelines.config.settings import get_settings
-from pipelines.tasks.artifacts import load_run_results, persist_dbt_audit, summarize_run_results
+from pipelines.tasks.artifacts import (
+    load_run_results,
+    persist_dbt_audit,
+    summarize_run_results,
+)
 from pipelines.tasks.db import ensure_ops_audit_tables, get_engine
 from pipelines.tasks.dbt_tasks import dbt_deps, dbt_run_selector
 from pipelines.tasks.gates import raise_if_failed
@@ -32,7 +39,9 @@ def _git_sha() -> str | None:
 
 
 def _summary_from_result(result) -> dict:
-    run_results = load_run_results(result.run_results_path) if result.run_results_path else {}
+    run_results = (
+        load_run_results(result.run_results_path) if result.run_results_path else {}
+    )
     return summarize_run_results(run_results)
 
 
@@ -60,7 +69,10 @@ def canonical_incremental() -> None:
         persist_dbt_audit(engine, deps_result, deps_summary, ctx)
         raise_if_failed(deps_result, "dbt deps failed")
 
-        core_result = dbt_run_selector(settings, selector=SELECTOR_CANONICAL_CORE)
+        core_result = dbt_run_selector(
+            settings,
+            selector=SELECTOR_CANONICAL_INCREMENTAL_CORE,
+        )
         core_summary = _summary_from_result(core_result)
         persist_dbt_audit(engine, core_result, core_summary, ctx)
         raise_if_failed(core_result, "canonical core stage failed")

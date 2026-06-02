@@ -2,23 +2,22 @@ from __future__ import annotations
 
 import json
 import math
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from typing import Any
 from uuid import UUID, uuid4
 
 from sqlalchemy import text
 
-from pipelines.config.projects import ProjectConfig
 from inference.feature_adapter import REQUIRED_FEATURE_COLUMNS
-
+from pipelines.config.projects import ProjectConfig
 
 REQUIRED_COLUMNS = ["station_id", "date_utc", *REQUIRED_FEATURE_COLUMNS]
 
 
 def _ensure_utc(as_of: datetime) -> datetime:
     if as_of.tzinfo is None:
-        return as_of.replace(tzinfo=timezone.utc)
-    return as_of.astimezone(timezone.utc)
+        return as_of.replace(tzinfo=UTC)
+    return as_of.astimezone(UTC)
 
 
 def _insert_inference_run_query(project: ProjectConfig):
@@ -133,7 +132,9 @@ def _upsert_inference_result_query(project: ProjectConfig):
     )
 
 
-def list_candidate_stations(engine, project: ProjectConfig, as_of: datetime, window_hours: int) -> list[int]:
+def list_candidate_stations(
+    engine, project: ProjectConfig, as_of: datetime, window_hours: int
+) -> list[int]:
     as_of_utc = _ensure_utc(as_of)
     window_start = as_of_utc - timedelta(hours=window_hours)
 
@@ -148,7 +149,9 @@ def list_candidate_stations(engine, project: ProjectConfig, as_of: datetime, win
     )
 
     with engine.connect() as conn:
-        rows = conn.execute(query, {"window_start": window_start, "as_of": as_of_utc}).all()
+        rows = conn.execute(
+            query, {"window_start": window_start, "as_of": as_of_utc}
+        ).all()
 
     return [int(row[0]) for row in rows]
 
@@ -176,14 +179,18 @@ def load_station_window(
     )
 
     with engine.connect() as conn:
-        rows = conn.execute(
-            query,
-            {
-                "station_id": station_id,
-                "window_start": window_start,
-                "as_of": as_of_utc,
-            },
-        ).mappings().all()
+        rows = (
+            conn.execute(
+                query,
+                {
+                    "station_id": station_id,
+                    "window_start": window_start,
+                    "as_of": as_of_utc,
+                },
+            )
+            .mappings()
+            .all()
+        )
 
     return [dict(row) for row in rows]
 
@@ -196,7 +203,9 @@ def _is_missing(value: Any) -> bool:
     return False
 
 
-def filter_complete_rows(rows: list[dict[str, Any]], required_feature_cols: list[str]) -> list[dict[str, Any]]:
+def filter_complete_rows(
+    rows: list[dict[str, Any]], required_feature_cols: list[str]
+) -> list[dict[str, Any]]:
     filtered_rows: list[dict[str, Any]] = []
     for row in rows:
         if any(_is_missing(row.get(column)) for column in required_feature_cols):
@@ -223,7 +232,9 @@ def create_inference_run(
     return inference_run_id
 
 
-def _build_inference_run_payload(inference_run_id: UUID, ctx: dict[str, Any]) -> dict[str, Any]:
+def _build_inference_run_payload(
+    inference_run_id: UUID, ctx: dict[str, Any]
+) -> dict[str, Any]:
     return {
         "id": str(inference_run_id),
         "flow_run_id": ctx.get("flow_run_id", "local"),
@@ -235,7 +246,7 @@ def _build_inference_run_payload(inference_run_id: UUID, ctx: dict[str, Any]) ->
         "model_12h_version": ctx["model_12h_version"],
         "model_6h_path": ctx.get("model_6h_path"),
         "model_12h_path": ctx.get("model_12h_path"),
-        "started_at": _ensure_utc(ctx.get("started_at", datetime.now(timezone.utc))),
+        "started_at": _ensure_utc(ctx.get("started_at", datetime.now(UTC))),
         "status": ctx.get("status", "running"),
     }
 
@@ -308,7 +319,9 @@ def _build_station_status_payload(
     }
 
 
-def _build_inference_result_payload(inference_run_id: UUID, payload: dict[str, Any]) -> dict[str, Any]:
+def _build_inference_result_payload(
+    inference_run_id: UUID, payload: dict[str, Any]
+) -> dict[str, Any]:
     return {
         "id": str(uuid4()),
         "inference_run_id": str(inference_run_id),
@@ -327,11 +340,13 @@ def finalize_inference_run(
     status: str,
     error_summary: str | None,
 ) -> None:
-    ended_at = datetime.now(timezone.utc)
+    ended_at = datetime.now(UTC)
 
     with engine.begin() as conn:
         started_at = conn.execute(
-            text(f"select started_at from {project.inference_runs_table} where id = :id"),
+            text(
+                f"select started_at from {project.inference_runs_table} where id = :id"
+            ),
             {"id": str(inference_run_id)},
         ).scalar_one()
 

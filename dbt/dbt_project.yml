@@ -80,3 +80,14 @@ vars:
         wdir: wdir
         dwpt: dwpt
         coco: coco
+
+    mades_open_airbyte:
+      relation: stg_mades_open_measurements
+      raw_id_col: source_row_id
+      station_code_col: station_code
+      measured_at_col: measured_at_parsed
+      raw_payload_col: raw_payload
+      is_measured_at_valid_col: is_measured_at_valid
+      variables:
+        pm25: pm25
+        pm10: pm10

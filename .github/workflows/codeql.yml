@@ -1,0 +1,68 @@
+# CodeQL Code Scanning Workflow
+# Analyzes code for security vulnerabilities and code quality issues using CodeQL
+# Reference: https://docs.github.com/en/code-security/code-scanning
+
+name: CodeQL
+
+on:
+  # Scan on push to main and dev branches
+  push:
+    branches: [main, dev]
+    # Skip CodeQL runs for documentation-only updates
+    paths-ignore:
+      - '**/*.md'
+      - 'docs/**'
+  # Scan on pull requests targeting main and dev branches
+  pull_request:
+    branches: [main, dev]
+    types: [opened, reopened, synchronize]
+    # Skip CodeQL runs for documentation-only updates
+    paths-ignore:
+      - '**/*.md'
+      - 'docs/**'
+  # Weekly scan every Monday at 3:00 AM UTC
+  schedule:
+    - cron: '0 3 * * 1'
+  # Allow manual workflow triggers for on-demand scanning
+  workflow_dispatch:
+
+# Required permissions for CodeQL analysis
+permissions:
+  actions: read      # Required to access GitHub Actions
+  contents: read     # Required to read repository contents
+  security-events: write  # Required to write security scanning results
+
+# Prevent concurrent CodeQL runs on the same branch to avoid resource contention
+concurrency:
+  group: codeql-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  analyze:
+    name: Analyze (${{ matrix.language }})
+    runs-on: ubuntu-latest
+    strategy:
+      # Continue analyzing other languages even if one fails
+      fail-fast: false
+      matrix:
+        # Languages supported by CodeQL for this repository
+        # See: https://docs.github.com/en/code-security/code-scanning/codeql-cli/language-support
+        language: [python, actions]
+
+    steps:
+      # Checkout the repository code
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd #v6.0.2
+
+      # Initialize CodeQL with the configured languages and query settings
+      # Latest stable: v4 (releases: https://github.com/github/codeql-action/releases)
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@95e58e9a2cdfd71adc6e0353d5c52f41a045d225 #v4.35.2
+        with:
+          languages: ${{ matrix.language }}
+          # Use custom configuration for extended security queries and path exclusions
+          config-file: ./.github/codeql/codeql-config.yml
+
+      # Perform the actual CodeQL analysis on the initialized database
+      - name: Perform CodeQL analysis
+        uses: github/codeql-action/analyze@95e58e9a2cdfd71adc6e0353d5c52f41a045d225 #v4.35.2

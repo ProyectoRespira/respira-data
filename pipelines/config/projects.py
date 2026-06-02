@@ -50,7 +50,9 @@ def get_project_config(project_code: str) -> ProjectConfig:
         return PROJECTS[project_code]
     except KeyError as exc:
         supported = ", ".join(sorted(PROJECTS))
-        raise ValueError(f"Unknown project_code '{project_code}'. Supported values: {supported}") from exc
+        raise ValueError(
+            f"Unknown project_code '{project_code}'. Supported values: {supported}"
+        ) from exc
 
 
 def list_project_configs() -> list[ProjectConfig]:

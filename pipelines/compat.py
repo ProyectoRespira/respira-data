@@ -3,7 +3,8 @@ from __future__ import annotations
 import importlib
 import logging
 import os
-from typing import Any, Callable
+from collections.abc import Callable
+from typing import Any
 
 
 def _import_real_prefect() -> Any | None:
@@ -32,20 +33,21 @@ def _identity_decorator(*dargs, **dkwargs):  # noqa: ANN002, ANN003
 if _PREFECT is not None:
     flow = _PREFECT.flow
     task = _PREFECT.task
-
-    def get_run_logger() -> Any:
-        return _PREFECT.get_run_logger()
-
 else:
     flow = _identity_decorator
     task = _identity_decorator
 
-    def get_run_logger() -> logging.Logger:
-        return logging.getLogger("prefect-fallback")
+
+def get_run_logger() -> Any:
+    if _PREFECT is not None:
+        return _PREFECT.get_run_logger()
+    return logging.getLogger("prefect-fallback")
 
 
 def get_flow_context() -> dict[str, Any]:
-    flow_run_id = os.getenv("PREFECT__FLOW_RUN_ID") or os.getenv("PREFECT_FLOW_RUN_ID") or "local"
+    flow_run_id = (
+        os.getenv("PREFECT__FLOW_RUN_ID") or os.getenv("PREFECT_FLOW_RUN_ID") or "local"
+    )
     deployment = os.getenv("PREFECT_DEPLOYMENT_NAME")
 
     if _PREFECT is not None:
@@ -53,8 +55,12 @@ def get_flow_context() -> dict[str, Any]:
             runtime = importlib.import_module("prefect.runtime")
             runtime_flow_run = getattr(runtime, "flow_run", None)
             if runtime_flow_run is not None:
-                flow_run_id = str(getattr(runtime_flow_run, "id", flow_run_id) or flow_run_id)
-                deployment = deployment or getattr(runtime_flow_run, "deployment_id", None)
+                flow_run_id = str(
+                    getattr(runtime_flow_run, "id", flow_run_id) or flow_run_id
+                )
+                deployment = deployment or getattr(
+                    runtime_flow_run, "deployment_id", None
+                )
         except Exception:  # noqa: BLE001
             pass
 

@@ -25,6 +25,7 @@ services:
     working_dir: /app
     environment:
       - DBT_PROFILES_DIR=/app/dbt
+      - PREFECT_API_URL=http://prefect_server:4200/api
     volumes:
       - ./:/app
     env_file:
@@ -33,7 +34,7 @@ services:
       - "8000:8000"
     depends_on:
       prefect_server:
-        condition: service_started
+        condition: service_healthy
     command: ["bash", "-lc", "sleep infinity"]
 
   prefect_worker:

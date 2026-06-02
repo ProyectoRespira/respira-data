@@ -1,10 +1,8 @@
 from __future__ import annotations
 
 import json
-from pathlib import Path
 
 from harness import TEST_DIR, dump_results, run_fake_inference
-
 
 ARTIFACTS_DIR = TEST_DIR / "artifacts"
 

@@ -9,8 +9,12 @@ with base as (
     m.project_station_id as station_id,
     a.date_localtime,
     a.pm_calibrated,
-    a.pm1,
     a.pm2_5,
+    case
+      -- MADES stations do not provide pm1, so approximate it from pm2_5 for downstream features.
+      when a.pm1 is null and a.pm2_5 is not null then 0.85 * a.pm2_5
+      else a.pm1
+    end as pm1,
     a.pm10,
     a.aqi_pm2_5,
     a.aqi_pm10,
@@ -72,12 +76,12 @@ select
   pm10,
   pm2_5_avg_6h,
   pm2_5_max_6h,
-  pm2_5_skew_6h,
+  coalesce(pm2_5_skew_6h, 0.0) as pm2_5_skew_6h,
   pm2_5_std_6h,
   aqi_pm2_5,
   aqi_pm10,
   aqi_level,
   aqi_pm2_5_max_24h,
-  aqi_pm2_5_skew_24h,
+  coalesce(aqi_pm2_5_skew_24h, 0.0) as aqi_pm2_5_skew_24h,
   aqi_pm2_5_std_24h
 from stats

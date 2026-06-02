@@ -7,7 +7,6 @@ from urllib.parse import quote_plus
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
 
@@ -19,12 +18,15 @@ class RuntimeSettings(BaseSettings):
     DBT_PROFILES_DIR: str = str(REPO_ROOT / "dbt")
     DBT_TARGET: str = "prod"
     DBT_THREADS: int = 1
+    DBT_USE_PREFECT_DBT: bool = False
 
-    DBT_TIMEOUT_CANONICAL_CORE_S: int = 900
+    DBT_TIMEOUT_CANONICAL_CORE_S: int = 0
+    DBT_TIMEOUT_CANONICAL_BATCH_INGEST_S: int = 3600
     DBT_TIMEOUT_CANONICAL_SILVER_S: int = 1800
     DBT_TIMEOUT_PROJECT_S: int = 1200
     DBT_TIMEOUT_TESTS_S: int = 1200
 
+    MEASUREMENT_BACKFILL_PROCESS_BATCH_HOURS: int = 720
     DEFAULT_WINDOW_HOURS: int = 24
     INFERENCE_MIN_POINTS: int = 18
     MODEL_6H_PATH: str | None = None
@@ -33,6 +35,21 @@ class RuntimeSettings(BaseSettings):
     MODEL_12H_VERSION: str = "unknown"
 
     SLACK_WEBHOOK_URL: str | None = None
+
+    SOCIAL_DRY_RUN: bool = True
+    SOCIAL_DATA_MAX_AGE_HOURS: int = 6
+    SOCIAL_MIN_STATIONS_PER_REGION: int = 1
+
+    TELEGRAM_ENABLED: bool = False
+    TELEGRAM_BOT_TOKEN: str | None = None
+    TELEGRAM_CHAT_ID: str | None = None
+
+    TWITTER_ENABLED: bool = False
+    TWITTER_BEARER_TOKEN: str | None = None
+    TWITTER_API_KEY: str | None = None
+    TWITTER_API_SECRET: str | None = None
+    TWITTER_ACCESS_TOKEN: str | None = None
+    TWITTER_ACCESS_TOKEN_SECRET: str | None = None
 
     def database_dsn(self) -> str:
         if self.DB_DSN:
@@ -55,6 +72,12 @@ class RuntimeSettings(BaseSettings):
             raise ValueError(
                 "Missing DB connection settings. Set DB_DSN or REMOTE_PG_* environment variables."
             )
+
+        assert host is not None
+        assert port is not None
+        assert user is not None
+        assert password is not None
+        assert dbname is not None
 
         user_enc = quote_plus(user)
         password_enc = quote_plus(password)
