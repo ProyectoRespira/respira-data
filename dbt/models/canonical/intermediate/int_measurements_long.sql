@@ -2,6 +2,7 @@
   materialized='incremental',
   unique_key=['source_row_id', 'variable_code'],
   incremental_strategy='merge',
+  on_schema_change='sync_all_columns',
   indexes=[
     {'columns': ['source_row_id', 'variable_code'], 'unique': true},
     {'columns': ['extracted_at']}
