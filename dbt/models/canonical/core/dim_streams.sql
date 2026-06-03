@@ -21,12 +21,13 @@ data_sources as (
 ),
 candidates as (
   select *
-  from {{ ref('int_streams_candidates') }}
+  from {{ ref('int_streams_candidates') }} c
 
   {% if is_incremental() %}
-  where code not in (
-    select code
-    from {{ this }}
+  where not exists (
+    select 1
+    from {{ this }} existing
+    where existing.code = c.code
   )
   {% endif %}
 ),

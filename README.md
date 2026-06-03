@@ -352,6 +352,8 @@ Operational implications:
 
 - If you change cron settings, restart `prefect_worker` so deployments are
   re-created with the new schedule.
+- `social_broadcast` defaults to `0 11,20 * * *` in `UTC` and can be
+  overridden with `PREFECT_SOCIAL_BROADCAST_CRON`.
 - If you add model paths after startup, restart `prefect_worker` to attach the
   project schedule.
 - Editing deployment YAML files in `pipelines/deployments/` is not enough for
