@@ -4,22 +4,55 @@
   incremental_strategy='merge'
 ) }}
 
-with base as (
+{%- set region_station_freshness_hours = var('region_station_freshness_hours', 6) -%}
+
+with station_regions as (
   select
-    s.region_id,
-    r.date_localtime as date_utc,
-    r.pm2_5,
-    r.aqi_pm2_5,
-    r.aqi_level
-  from {{ ref('station_readings_gold') }} r
-  join {{ ref('stations') }} s
-    on s.id = r.station_id
+    id as station_id,
+    region_id
+  from {{ ref('stations') }}
+  where region_id is not null
+),
+
+target_hours as (
+  select distinct
+    sr_map.region_id,
+    sr.date_localtime as date_utc
+  from {{ ref('station_readings_gold') }} sr
+  join station_regions sr_map
+    on sr_map.station_id = sr.station_id
 
   {% if is_incremental() %}
-  where r.date_localtime >= (
+  where sr.date_localtime >= (
     select coalesce(max(date_utc), '1970-01-01'::timestamptz) from {{ this }}
   ) - interval '2 days'
   {% endif %}
+),
+
+base as (
+  -- For each region-hour, carry forward each station's latest reading within a bounded freshness window.
+  select
+    th.region_id,
+    th.date_utc,
+    latest.pm2_5,
+    latest.aqi_pm2_5,
+    latest.aqi_level
+  from target_hours th
+  join station_regions sr_map
+    on sr_map.region_id = th.region_id
+  join lateral (
+    select
+      sr.pm2_5,
+      sr.aqi_pm2_5,
+      sr.aqi_level
+    from {{ ref('station_readings_gold') }} sr
+    where sr.station_id = sr_map.station_id
+      and sr.date_localtime <= th.date_utc
+      and sr.date_localtime >= th.date_utc - interval '{{ region_station_freshness_hours }} hours'
+    order by sr.date_localtime desc
+    limit 1
+  ) latest
+    on true
 ),
 
 agg as (
