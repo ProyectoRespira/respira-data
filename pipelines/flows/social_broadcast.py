@@ -41,8 +41,29 @@ def social_broadcast(
         effective_dry_run = (
             settings.SOCIAL_DRY_RUN if dry_run is None else bool(dry_run)
         )
-        post_to_x(settings, message, dry_run=effective_dry_run)
-        post_to_telegram(settings, message, dry_run=effective_dry_run)
+        failures: list[tuple[str, Exception]] = []
+
+        try:
+            post_to_x(settings, message, dry_run=effective_dry_run)
+        except Exception as exc:  # noqa: BLE001
+            logger.exception("X post failed; continuing with Telegram")
+            failures.append(("X", exc))
+
+        try:
+            post_to_telegram(settings, message, dry_run=effective_dry_run)
+        except Exception as exc:  # noqa: BLE001
+            logger.exception("Telegram post failed")
+            failures.append(("Telegram", exc))
+
+        if failures:
+            if len(failures) == 1:
+                platform, exc = failures[0]
+                raise RuntimeError(f"{platform} posting failed: {exc}") from exc
+
+            failure_message = "; ".join(
+                f"{platform} posting failed: {exc}" for platform, exc in failures
+            )
+            raise RuntimeError(failure_message)
 
         logger.info(
             "social_broadcast completed for project_code=%s dry_run=%s",
