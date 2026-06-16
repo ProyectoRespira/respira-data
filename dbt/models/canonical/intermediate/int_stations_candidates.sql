@@ -59,12 +59,34 @@ mades_open_latest as (
   order by station_code, extracted_at desc, measured_at_parsed desc nulls last
 ),
 
+respira_latest as (
+  select
+    station_code as code,
+    coalesce(station_name, station_code) as name,
+    location_type as description,
+    latitude,
+    longitude,
+    null::double precision as elevation_m,
+    'active' as status,
+    jsonb_strip_nulls(jsonb_build_object(
+      'source', 'Respira',
+      'source_station_id', source_station_id,
+      'station_name', station_name,
+      'location_type', location_type
+    )) as properties,
+    false as is_pattern_station
+  from {{ ref('stg_respira_stations_cache') }}
+  where source_station_id is not null
+),
+
 all_candidates as (
   select * from static
   union all
   select * from airelibre_latest
   union all
   select * from mades_open_latest
+  union all
+  select * from respira_latest
 )
 
 select * from all_candidates

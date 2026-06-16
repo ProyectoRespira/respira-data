@@ -91,3 +91,16 @@ vars:
       variables:
         pm25: pm25
         pm10: pm10
+
+    respira_airbyte:
+      relation: stg_respira_measurements
+      station_code_col: station_code
+      measured_at_col: measured_at_parsed
+      raw_payload_col: raw_payload
+      is_measured_at_valid_col: is_measured_at_valid
+      variables:
+        pm1: pm1
+        pm25: pm25
+        pm10: pm10
+        temperature_c: temperature_c
+        hum: hum

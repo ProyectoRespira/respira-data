@@ -7,6 +7,8 @@ sources:
       identifier: true
     tables:
       - name: measurements
+      - name: Respira_measures_past
+      - name: Respira_measures_current_list
       - name: meteostat_asu_airport
       - name: MADES_Open_stations
       - name: MADES_Open_pm10_data
