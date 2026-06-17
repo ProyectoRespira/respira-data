@@ -117,7 +117,7 @@ models:
         tests: [not_null]
 
   - name: stg_meteostat_weather
-    description: "Staging view for Meteostat Airbyte table for asu_airport station."
+    description: "Staging view for Meteostat Airbyte tables for airport weather stations."
     columns:
       - name: _airbyte_raw_id
         tests: [not_null]
@@ -132,7 +132,7 @@ models:
         tests:
           - not_null
           - accepted_values:
-              values: ["asu_airport"]
+              values: ["asu_airport", "cde_airport"]
       - name: measured_at_raw
       - name: measured_at_parsed
       - name: is_measured_at_valid

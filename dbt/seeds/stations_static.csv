@@ -10,3 +10,4 @@ fiuna_8,Centro de Asunción,, -25.28640403412280, -57.64701121486720,,active,{"s
 fiuna_9,Ñu Guasu,, -25.26458493433890, -57.54793468862770,,active,{"source":"FIUNA"},false
 fiuna_10,Botánico,, -25.24647398851810, -57.54928501322870,,active,{"source":"FIUNA"},false
 asu_airport,Asunción Airport,Meteostat airport station,-25.2399,-57.5191,,active,{"source":"Meteostat"},false
+cde_airport,Ciudad del Este Airport,Meteostat airport station,-25.5097,-54.6111,,active,{"source":"Meteostat"},false
