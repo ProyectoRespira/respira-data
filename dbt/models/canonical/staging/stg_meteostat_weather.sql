@@ -1,7 +1,16 @@
 with src as (
 
-  select *
+  select
+    'asu_airport' as station_code,
+    *
   from {{ source('airbyte', 'meteostat_asu_airport') }}
+
+  union all
+
+  select
+    'cde_airport' as station_code,
+    *
+  from {{ source('airbyte', 'meteostat_cde_airport') }}
 
 ),
 
@@ -14,8 +23,7 @@ typed as (
     _airbyte_generation_id,
 
     'meteostat_airbyte' as data_source_name,
-
-    'asu_airport' as station_code,
+    station_code,
 
     null::bigint as cursor_id,
 
