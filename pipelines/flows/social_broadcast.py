@@ -6,6 +6,7 @@ from pipelines.tasks.db import get_engine
 from pipelines.tasks.notifications import notify_flow_failure
 from pipelines.tasks.social import (
     build_regional_average_message,
+    build_x_message,
     extract_social_snapshot,
     post_to_telegram,
     post_to_x,
@@ -36,24 +37,42 @@ def social_broadcast(
             max_age_hours=settings.SOCIAL_DATA_MAX_AGE_HOURS,
             min_stations_per_region=settings.SOCIAL_MIN_STATIONS_PER_REGION,
         )
-        message = build_regional_average_message(payload)
+        regions = payload.get("regions", [])
+        if not regions:
+            raise RuntimeError("Social snapshot did not include any regions")
 
         effective_dry_run = (
             settings.SOCIAL_DRY_RUN if dry_run is None else bool(dry_run)
         )
         failures: list[tuple[str, Exception]] = []
 
-        try:
-            post_to_x(settings, message, dry_run=effective_dry_run)
-        except Exception as exc:  # noqa: BLE001
-            logger.exception("X post failed; continuing with Telegram")
-            failures.append(("X", exc))
+        for region in regions:
+            region_name = str(region.get("region_name", "unknown_region"))
+            try:
+                x_message = build_x_message(region)
+                post_to_x(settings, x_message, dry_run=effective_dry_run)
+            except Exception as exc:  # noqa: BLE001
+                logger.exception(
+                    "X post failed for region=%s; continuing with next post",
+                    region_name,
+                )
+                failures.append((f"X ({region_name})", exc))
 
-        try:
-            post_to_telegram(settings, message, dry_run=effective_dry_run)
-        except Exception as exc:  # noqa: BLE001
-            logger.exception("Telegram post failed")
-            failures.append(("Telegram", exc))
+        for region in regions:
+            region_name = str(region.get("region_name", "unknown_region"))
+            try:
+                telegram_message = build_regional_average_message(region)
+                post_to_telegram(
+                    settings,
+                    telegram_message,
+                    dry_run=effective_dry_run,
+                )
+            except Exception as exc:  # noqa: BLE001
+                logger.exception(
+                    "Telegram post failed for region=%s; continuing with next post",
+                    region_name,
+                )
+                failures.append((f"Telegram ({region_name})", exc))
 
         if failures:
             if len(failures) == 1:

@@ -151,6 +151,17 @@ _AQI_MESSAGES = [
     ),
 ]
 
+_AQI_MARKERS = [
+    (0, 50, "🟢"),
+    (51, 100, "🟡"),
+    (101, 150, "🟠"),
+    (151, 200, "🔴"),
+    (201, 300, "🟣"),
+    (301, 500, "⚫"),
+]
+
+_X_POST_MAX_LENGTH = 280
+
 
 def _aqi_label(value: int) -> str:
     for lo, hi, label in _AQI_LEVELS:
@@ -166,27 +177,106 @@ def _aqi_message(value: int) -> str:
     return ""
 
 
-@task(name="build_regional_average_message")
-def build_regional_average_message(payload: dict[str, Any]) -> str:
-    regions = payload.get("regions", [])
-    if not regions:
-        raise RuntimeError("Cannot build social message without regions")
+def _aqi_marker(value: int) -> str:
+    for lo, hi, marker in _AQI_MARKERS:
+        if lo <= value <= hi:
+            return marker
+    return "⚠️"
 
-    lines = []
-    for region in regions:
-        avg = region["avg_aqi"]
-        max_ = region["max_aqi"]
-        min_ = region["min_aqi"]
-        lines.append(
-            f"📊 *Reporte de Calidad del Aire para {region['region_name']} - Pronóstico de 12 horas*\n"
-            f"🔹 *AQI Promedio:* {avg} ({_aqi_label(avg)})\n"
-            f"🔺 *AQI Máximo:* {max_} ({_aqi_label(max_)})\n"
-            f"🔻 *AQI Mínimo:* {min_} ({_aqi_label(min_)})\n\n"
-            f"{_aqi_message(avg)}\n\n"
-            "🔗 Podés acceder al pronóstico actualizado en tu zona ingresando a www.proyectorespira.net"
+
+def _truncate_text(value: str, max_chars: int) -> str:
+    if max_chars <= 0:
+        return ""
+    if len(value) <= max_chars:
+        return value
+    if max_chars == 1:
+        return value[:1]
+    return f"{value[: max_chars - 1].rstrip()}…"
+
+
+@task(name="build_regional_average_message")
+def build_regional_average_message(region: dict[str, Any]) -> str:
+    avg = region["avg_aqi"]
+    max_ = region["max_aqi"]
+    min_ = region["min_aqi"]
+    region_name = region["region_name"]
+
+    return (
+        f"📊 *Reporte de Calidad del Aire para {region_name} - Pronóstico de 12 horas*\n"
+        f"🔹 *AQI Promedio:* {avg} ({_aqi_label(avg)})\n"
+        f"🔺 *AQI Máximo:* {max_} ({_aqi_label(max_)})\n"
+        f"🔻 *AQI Mínimo:* {min_} ({_aqi_label(min_)})\n\n"
+        f"{_aqi_message(avg)}\n\n"
+        "🔗 Podés acceder al pronóstico actualizado en tu zona ingresando a www.proyectorespira.net"
+    )
+
+
+@task(name="build_x_message")
+def build_x_message(region: dict[str, Any]) -> str:
+    avg = region["avg_aqi"]
+    max_ = region["max_aqi"]
+    min_ = region["min_aqi"]
+    region_name = str(region["region_name"])
+    full_link = "🔗 Podés ingresar al pronóstico en tu zona en https://proyectorespira.net"
+    short_link = "🔗 Pronóstico por zona: https://proyectorespira.net"
+    link_only = "https://proyectorespira.net"
+
+    def _format_aqi(value: int) -> str:
+        return f"{_aqi_marker(value)} {_aqi_label(value)}"
+
+    def _render(
+        name: str,
+        title_template: str,
+        link_line: str,
+    ) -> str:
+        return "\n".join(
+            (
+                title_template.format(region=name),
+                f"🔹 AQI Promedio: {avg} ({_format_aqi(avg)})",
+                f"🔺 AQI Máximo: {max_} ({_format_aqi(max_)})",
+                f"🔻 AQI Mínimo: {min_} ({_format_aqi(min_)})",
+                "",
+                link_line,
+            )
         )
 
-    return "\n\n---\n\n".join(lines)
+    def _fit_message(title_template: str, link_line: str) -> str:
+        message = _render(region_name, title_template, link_line)
+        if len(message) <= _X_POST_MAX_LENGTH:
+            return message
+
+        base_length = len(message) - len(region_name)
+        region_budget = max(12, _X_POST_MAX_LENGTH - base_length)
+        compact_region = _truncate_text(region_name, region_budget)
+        return _render(compact_region, title_template, link_line)
+
+    variants = (
+        (
+            "📊 Calidad del Aire para {region} - Próximas 12 hs",
+            full_link,
+        ),
+        (
+            "📊 Calidad del Aire para {region} - Próximas 12 hs",
+            short_link,
+        ),
+        (
+            "📊 Aire para {region} - Próximas 12 hs",
+            short_link,
+        ),
+        (
+            "📊 Aire para {region} - 12 hs",
+            link_only,
+        ),
+    )
+
+    for title_template, link_line in variants:
+        message = _fit_message(title_template, link_line)
+        if len(message) <= _X_POST_MAX_LENGTH:
+            return message
+
+    raise RuntimeError(
+        f"Unable to build X message within {_X_POST_MAX_LENGTH} characters"
+    )
 
 
 @task(name="post_to_x", retries=2, retry_delay_seconds=30)
@@ -198,6 +288,11 @@ def post_to_x(settings, message: str, dry_run: bool | None = None) -> None:
     if not enabled:
         logger.info("X posting disabled (TWITTER_ENABLED=false). Skipping.")
         return
+
+    if len(message) > _X_POST_MAX_LENGTH:
+        raise ValueError(
+            f"X message too long: {len(message)} chars. Limit is {_X_POST_MAX_LENGTH}."
+        )
 
     if effective_dry_run:
         logger.info("X dry-run enabled. Message preview:\n%s", message)
@@ -219,10 +314,15 @@ def post_to_x(settings, message: str, dry_run: bool | None = None) -> None:
         consumer_secret=settings.TWITTER_API_SECRET,
         access_token=settings.TWITTER_ACCESS_TOKEN,
         access_token_secret=settings.TWITTER_ACCESS_TOKEN_SECRET,
+        wait_on_rate_limit=True,
     )
-    response = client.create_tweet(text=message)
-    tweet_id = getattr(response, "data", {}) or {}
-    logger.info("X post sent successfully. response=%s", tweet_id)
+    try:
+        response = client.create_tweet(text=message)
+    except tweepy.TweepyException as exc:
+        logger.exception("X API error")
+        raise RuntimeError(f"X API error: {exc}") from exc
+
+    logger.info("X post sent successfully. response=%s", response.data)
 
 
 @task(name="post_to_telegram", retries=2, retry_delay_seconds=30)
