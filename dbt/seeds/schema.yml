@@ -89,6 +89,19 @@ seeds:
       - name: region_code
         tests: [not_null]
 
+  - name: station_status_seed
+    description: "Optional seed overriding project station status by station_code. Use status=inactive to manually shut down a station in respira_gold."
+    columns:
+      - name: station_code
+        tests: [not_null, unique]
+      - name: status
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['active', 'inactive']
+      - name: note
+
   - name: calibration_factors_seed
     description: "Optional seed for PM calibration factors (used when external calibration_factors table is missing)."
     columns:

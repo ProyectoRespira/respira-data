@@ -104,6 +104,11 @@ Table respira_gold.inference_results {
 - `station_region_seed` can override station → region assignments (and can include weather stations too).
 - `bbox` format: `min_lon,min_lat,max_lon,max_lat` (degrees).
 
+### Manual station shutdowns
+- `station_status_seed` can override a project station's effective `status` by `station_code`.
+- To manually shut down a station, add a row with `status=inactive`, then refresh that seed and rerun the project models.
+- Example: `respira_123,inactive,Temporarily disabled for maintenance`
+
 ### Calibration factors
 - If an external `calibration_factors` table exists (schema configurable via `calibration_factors_schema`), dbt reads from it.
 - Otherwise dbt falls back to `calibration_factors_seed` (seed uses `station_code`, joined to `dim_stations`).
