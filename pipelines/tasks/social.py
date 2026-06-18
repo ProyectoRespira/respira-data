@@ -217,7 +217,9 @@ def build_x_message(region: dict[str, Any]) -> str:
     max_ = region["max_aqi"]
     min_ = region["min_aqi"]
     region_name = str(region["region_name"])
-    full_link = "🔗 Podés ingresar al pronóstico en tu zona en https://proyectorespira.net"
+    full_link = (
+        "🔗 Podés ingresar al pronóstico en tu zona en https://proyectorespira.net"
+    )
     short_link = "🔗 Pronóstico por zona: https://proyectorespira.net"
     link_only = "https://proyectorespira.net"
 
