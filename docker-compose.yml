@@ -3,17 +3,20 @@ services:
   prefect_server:
     image: prefecthq/prefect:3.6.20-python3.12
     container_name: prefect_server
+    env_file:
+      - .env
     environment:
-      PREFECT_UI_URL: http://localhost:4200
-      PREFECT_UI_API_URL: http://127.0.0.1:4200/api
-      PREFECT_SERVER_API_HOST: 0.0.0.0
-      PREFECT_SERVER_API_PORT: 4200
-    command: ["prefect", "server", "start", "--host", "0.0.0.0", "--port", "4200"]
+      PREFECT_UI_URL: ${PREFECT_UI_URL:-http://localhost:4200}
+      PREFECT_UI_API_URL: ${PREFECT_UI_API_URL:-http://localhost:4200/api}
+      PREFECT_UI_SERVE_BASE: ${PREFECT_UI_SERVE_BASE:-/}
+      PREFECT_SERVER_API_HOST: ${PREFECT_SERVER_API_HOST:-0.0.0.0}
+      PREFECT_SERVER_API_PORT: ${PREFECT_SERVER_API_PORT:-4200}
+    command: ["prefect", "server", "start", "--host", "${PREFECT_SERVER_API_HOST:-0.0.0.0}", "--port", "${PREFECT_SERVER_API_PORT:-4200}"]
     ports:
-      - "4200:4200"
-    # Health check using curl (simpler and more portable than urllib)
+      - "${PREFECT_SERVER_API_PORT:-4200}:${PREFECT_SERVER_API_PORT:-4200}"
+    # Health check using Python (works in Prefect image without curl)
     healthcheck:
-      test: ["CMD-SHELL", "curl -f http://127.0.0.1:4200/api/health || exit 1"]
+      test: ["CMD-SHELL", "python -c \"import os, urllib.request; port=os.getenv('PREFECT_SERVER_API_PORT','4200'); urllib.request.urlopen(f'http://127.0.0.1:{port}/api/health', timeout=5)\""]
       interval: 10s
       timeout: 5s
       retries: 20
@@ -52,11 +55,11 @@ services:
     working_dir: /app
     environment:
       - DBT_PROFILES_DIR=/app/dbt
-      - PREFECT_API_URL=http://prefect_server:4200/api
-      - PREFECT_WORKER_TYPE=process
-      - PREFECT_CANONICAL_WORK_POOL=canonical
-      - PREFECT_PROJECT_RESPIRA_GOLD_WORK_POOL=respira_gold
-      - PREFECT_SCHEDULE_TIMEZONE=UTC
+      - PREFECT_API_URL=${PREFECT_API_URL:-http://prefect_server:${PREFECT_SERVER_API_PORT:-4200}/api}
+      - PREFECT_WORKER_TYPE=${PREFECT_WORKER_TYPE:-process}
+      - PREFECT_CANONICAL_WORK_POOL=${PREFECT_CANONICAL_WORK_POOL:-canonical}
+      - PREFECT_PROJECT_RESPIRA_GOLD_WORK_POOL=${PREFECT_PROJECT_RESPIRA_GOLD_WORK_POOL:-respira_gold}
+      - PREFECT_SCHEDULE_TIMEZONE=${PREFECT_SCHEDULE_TIMEZONE:-UTC}
     volumes:
       - ./:/app
     env_file:
