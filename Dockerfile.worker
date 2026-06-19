@@ -36,6 +36,7 @@ WORKDIR /app
 # Install only runtime dependencies (no build tools needed)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     git \
+    procps \
     postgresql-client \
     && rm -rf /var/lib/apt/lists/*
 
@@ -53,4 +54,4 @@ COPY . /app
 
 # Health check to verify Prefect worker is available
 HEALTHCHECK --interval=15s --timeout=10s --start-period=20s --retries=3 \
-  CMD prefect worker ps > /dev/null 2>&1 || exit 1
+    CMD pgrep -f "prefect worker start" > /dev/null || exit 1
