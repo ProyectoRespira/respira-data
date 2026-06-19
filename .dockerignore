@@ -59,7 +59,6 @@ Dockerfile*
 # Others
 .pre-commit-config.yaml
 Makefile
-README.md
 LICENSE
 SECURITY.md
 docs/
