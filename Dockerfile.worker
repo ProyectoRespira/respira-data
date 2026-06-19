@@ -35,7 +35,6 @@ WORKDIR /app
 
 # Install only runtime dependencies (no build tools needed)
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    git \
     procps \
     postgresql-client \
     && rm -rf /var/lib/apt/lists/*
