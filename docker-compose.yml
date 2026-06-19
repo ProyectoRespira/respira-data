@@ -28,8 +28,9 @@ services:
       dockerfile: Dockerfile
     working_dir: /app
     environment:
-      - DBT_PROFILES_DIR=/app/dbt
-      - PREFECT_API_URL=http://prefect_server:4200/api
+      - DBT_PROJECT_DIR=${DBT_PROJECT_DIR:-/app/dbt}
+      - DBT_PROFILES_DIR=${DBT_PROFILES_DIR:-/app/dbt}
+      - PREFECT_API_URL=${PREFECT_API_URL:-http://prefect_server:${PREFECT_SERVER_API_PORT:-4200}/api}
     volumes:
       - ./:/app
     env_file:
@@ -54,7 +55,8 @@ services:
       dockerfile: Dockerfile.worker
     working_dir: /app
     environment:
-      - DBT_PROFILES_DIR=/app/dbt
+      - DBT_PROJECT_DIR=${DBT_PROJECT_DIR:-/app/dbt}
+      - DBT_PROFILES_DIR=${DBT_PROFILES_DIR:-/app/dbt}
       - PREFECT_API_URL=${PREFECT_API_URL:-http://prefect_server:${PREFECT_SERVER_API_PORT:-4200}/api}
       - PREFECT_WORKER_TYPE=${PREFECT_WORKER_TYPE:-process}
       - PREFECT_CANONICAL_WORK_POOL=${PREFECT_CANONICAL_WORK_POOL:-canonical}
