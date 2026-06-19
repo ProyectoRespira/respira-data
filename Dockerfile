@@ -20,7 +20,3 @@ RUN poetry install --no-interaction --no-ansi --no-root
 # Copy application code last (this layer changes frequently and doesn't invalidate dependency layers)
 COPY . /app
 RUN poetry install --no-interaction --no-ansi
-
-# Health check to verify the app container is responsive
-HEALTHCHECK --interval=10s --timeout=5s --start-period=30s --retries=3 \
-  CMD python -c "import sys; sys.exit(0)" || exit 1

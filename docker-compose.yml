@@ -37,13 +37,6 @@ services:
       - .env
     ports:
       - "8000:8000"
-    # Health check for app container readiness
-    healthcheck:
-      test: ["CMD", "python", "-c", "import sys; sys.exit(0)"]
-      interval: 10s
-      timeout: 5s
-      retries: 3
-      start_period: 30s
     depends_on:
       prefect_server:
         condition: service_healthy
