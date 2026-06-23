@@ -17,7 +17,10 @@ typed as (
 
     "locationId"::text as source_station_id,
     'respira_' || "locationId"::text as station_code,
-    nullif(trim("locationName"::text), '') as station_name,
+    nullif(
+      regexp_replace(trim("locationName"::text), '^Respira:\\s*', '', 'i'),
+      ''
+    ) as station_name,
 
     null::bigint as cursor_id,
 
