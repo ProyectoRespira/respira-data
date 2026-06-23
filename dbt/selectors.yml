@@ -23,6 +23,8 @@ selectors:
         - method: path
           value: models/canonical/staging/stg_mades_open_stations_cache.sql
         - method: path
+          value: models/canonical/staging/stg_respira_stations_cache.sql
+        - method: path
           value: models/canonical/intermediate
         - method: path
           value: models/canonical/core
