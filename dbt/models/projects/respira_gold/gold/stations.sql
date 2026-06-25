@@ -30,6 +30,8 @@ select
     when lower(coalesce(s.properties->>'source', '')) = 'fiuna' then 'FIUNA: ' || s.name
     when lower(coalesce(s.properties->>'source', '')) = 'airelibre' then 'AireLibre: ' || s.name
     when lower(coalesce(s.properties->>'source', '')) = 'mades open' then 'MADES: ' || s.name
+    when lower(coalesce(s.properties->>'source', '')) = 'respira' then
+      'Respira: ' || regexp_replace(s.name, '^Respira:\\s*', '', 'i')
     else s.name
   end as name,
   s.latitude,
