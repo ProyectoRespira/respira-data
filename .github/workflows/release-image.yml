@@ -1,0 +1,142 @@
+name: Release Image Publish
+
+"on":
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+  packages: write
+  attestations: write
+  id-token: write
+
+concurrency:
+  group: release-image-${{ github.event.release.id || github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    name: Publish Release Images to GHCR
+    runs-on: ubuntu-latest
+    env:
+      REGISTRY: ghcr.io
+      IMAGE_OWNER: ${{ github.repository_owner }}
+      RELEASE_TAG: ${{ github.event.release.tag_name }}
+      TARGET_COMMITISH: ${{ github.event.release.target_commitish }}
+      IS_PRERELEASE: ${{ github.event.release.prerelease }}
+
+    steps:
+      - name: Validate release metadata
+        shell: bash
+        run: |
+          set -eu
+
+          if [ "$TARGET_COMMITISH" != "main" ]; then
+            echo "Release target_commitish must be main. Current target_commitish: $TARGET_COMMITISH"
+            exit 1
+          fi
+
+          if [ "$IS_PRERELEASE" != "false" ]; then
+            echo "Prereleases are not allowed for this release image publisher"
+            exit 1
+          fi
+
+          if ! printf '%s' "$RELEASE_TAG" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "Release tag must match strict semver format: vX.Y.Z"
+            exit 1
+          fi
+
+      - name: Normalize image owner
+        id: owner
+        shell: bash
+        run: echo "lc=${IMAGE_OWNER,,}" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout release tag
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          ref: ${{ github.event.release.tag_name }}
+          fetch-depth: 0
+
+      - name: Validate release tag is on main
+        shell: bash
+        run: |
+          set -eu
+
+          git fetch origin main --depth=1
+
+          if ! git merge-base --is-ancestor HEAD origin/main; then
+            echo "Release tag $RELEASE_TAG does not point to a commit contained in origin/main"
+            exit 1
+          fi
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@d7f5e7f509e45cec5c76c4d5afdd7de93d0b3df5 # v4.1.0
+
+      - name: Log in to GHCR
+        uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee # v4.2.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Docker metadata app
+        id: meta_app
+        uses: docker/metadata-action@80c7e94dd9b9319bd5eb7a0e0fe9291e23a2a2e9 # v6.1.0
+        with:
+          images: ${{ env.REGISTRY }}/${{ steps.owner.outputs.lc }}/respira-data-app
+          tags: |
+            type=raw,value=${{ env.RELEASE_TAG }}
+            type=sha,prefix=sha-
+            type=raw,value=latest
+
+      - name: Docker metadata worker
+        id: meta_worker
+        uses: docker/metadata-action@80c7e94dd9b9319bd5eb7a0e0fe9291e23a2a2e9 # v6.1.0
+        with:
+          images: ${{ env.REGISTRY }}/${{ steps.owner.outputs.lc }}/respira-data-worker
+          tags: |
+            type=raw,value=${{ env.RELEASE_TAG }}
+            type=sha,prefix=sha-
+            type=raw,value=latest
+
+      - name: Build and push app image
+        id: push_app
+        uses: docker/build-push-action@f9f3042f7e2789586610d6e8b85c8f03e5195baf # v7.2.0
+        with:
+          context: .
+          file: ./Dockerfile
+          push: true
+          tags: ${{ steps.meta_app.outputs.tags }}
+          labels: ${{ steps.meta_app.outputs.labels }}
+          cache-from: type=gha,scope=respira-data-app
+          cache-to: type=gha,scope=respira-data-app,mode=max
+          provenance: true
+          sbom: true
+
+      - name: Build and push worker image
+        id: push_worker
+        uses: docker/build-push-action@f9f3042f7e2789586610d6e8b85c8f03e5195baf # v7.2.0
+        with:
+          context: .
+          file: ./Dockerfile.worker
+          push: true
+          tags: ${{ steps.meta_worker.outputs.tags }}
+          labels: ${{ steps.meta_worker.outputs.labels }}
+          cache-from: type=gha,scope=respira-data-worker
+          cache-to: type=gha,scope=respira-data-worker,mode=max
+          provenance: true
+          sbom: true
+
+      - name: Generate app image attestation
+        uses: actions/attest@281a49d4cbb0a72c9575a50d18f6deb515a11deb # v4
+        with:
+          subject-name: ${{ env.REGISTRY }}/${{ steps.owner.outputs.lc }}/respira-data-app
+          subject-digest: ${{ steps.push_app.outputs.digest }}
+          push-to-registry: true
+
+      - name: Generate worker image attestation
+        uses: actions/attest@281a49d4cbb0a72c9575a50d18f6deb515a11deb # v4
+        with:
+          subject-name: ${{ env.REGISTRY }}/${{ steps.owner.outputs.lc }}/respira-data-worker
+          subject-digest: ${{ steps.push_worker.outputs.digest }}
+          push-to-registry: true

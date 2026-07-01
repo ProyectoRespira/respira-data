@@ -36,7 +36,6 @@ WORKDIR /app
 # Install only runtime dependencies (no build tools needed)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     procps \
-    libgomp1 \
     postgresql-client \
     && rm -rf /var/lib/apt/lists/*
 
@@ -47,10 +46,6 @@ COPY --from=builder /usr/local/bin /usr/local/bin
 
 # Copy application code
 COPY . /app
-
-# Copy startup script outside /app so volume mounts cannot shadow it
-COPY scripts/prefect_worker_start.sh /usr/local/bin/prefect_worker_start.sh
-RUN chmod +x /usr/local/bin/prefect_worker_start.sh
 
 # Health check to verify Prefect worker is available
 HEALTHCHECK --interval=15s --timeout=10s --start-period=20s --retries=3 \
