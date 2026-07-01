@@ -4,7 +4,13 @@
   incremental_strategy='merge'
 ) }}
 
-with base as (
+with active_air_quality_stations as (
+  select id as core_station_id
+  from {{ ref('int_air_quality_stations') }}
+  where status = 'active'
+),
+
+base as (
   select
     m.project_station_id as station_id,
     a.date_localtime,
@@ -20,6 +26,8 @@ with base as (
     a.aqi_pm10,
     a.aqi_level
   from {{ ref('int_station_hourly_aqi') }} a
+  join active_air_quality_stations active_stations
+    on active_stations.core_station_id = a.station_id
   join {{ ref('int_station_id_map') }} m
     on m.core_station_id = a.station_id
 
