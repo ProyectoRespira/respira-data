@@ -1,6 +1,16 @@
 version: 2
 
 models:
+  - name: int_station_status_overrides
+    description: "Project-scoped manual shutdown overrides for eligible air-quality stations."
+    columns:
+      - name: core_station_id
+        tests: [not_null]
+      - name: station_code
+        tests: [not_null, unique]
+      - name: status
+        tests: [not_null]
+
   - name: int_station_id_map
     description: "Internal mapping from canonical station ids to sequential respira_gold station ids."
     columns:

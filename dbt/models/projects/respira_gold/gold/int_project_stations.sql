@@ -6,12 +6,8 @@ with project_streams as (
 ),
 
 status_overrides as (
-  select
-    station_code::text as station_code,
-    lower(status::text) as status
-  from {{ ref('station_status_seed') }}
-  where nullif(station_code::text, '') is not null
-    and nullif(status::text, '') is not null
+  select station_code
+  from {{ ref('int_station_status_overrides') }}
 ),
 
 project_stations as (
@@ -30,7 +26,10 @@ select
   st.latitude,
   st.longitude,
   st.elevation_m,
-  coalesce(so.status, st.status) as status,
+  case
+    when so.station_code is not null then 'inactive'
+    else st.status
+  end as status,
   st.properties,
   st.is_pattern_station,
   st.created_at,
