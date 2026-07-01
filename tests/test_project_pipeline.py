@@ -96,16 +96,14 @@ def test_project_pipeline_runs_seed_and_seed_tests_before_project_run(
 
     execution_order: list[str] = []
 
-    mock_dbt_deps.side_effect = (
-        lambda _settings: execution_order.append("deps") or deps_result
+    mock_dbt_deps.side_effect = lambda _settings: (
+        execution_order.append("deps") or deps_result
     )
-    mock_dbt_seed_selector.side_effect = (
-        lambda _settings, selector: execution_order.append(f"seed:{selector}")
-        or seed_result
+    mock_dbt_seed_selector.side_effect = lambda _settings, selector: (
+        execution_order.append(f"seed:{selector}") or seed_result
     )
-    mock_dbt_run_selector.side_effect = (
-        lambda _settings, selector: execution_order.append(f"run:{selector}")
-        or project_result
+    mock_dbt_run_selector.side_effect = lambda _settings, selector: (
+        execution_order.append(f"run:{selector}") or project_result
     )
 
     def _test_selector_side_effect(_settings, selector):
