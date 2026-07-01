@@ -1,17 +1,52 @@
+# Stage 1: Builder
+# Uses full python:3.12 image to compile dependencies with build tools
+FROM python:3.12 AS builder
+
+WORKDIR /app
+
+# Install build dependencies needed for compiling wheels (lightgbm, psycopg, etc.)
+# Using build-essential here is appropriate as it's only for the build stage
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    git \
+    postgresql-client \
+    && rm -rf /var/lib/apt/lists/*
+
+# Setup Python package manager
+RUN pip install -U pip && pip install poetry
+RUN poetry config virtualenvs.create false
+
+# Copy dependency files
+COPY pyproject.toml poetry.lock* /app/
+
+# Install dependencies in builder stage (wheels get compiled here with build-essential)
+RUN poetry install --no-interaction --no-ansi --no-root --with inference
+
+# Copy code and install application in builder
+COPY . /app
+RUN poetry install --no-interaction --no-ansi --with inference
+
+
+# Stage 2: Runtime
+# Uses python:3.12-slim (smaller base) - build tools are not included
 FROM python:3.12-slim
 
 WORKDIR /app
 
-# System dependencies required by dbt, LightGBM wheels, and general tooling.
-RUN apt-get update \
-    && apt-get install -y --no-install-recommends build-essential git postgresql-client \
+# Install only runtime dependencies (no build tools needed)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    procps \
+    postgresql-client \
     && rm -rf /var/lib/apt/lists/*
 
-RUN pip install -U pip && pip install poetry
-RUN poetry config virtualenvs.create false
+# Copy the installed dependencies and site-packages from builder stage
+# This includes pre-compiled wheels without needing build tools
+COPY --from=builder /usr/local/lib/python3.12/site-packages /usr/local/lib/python3.12/site-packages
+COPY --from=builder /usr/local/bin /usr/local/bin
 
-COPY pyproject.toml poetry.lock* /app/
-RUN poetry install --no-interaction --no-ansi --no-root --with inference
-
+# Copy application code
 COPY . /app
-RUN poetry install --no-interaction --no-ansi --with inference
+
+# Health check to verify Prefect worker is available
+HEALTHCHECK --interval=15s --timeout=10s --start-period=20s --retries=3 \
+    CMD pgrep -f "prefect worker start" > /dev/null || exit 1
