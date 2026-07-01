@@ -86,18 +86,26 @@ def test_project_pipeline_runs_seed_and_seed_tests_before_project_run(
 
     deps_result = _make_result("success", "dbt deps")
     seed_result = _make_result("success", "dbt seed")
-    seed_tests_result = _make_result("success", "dbt test project_respira_gold_seed_tests")
+    seed_tests_result = _make_result(
+        "success", "dbt test project_respira_gold_seed_tests"
+    )
     project_result = _make_result("success", "dbt run project_respira_gold")
-    project_tests_result = _make_result("success", "dbt test project_respira_gold_tests")
+    project_tests_result = _make_result(
+        "success", "dbt test project_respira_gold_tests"
+    )
 
     execution_order: list[str] = []
 
-    mock_dbt_deps.side_effect = lambda _settings: execution_order.append("deps") or deps_result
+    mock_dbt_deps.side_effect = (
+        lambda _settings: execution_order.append("deps") or deps_result
+    )
     mock_dbt_seed_selector.side_effect = (
-        lambda _settings, selector: execution_order.append(f"seed:{selector}") or seed_result
+        lambda _settings, selector: execution_order.append(f"seed:{selector}")
+        or seed_result
     )
     mock_dbt_run_selector.side_effect = (
-        lambda _settings, selector: execution_order.append(f"run:{selector}") or project_result
+        lambda _settings, selector: execution_order.append(f"run:{selector}")
+        or project_result
     )
 
     def _test_selector_side_effect(_settings, selector):
@@ -107,8 +115,8 @@ def test_project_pipeline_runs_seed_and_seed_tests_before_project_run(
         return project_tests_result
 
     mock_dbt_test_selector.side_effect = _test_selector_side_effect
-    mock_project_inference.side_effect = (
-        lambda **kwargs: execution_order.append("inference")
+    mock_project_inference.side_effect = lambda **kwargs: execution_order.append(
+        "inference"
     )
     mock_summary_from_result.side_effect = [
         {"tests_failed": 0, "tests_passed": 0},
@@ -182,7 +190,10 @@ def test_project_pipeline_aborts_when_seed_step_fails(
         {"tests_failed": 0, "tests_passed": 0},
     ]
 
-    with patch("pipelines.flows.project_pipeline.raise_if_failed", side_effect=pipeline_module.raise_if_failed) as mock_raise_if_failed:
+    with patch(
+        "pipelines.flows.project_pipeline.raise_if_failed",
+        side_effect=pipeline_module.raise_if_failed,
+    ) as mock_raise_if_failed:
         try:
             _call_flow(pipeline_module.project_pipeline, project_code="respira_gold")
         except RuntimeError as exc:
@@ -197,7 +208,10 @@ def test_project_pipeline_aborts_when_seed_step_fails(
     mock_notify_flow_failure.assert_called_once()
     assert mock_raise_if_failed.call_args_list[:2] == [
         call(mock_dbt_deps.return_value, "dbt deps failed"),
-        call(mock_dbt_seed_selector.return_value, "dbt project seed stage failed for respira_gold"),
+        call(
+            mock_dbt_seed_selector.return_value,
+            "dbt project seed stage failed for respira_gold",
+        ),
     ]
     engine.dispose.assert_called_once_with()
 
@@ -245,9 +259,13 @@ def test_project_pipeline_keeps_project_test_alert_behavior_after_seed_validatio
     mock_get_engine.return_value = engine
     mock_dbt_deps.return_value = _make_result("success", "dbt deps")
     mock_dbt_seed_selector.return_value = _make_result("success", "dbt seed")
-    mock_dbt_run_selector.return_value = _make_result("success", "dbt run project_respira_gold")
+    mock_dbt_run_selector.return_value = _make_result(
+        "success", "dbt run project_respira_gold"
+    )
 
-    seed_tests_result = _make_result("success", "dbt test project_respira_gold_seed_tests")
+    seed_tests_result = _make_result(
+        "success", "dbt test project_respira_gold_seed_tests"
+    )
     project_tests_result = _make_result("failed", "dbt test project_respira_gold_tests")
 
     mock_dbt_test_selector.side_effect = [
