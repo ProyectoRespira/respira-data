@@ -1,0 +1,122 @@
+name: Dev Image Publish
+
+on:
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: 'Custom tag for dev image publish (valid Docker tag format)'
+        required: true
+        type: string
+        default: 'dev-manual'
+
+permissions:
+  contents: read
+  packages: write
+  attestations: write
+  id-token: write
+
+concurrency:
+  group: dev-image-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    name: Publish Dev Images to GHCR
+    runs-on: ubuntu-latest
+    env:
+      REGISTRY: ghcr.io
+      IMAGE_OWNER: ${{ github.repository_owner }}
+
+    steps:
+      - name: Validate branch and tag
+        shell: bash
+        run: |
+          set -eu
+
+          if [ "${{ github.ref }}" != "refs/heads/dev" ]; then
+            echo "This workflow can only publish from refs/heads/dev. Current ref: ${{ github.ref }}"
+            exit 1
+          fi
+
+          if ! printf '%s' "${{ inputs.image_tag }}" | grep -Eq '^[A-Za-z0-9_][A-Za-z0-9_.-]{0,127}$'; then
+            echo "image_tag must be a valid Docker tag: start with [A-Za-z0-9_], then only [A-Za-z0-9_.-], max 128 chars"
+            exit 1
+          fi
+
+      - name: Normalize image owner
+        shell: bash
+        run: |
+          echo "IMAGE_OWNER_LC=${IMAGE_OWNER,,}" >> "$GITHUB_ENV"
+
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@d7f5e7f509e45cec5c76c4d5afdd7de93d0b3df5 # v4.1.0
+
+      - name: Log in to GHCR
+        uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee # v4.2.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Docker metadata backend
+        id: meta_backend
+        uses: docker/metadata-action@80c7e94dd9b9319bd5eb7a0e0fe9291e23a2a2e9 # v6.1.0
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_OWNER_LC }}/respira-backend
+          tags: |
+            type=raw,value=${{ inputs.image_tag }}
+            type=sha,prefix=sha-
+
+      - name: Docker metadata frontend
+        id: meta_frontend
+        uses: docker/metadata-action@80c7e94dd9b9319bd5eb7a0e0fe9291e23a2a2e9 # v6.1.0
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_OWNER_LC }}/respira-frontend
+          tags: |
+            type=raw,value=${{ inputs.image_tag }}
+            type=sha,prefix=sha-
+
+      - name: Build and push backend image
+        id: push_backend
+        uses: docker/build-push-action@f9f3042f7e2789586610d6e8b85c8f03e5195baf # v7.2.0
+        with:
+          context: ./backend
+          file: ./backend/Dockerfile
+          push: true
+          tags: ${{ steps.meta_backend.outputs.tags }}
+          labels: ${{ steps.meta_backend.outputs.labels }}
+          cache-from: type=gha,scope=backend
+          cache-to: type=gha,scope=backend,mode=max
+          provenance: true
+          sbom: true
+
+      - name: Build and push frontend image
+        id: push_frontend
+        uses: docker/build-push-action@f9f3042f7e2789586610d6e8b85c8f03e5195baf # v7.2.0
+        with:
+          context: ./frontend
+          file: ./frontend/Dockerfile
+          push: true
+          tags: ${{ steps.meta_frontend.outputs.tags }}
+          labels: ${{ steps.meta_frontend.outputs.labels }}
+          cache-from: type=gha,scope=frontend
+          cache-to: type=gha,scope=frontend,mode=max
+          provenance: true
+          sbom: true
+
+      - name: Generate backend image attestation
+        uses: actions/attest@281a49d4cbb0a72c9575a50d18f6deb515a11deb # v4
+        with:
+          subject-name: ${{ env.REGISTRY }}/${{ env.IMAGE_OWNER_LC }}/respira-backend
+          subject-digest: ${{ steps.push_backend.outputs.digest }}
+          push-to-registry: true
+
+      - name: Generate frontend image attestation
+        uses: actions/attest@281a49d4cbb0a72c9575a50d18f6deb515a11deb # v4
+        with:
+          subject-name: ${{ env.REGISTRY }}/${{ env.IMAGE_OWNER_LC }}/respira-frontend
+          subject-digest: ${{ steps.push_frontend.outputs.digest }}
+          push-to-registry: true
