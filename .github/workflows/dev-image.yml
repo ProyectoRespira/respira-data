@@ -16,6 +16,7 @@ permissions:
   packages: write
   attestations: write
   id-token: write
+  artifact-metadata: write
 
 concurrency:
   group: dev-image-${{ github.ref }}
