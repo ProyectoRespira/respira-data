@@ -44,8 +44,16 @@ Important:
 2. Start the local stack.
 
 ```bash
-docker compose up -d --build
+docker compose -f docker-compose.yml up -d --build
 docker compose ps
+```
+
+For development mode with host bind mounts (official multi-file override
+pattern), use:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build
+docker compose -f docker-compose.yml -f docker-compose.dev.yml ps
 ```
 
 3. Validate dbt connectivity.
@@ -149,8 +157,12 @@ docker compose exec app bash -lc "cd /app && python3 pipelines/flows/warehouse_b
 
 Important runtime details:
 
-- The repository is mounted into both `app` and `prefect_worker`, so local code
-  edits are visible immediately inside containers.
+- Base deploy mode (`docker-compose.yml`) runs image-baked code for both `app`
+  and `prefect_worker` (no host bind mounts to `/app`).
+- Development mode (`docker-compose.dev.yml`) restores host bind mounts to
+  `/app` for both `app` and `prefect_worker`.
+- In development mode, ensure `HOST_WORKSPACE_FOLDER` points to the repository
+  root containing `pipelines/flows` to avoid path mismatches.
 - `prefect_worker` uses `Dockerfile.worker`, which includes the extra inference
   dependencies.
 - `app` uses `Dockerfile` and is the default place for dbt commands.

@@ -3,6 +3,7 @@ SHELL := /bin/bash
 
 # Docker Compose wrapper (v2)
 DC := docker compose
+DC_DEV := docker compose -f docker-compose.yml -f docker-compose.dev.yml
 
 # Run dbt inside the app container (ephemeral)
 DBT := $(DC) run --rm app bash -lc
@@ -15,17 +16,25 @@ WORKER_RUN := $(DC) run --rm prefect_worker bash -lc
 
 # Optional: run arbitrary shell inside the app container (ephemeral)
 APP_SHELL := $(DC) run --rm app bash
+APP_SHELL_DEV := $(DC_DEV) run --rm app bash
 
 .PHONY: help
 help:
 	@echo "Targets:"
 	@echo "  up                Start services (prefect_server, app, prefect_worker)"
 	@echo "  up-build          Rebuild images and start all services"
+	@echo "  up-dev            Start services in dev mode (with bind mounts)"
+	@echo "  up-build-dev      Rebuild and start services in dev mode"
 	@echo "  down              Stop services"
+	@echo "  down-dev          Stop services in dev mode"
 	@echo "  ps                Show running containers"
+	@echo "  ps-dev            Show running containers in dev mode"
 	@echo "  logs              Tail logs (all services)"
+	@echo "  logs-dev          Tail logs (all services) in dev mode"
 	@echo "  logs-worker       Tail logs (prefect_worker)"
+	@echo "  logs-worker-dev   Tail logs (prefect_worker) in dev mode"
 	@echo "  shell             Open a shell in the app container"
+	@echo "  shell-dev         Open a shell in the app container (dev mode)"
 	@echo ""
 	@echo "dbt:"
 	@echo "  dbt-debug         dbt debug"
@@ -72,25 +81,53 @@ up:
 up-build:
 	$(DC) up -d --build
 
+.PHONY: up-dev
+up-dev:
+	$(DC_DEV) up -d
+
+.PHONY: up-build-dev
+up-build-dev:
+	$(DC_DEV) up -d --build
+
 .PHONY: down
 down:
 	$(DC) down
+
+.PHONY: down-dev
+down-dev:
+	$(DC_DEV) down
 
 .PHONY: ps
 ps:
 	$(DC) ps
 
+.PHONY: ps-dev
+ps-dev:
+	$(DC_DEV) ps
+
 .PHONY: logs
 logs:
 	$(DC) logs -f --tail=200
+
+.PHONY: logs-dev
+logs-dev:
+	$(DC_DEV) logs -f --tail=200
 
 .PHONY: logs-worker
 logs-worker:
 	$(DC) logs -f --tail=200 prefect_worker
 
+.PHONY: logs-worker-dev
+logs-worker-dev:
+	$(DC_DEV) logs -f --tail=200 prefect_worker
+
 .PHONY: shell
 shell:
 	$(APP_SHELL)
+
+.PHONY: shell-dev
+shell-dev:
+	$(APP_SHELL_DEV)
 
 # -----------------------
 # dbt basics
