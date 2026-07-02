@@ -104,6 +104,13 @@ Table respira_gold.inference_results {
 - `station_region_seed` can override station → region assignments (and can include weather stations too).
 - `bbox` format: `min_lon,min_lat,max_lon,max_lat` (degrees).
 
+### Manual station shutdowns
+- `respira_gold.station_status_seed` is a project-scoped seed that acts as a manual kill switch for eligible air-quality stations only.
+- `int_station_status_overrides` is the single project relation consumed downstream; it is the handoff point for a future Django-admin-managed table.
+- To manually shut down a station, add a row with `status=inactive` to the CSV and deploy it. The next scheduled `project_pipeline` run will seed it, validate it, rebuild the project models, and turn the station off.
+- Removing the row re-enables the normal derived station status on the next `project_pipeline` run.
+- Example: `respira_123,inactive,Temporarily disabled for maintenance`
+
 ### Calibration factors
 - If an external `calibration_factors` table exists (schema configurable via `calibration_factors_schema`), dbt reads from it.
 - Otherwise dbt falls back to `calibration_factors_seed` (seed uses `station_code`, joined to `dim_stations`).

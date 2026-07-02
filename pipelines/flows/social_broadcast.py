@@ -76,11 +76,11 @@ def social_broadcast(
 
         if failures:
             if len(failures) == 1:
-                platform, exc = failures[0]
-                raise RuntimeError(f"{platform} posting failed: {exc}") from exc
+                platform, error = failures[0]
+                raise RuntimeError(f"{platform} posting failed: {error}") from error
 
             failure_message = "; ".join(
-                f"{platform} posting failed: {exc}" for platform, exc in failures
+                f"{platform} posting failed: {error}" for platform, error in failures
             )
             raise RuntimeError(failure_message)
 

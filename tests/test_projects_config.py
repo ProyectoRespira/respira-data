@@ -10,6 +10,8 @@ def test_get_project_config_respira_gold():
     assert project.project_code == "respira_gold"
     assert project.dbt_selector == "project_respira_gold"
     assert project.dbt_tests_selector == "project_respira_gold_tests"
+    assert project.dbt_seed_selector == "project_respira_gold_seed"
+    assert project.dbt_seed_tests_selector == "project_respira_gold_seed_tests"
     assert project.schema_name == "respira_gold"
 
 

@@ -3,8 +3,8 @@ from __future__ import annotations
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
-import telebot
-import tweepy
+import telebot  # type: ignore[import-not-found]
+import tweepy  # type: ignore[import-not-found]
 from prefect.cache_policies import NO_CACHE
 from sqlalchemy import text
 
