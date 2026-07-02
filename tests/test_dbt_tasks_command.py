@@ -39,6 +39,21 @@ def test_build_dbt_command_adds_threads_for_run_like_commands():
     assert "--threads" in cmd
 
 
+def test_build_dbt_command_supports_seed_with_selector():
+    cmd = _build_dbt_command(
+        _settings(),
+        command="seed",
+        selector="project_respira_gold_seed",
+        full_refresh=False,
+    )
+
+    assert cmd[:2] == ["dbt", "seed"]
+    assert "--threads" in cmd
+    assert "--selector" in cmd
+    selector_index = cmd.index("--selector")
+    assert cmd[selector_index + 1] == "project_respira_gold_seed"
+
+
 def test_build_dbt_command_adds_vars_payload():
     cmd = _build_dbt_command(
         _settings(),

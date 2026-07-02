@@ -371,6 +371,22 @@ def dbt_deps(settings) -> DbtTaskResult:
     return _run_dbt(settings, command="deps", selector=None, full_refresh=False)
 
 
+@task(name="dbt_seed_selector")
+def dbt_seed_selector(
+    settings,
+    selector: str,
+    full_refresh: bool = False,
+    vars_payload: dict[str, object] | None = None,
+) -> DbtTaskResult:
+    return _run_dbt(
+        settings,
+        command="seed",
+        selector=selector,
+        full_refresh=full_refresh,
+        vars_payload=vars_payload,
+    )
+
+
 @task(name="dbt_run_selector")
 def dbt_run_selector(
     settings,
