@@ -1,0 +1,15 @@
+version: 2
+
+seeds:
+  - name: station_status_seed
+    description: "Respira Gold manual shutdown overrides. Each row forces an eligible air-quality station inactive on the next project pipeline run."
+    columns:
+      - name: station_code
+        tests: [not_null, unique]
+      - name: status
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['inactive']
+      - name: note

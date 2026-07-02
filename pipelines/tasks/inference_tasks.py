@@ -137,14 +137,18 @@ def list_candidate_stations(
 ) -> list[int]:
     as_of_utc = _ensure_utc(as_of)
     window_start = as_of_utc - timedelta(hours=window_hours)
+    stations_table = f"{project.schema_name}.stations"
 
     query = text(
         f"""
-        select distinct station_id
-        from {project.inference_source_table}
-        where date_utc > :window_start
-          and date_utc <= :as_of
-        order by station_id
+        select distinct features.station_id
+        from {project.inference_source_table} features
+        join {stations_table} stations
+          on stations.id = features.station_id
+        where stations.is_station_on = true
+          and features.date_utc > :window_start
+          and features.date_utc <= :as_of
+        order by features.station_id
         """
     )
 

@@ -12,6 +12,7 @@ with station_regions as (
     region_id
   from {{ ref('stations') }}
   where region_id is not null
+    and is_station_on
 ),
 
 target_hours as (

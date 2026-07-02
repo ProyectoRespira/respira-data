@@ -14,7 +14,12 @@ from pipelines.tasks.artifacts import (
     summarize_run_results,
 )
 from pipelines.tasks.db import ensure_ops_audit_tables, get_engine
-from pipelines.tasks.dbt_tasks import dbt_deps, dbt_run_selector, dbt_test_selector
+from pipelines.tasks.dbt_tasks import (
+    dbt_deps,
+    dbt_run_selector,
+    dbt_seed_selector,
+    dbt_test_selector,
+)
 from pipelines.tasks.gates import (
     format_test_alert,
     raise_if_failed,
@@ -72,6 +77,28 @@ def project_pipeline(project_code: str, as_of: datetime | None = None) -> None:
         deps_summary = _summary_from_result(deps_result)
         persist_dbt_audit(engine, deps_result, deps_summary, ctx)
         raise_if_failed(deps_result, "dbt deps failed")
+
+        if project.dbt_seed_selector:
+            seed_result = dbt_seed_selector(
+                settings, selector=project.dbt_seed_selector
+            )
+            seed_summary = _summary_from_result(seed_result)
+            persist_dbt_audit(engine, seed_result, seed_summary, ctx)
+            raise_if_failed(
+                seed_result,
+                f"dbt project seed stage failed for {project.project_code}",
+            )
+
+        if project.dbt_seed_tests_selector:
+            seed_test_result = dbt_test_selector(
+                settings, selector=project.dbt_seed_tests_selector
+            )
+            seed_test_summary = _summary_from_result(seed_test_result)
+            persist_dbt_audit(engine, seed_test_result, seed_test_summary, ctx)
+            raise_if_failed(
+                seed_test_result,
+                f"dbt project seed tests failed for {project.project_code}",
+            )
 
         project_result = dbt_run_selector(settings, selector=project.dbt_selector)
         project_summary = _summary_from_result(project_result)
