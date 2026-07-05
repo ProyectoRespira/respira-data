@@ -12,6 +12,13 @@ with src as (
     *
   from {{ source('airbyte', 'meteostat_cde_airport') }}
 
+  union all
+
+  select
+    'posadas_airport' as station_code,
+    *
+  from {{ source('airbyte', 'meteostat_pss-airport') }}
+
 ),
 
 typed as (
