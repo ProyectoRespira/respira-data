@@ -11,3 +11,4 @@ fiuna_9,Ñu Guasu,, -25.26458493433890, -57.54793468862770,,active,{"source":"FI
 fiuna_10,Botánico,, -25.24647398851810, -57.54928501322870,,active,{"source":"FIUNA"},false
 asu_airport,Asunción Airport,Meteostat airport station,-25.2399,-57.5191,,active,{"source":"Meteostat"},false
 cde_airport,Ciudad del Este Airport,Meteostat airport station,-25.5097,-54.6111,,active,{"source":"Meteostat"},false
+posadas_airport,Posadas Airport,Meteostat airport station,-27.38611,-55.97056,,active,{"source":"Meteostat"},false

@@ -132,7 +132,7 @@ models:
         tests:
           - not_null
           - accepted_values:
-              values: ["asu_airport", "cde_airport"]
+              values: ["asu_airport", "cde_airport", "posadas_airport"]
       - name: measured_at_raw
       - name: measured_at_parsed
       - name: is_measured_at_valid
