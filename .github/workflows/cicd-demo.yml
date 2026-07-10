@@ -1,0 +1,434 @@
+name: CI/CD Demo
+
+run-name: Demo CI/CD
+
+on:
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: "Image tag to deploy when skipping image publish"
+        required: true
+        type: string
+        default: "dev-latest"
+      publish_images:
+        description: "Build and publish fresh dev images before deploy"
+        required: true
+        type: boolean
+        default: false
+  push:
+    branches: [dev]
+
+permissions:
+  contents: read
+  packages: write
+  attestations: write
+  artifact-metadata: write
+  id-token: write
+
+concurrency:
+  group: ci-cd-demo-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  publish:
+    name: Publish Dev Images to GHCR
+    if: ${{ github.event_name == 'push' || inputs.publish_images }}
+    runs-on: ubuntu-latest
+    env:
+      REGISTRY: ghcr.io
+      IMAGE_OWNER: ${{ github.repository_owner }}
+
+    steps:
+      - name: Validate dev branch
+        shell: bash
+        run: |
+          if [ "${GITHUB_REF}" != "refs/heads/dev" ]; then
+            echo "This workflow can only publish demo images from refs/heads/dev. Current ref: ${GITHUB_REF}"
+            exit 1
+          fi
+
+      - name: Normalize image owner
+        id: normalize_owner
+        shell: bash
+        run: echo "image_owner_lc=${IMAGE_OWNER,,}" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4.2.0
+
+      - name: Log in to GHCR
+        uses: docker/login-action@af1e73f918a031802d376d3c8bbc3fe56130a9b0 # v4.4.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Delete previous dev-latest images from GHCR
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set +e
+          PACKAGE_API_PREFIX="/orgs/${{ github.repository_owner }}/packages/container"
+
+          delete_tag_from_image() {
+            local image_name=$1
+            echo "Deleting previous $image_name:dev-latest..."
+
+            gh api \
+              -X GET \
+              "$PACKAGE_API_PREFIX/$image_name/versions" \
+              --paginate \
+              --jq '.[] | select(.tags[]? == "dev-latest") | .id' | \
+              while read version_id; do
+                if [ -n "$version_id" ]; then
+                  echo "  Deleting version $version_id"
+                  gh api -X DELETE "$PACKAGE_API_PREFIX/$image_name/versions/$version_id" || true
+                fi
+              done
+          }
+
+          delete_tag_from_image "respira-data-app"
+          delete_tag_from_image "respira-data-worker"
+
+          echo "Previous image deletion completed"
+          set -e
+
+      - name: Docker metadata app
+        id: meta_app
+        uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
+        with:
+          images: ${{ env.REGISTRY }}/${{ steps.normalize_owner.outputs.image_owner_lc }}/respira-data-app
+          tags: |
+            type=raw,value=dev-latest
+            type=sha,prefix=sha-
+
+      - name: Docker metadata worker
+        id: meta_worker
+        uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
+        with:
+          images: ${{ env.REGISTRY }}/${{ steps.normalize_owner.outputs.image_owner_lc }}/respira-data-worker
+          tags: |
+            type=raw,value=dev-latest
+            type=sha,prefix=sha-
+
+      - name: Build and push app image
+        id: push_app
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
+        with:
+          context: .
+          file: ./Dockerfile
+          push: true
+          tags: ${{ steps.meta_app.outputs.tags }}
+          labels: ${{ steps.meta_app.outputs.labels }}
+          cache-from: type=gha,scope=cicd-demo-app
+          cache-to: type=gha,scope=cicd-demo-app,mode=max,ignore-error=true
+          provenance: true
+          sbom: true
+
+      - name: Build and push worker image
+        id: push_worker
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
+        with:
+          context: .
+          file: ./Dockerfile.worker
+          push: true
+          tags: ${{ steps.meta_worker.outputs.tags }}
+          labels: ${{ steps.meta_worker.outputs.labels }}
+          cache-from: type=gha,scope=cicd-demo-worker
+          cache-to: type=gha,scope=cicd-demo-worker,mode=max,ignore-error=true
+          provenance: true
+          sbom: true
+
+      - name: Generate app image attestation
+        uses: actions/attest@a1948c3f048ba23858d222213b7c278aabede763 # v4.1.1
+        with:
+          subject-name: ${{ env.REGISTRY }}/${{ steps.normalize_owner.outputs.image_owner_lc }}/respira-data-app
+          subject-digest: ${{ steps.push_app.outputs.digest }}
+          push-to-registry: true
+
+      - name: Generate worker image attestation
+        uses: actions/attest@a1948c3f048ba23858d222213b7c278aabede763 # v4.1.1
+        with:
+          subject-name: ${{ env.REGISTRY }}/${{ steps.normalize_owner.outputs.image_owner_lc }}/respira-data-worker
+          subject-digest: ${{ steps.push_worker.outputs.digest }}
+          push-to-registry: true
+
+  deploy-demo:
+    name: Deploy to Demo Server
+    needs: [publish]
+    if: ${{ always() && github.ref == 'refs/heads/dev' && (needs.publish.result == 'success' || needs.publish.result == 'skipped') }}
+    runs-on: ubuntu-latest
+    environment: Demo
+    steps:
+      - name: Resolve image tag and validate branch
+        id: set_tag
+        shell: bash
+        run: |
+          branch="${GITHUB_REF_NAME}"
+
+          if [ "$branch" != "dev" ]; then
+            echo "This deployment can only be executed from the dev branch."
+            exit 1
+          fi
+
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ inputs.publish_images }}" != "true" ]; then
+            tag="${{ inputs.image_tag }}"
+            if ! printf '%s' "$tag" | grep -Eq '^[A-Za-z0-9_][A-Za-z0-9_.-]{0,127}$'; then
+              echo "image_tag must be a valid Docker tag: start with [A-Za-z0-9_], then only [A-Za-z0-9_.-], max 128 chars"
+              exit 1
+            fi
+
+            if [ "$tag" = "latest" ]; then
+              echo "image_tag 'latest' is not allowed for demo deployment. Use 'dev-latest' or an immutable release/hotfix tag."
+              exit 1
+            fi
+          else
+            tag="dev-latest"
+          fi
+
+          echo "image_tag=$tag" >> "$GITHUB_OUTPUT"
+
+      - name: Check authorization
+        if: ${{ github.event_name == 'workflow_dispatch' }}
+        env:
+          ALLOWED_USERS_DEMO: ${{ vars.DEPLOY_ALLOWED_USERS_DEMO }}
+        run: |
+          ALLOWED_USERS="$ALLOWED_USERS_DEMO"
+
+          if [ -z "$ALLOWED_USERS" ]; then
+            echo "Error: DEPLOY_ALLOWED_USERS_DEMO variable not configured"
+            exit 1
+          fi
+
+          CURRENT_USER="${{ github.actor }}"
+          if echo "$ALLOWED_USERS" | grep -qw "$CURRENT_USER"; then
+            echo "User $CURRENT_USER is authorized to deploy to demo"
+          else
+            echo "User $CURRENT_USER is NOT authorized to deploy to demo"
+            exit 1
+          fi
+
+      - name: Validate SSH configuration
+        id: prepare_ssh_key
+        env:
+          DEPLOY_HOST_VALUE: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_USER_VALUE: ${{ secrets.DEPLOY_USER }}
+          DEPLOY_SSH_KEY_VALUE: ${{ secrets.DEPLOY_SSH_KEY }}
+        run: |
+          echo "::add-mask::$DEPLOY_HOST_VALUE"
+          echo "::add-mask::$DEPLOY_USER_VALUE"
+          echo "::add-mask::$DEPLOY_SSH_KEY_VALUE"
+
+          if [ -z "$DEPLOY_HOST_VALUE" ]; then
+            echo "Missing DEPLOY_HOST secret for demo environment."
+            exit 1
+          fi
+
+          if [ -z "$DEPLOY_USER_VALUE" ]; then
+            echo "Missing DEPLOY_USER secret for demo environment."
+            exit 1
+          fi
+
+          if [ -z "$DEPLOY_SSH_KEY_VALUE" ]; then
+            echo "Missing DEPLOY_SSH_KEY secret for demo environment."
+            exit 1
+          fi
+
+          tmp_key="$RUNNER_TEMP/deploy_ssh_key"
+          if printf '%s' "$DEPLOY_SSH_KEY_VALUE" | grep -q '\\n'; then
+            printf '%b' "$DEPLOY_SSH_KEY_VALUE" > "$tmp_key"
+          else
+            printf '%s\n' "$DEPLOY_SSH_KEY_VALUE" > "$tmp_key"
+          fi
+          chmod 600 "$tmp_key"
+
+          if ! grep -q 'BEGIN .*PRIVATE KEY' "$tmp_key"; then
+            echo "DEPLOY_SSH_KEY does not look like a valid private key for demo environment."
+            exit 1
+          fi
+
+          if ! ssh-keygen -y -f "$tmp_key" >/dev/null 2>&1; then
+            echo "DEPLOY_SSH_KEY could not be parsed for demo environment."
+            echo "It may be malformed, for a different key type, or encrypted with a passphrase."
+            exit 1
+          fi
+
+          echo "key_path=$tmp_key" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - name: Validate and write env file
+        id: write_env
+        env:
+          ENV_FILE_B64: ${{ secrets.ENV_FILE_DEMO }}
+        run: |
+          if [ -z "$ENV_FILE_B64" ]; then
+            echo "Missing ENV_FILE_DEMO secret."
+            exit 1
+          fi
+
+          env_file="$RUNNER_TEMP/env-demo"
+          printf '%s' "$ENV_FILE_B64" | base64 --decode > "$env_file"
+
+          required_keys=(
+            REMOTE_PG_HOST
+            REMOTE_PG_PORT
+            REMOTE_PG_DB
+            REMOTE_PG_USER
+            REMOTE_PG_PASSWORD
+            REMOTE_PG_SSLMODE
+            PREFECT_API_URL
+            MODEL_6H_PATH
+            MODEL_12H_PATH
+          )
+
+          missing=()
+          for key in "${required_keys[@]}"; do
+            val="$(grep -E "^${key}=" "$env_file" | cut -d= -f2- | sed 's/^[[:space:]]*//' | sed 's/[[:space:]]*$//')"
+            if [ -z "$val" ]; then
+              missing+=("$key")
+            fi
+          done
+
+          if [ "${#missing[@]}" -gt 0 ]; then
+            echo "Missing or empty required env vars in ENV_FILE_DEMO:"
+            for k in "${missing[@]}"; do echo "  - $k"; done
+            exit 1
+          fi
+
+          echo "All required env vars present."
+          echo "env_file=$env_file" >> "$GITHUB_OUTPUT"
+
+      - name: Copy compose and env files to server
+        id: copy_files
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_HOST_KEY: ${{ secrets.DEPLOY_HOST_KEY }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+          COMPOSE_PATH: ${{ secrets.DEPLOY_COMPOSE_PATH_DATA }}
+          KEY_PATH: ${{ steps.prepare_ssh_key.outputs.key_path }}
+          ENV_FILE: ${{ steps.write_env.outputs.env_file }}
+        run: |
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+
+          if [ -z "$DEPLOY_HOST_KEY" ]; then
+            echo "Missing required DEPLOY_HOST_KEY secret in Demo environment."
+            exit 1
+          fi
+
+          printf '%s\n' "$DEPLOY_HOST_KEY" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+
+          scp -i "$KEY_PATH" \
+            -o StrictHostKeyChecking=yes \
+            -o UserKnownHostsFile=~/.ssh/known_hosts \
+            docker-compose.yml \
+            docker-compose.remote.yml \
+            "$DEPLOY_USER@$DEPLOY_HOST:$COMPOSE_PATH/"
+
+          scp -i "$KEY_PATH" \
+            -o StrictHostKeyChecking=yes \
+            -o UserKnownHostsFile=~/.ssh/known_hosts \
+            "$ENV_FILE" \
+            "$DEPLOY_USER@$DEPLOY_HOST:$COMPOSE_PATH/.env.demo"
+
+      - name: Deploy over SSH
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+          COMPOSE_PATH: ${{ secrets.DEPLOY_COMPOSE_PATH_DATA }}
+          KEY_PATH: ${{ steps.prepare_ssh_key.outputs.key_path }}
+          IMAGE_TAG: ${{ steps.set_tag.outputs.image_tag }}
+        run: |
+          ssh -i "$KEY_PATH" \
+            -o StrictHostKeyChecking=yes \
+            -o UserKnownHostsFile=~/.ssh/known_hosts \
+            -o ConnectTimeout=30 \
+            "$DEPLOY_USER@$DEPLOY_HOST" \
+            "export COMPOSE_PATH='$COMPOSE_PATH' APP_IMAGE_TAG='$IMAGE_TAG' WORKER_IMAGE_TAG='$IMAGE_TAG'; bash -se" <<'REMOTE_SCRIPT'
+          set -euo pipefail
+
+          if [ -z "$COMPOSE_PATH" ] || [ ! -d "$COMPOSE_PATH" ]; then
+            echo "Invalid DEPLOY_COMPOSE_PATH_DATA configured for demo environment."
+            exit 1
+          fi
+
+          cd "$COMPOSE_PATH"
+
+          # Keep repository file unchanged; adjust fallback tag only in deployed copy.
+          cp docker-compose.remote.yml docker-compose.remote.demo.yml
+          sed -i \
+            -e 's/${APP_IMAGE_TAG:-latest}/${APP_IMAGE_TAG:-dev-latest}/g' \
+            -e 's/${WORKER_IMAGE_TAG:-latest}/${WORKER_IMAGE_TAG:-dev-latest}/g' \
+            docker-compose.remote.demo.yml
+
+          docker compose \
+            -f docker-compose.yml \
+            -f docker-compose.remote.demo.yml \
+            --env-file .env.demo \
+            up -d --pull always --remove-orphans
+
+          timeout_seconds=600
+          interval_seconds=10
+          elapsed=0
+
+          while true; do
+            containers="$(docker compose ps -q)"
+            if [ -z "$containers" ]; then
+              echo "No containers were created by docker compose."
+              docker compose ps
+              exit 1
+            fi
+
+            all_running=true
+            all_healthy=true
+
+            for container in $containers; do
+              name="$(docker inspect --format '{{.Name}}' "$container" | sed 's#^/##')"
+              state="$(docker inspect --format '{{.State.Status}}' "$container")"
+              health="$(docker inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}' "$container")"
+
+              echo "$name state=$state health=$health"
+
+              if [ "$state" != "running" ]; then
+                all_running=false
+              fi
+
+              if [ "$health" = "unhealthy" ]; then
+                echo "$name is unhealthy"
+                docker compose ps
+                exit 1
+              fi
+
+              if [ "$health" != "none" ] && [ "$health" != "healthy" ]; then
+                all_healthy=false
+              fi
+            done
+
+            if [ "$all_running" = true ] && [ "$all_healthy" = true ]; then
+              echo "Compose stack is up and healthy."
+              break
+            fi
+
+            if [ "$elapsed" -ge "$timeout_seconds" ]; then
+              echo "Timed out waiting for stack to become ready."
+              docker compose ps
+              exit 1
+            fi
+
+            sleep "$interval_seconds"
+            elapsed=$((elapsed + interval_seconds))
+          done
+
+          docker system prune -af
+          docker image prune -af
+          docker builder prune -af
+          REMOTE_SCRIPT
+
+      - name: Post-deploy summary
+        run: |
+          echo "Deployment of respira-data to Demo completed on remote server."

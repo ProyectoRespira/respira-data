@@ -1,0 +1,21 @@
+# Remote Deployment Overrides
+# Shared override for both demo and production environments.
+# Replaces local builds with pre-built GHCR images.
+#
+# Deploy demo:
+#   docker compose -f docker-compose.yml -f docker-compose.remote.yml --env-file .env.demo up -d
+# Deploy prod:
+#   docker compose -f docker-compose.yml -f docker-compose.remote.yml --env-file .env.prod up -d
+#
+# The image tag is resolved from APP_IMAGE_TAG / WORKER_IMAGE_TAG
+# env vars, with "latest" as the fallback (suitable for production).
+# The CD workflow exports the desired tag before running docker compose.
+
+services:
+  app:
+    image: ghcr.io/proyectorespira/respira-data-app:${APP_IMAGE_TAG:-latest}
+    pull_policy: always
+
+  prefect_worker:
+    image: ghcr.io/proyectorespira/respira-data-worker:${WORKER_IMAGE_TAG:-latest}
+    pull_policy: always
