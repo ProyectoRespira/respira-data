@@ -1,0 +1,306 @@
+name: Create Release on Merge
+
+"on":
+  pull_request:
+    types: [closed]
+    branches:
+      - main
+
+permissions:
+  contents: write
+  packages: write
+  attestations: write
+  artifact-metadata: write
+  id-token: write
+
+jobs:
+  create-release:
+    name: Create GitHub Release
+    runs-on: ubuntu-latest
+    if: github.event.pull_request.merged == true
+    outputs:
+      skip: ${{ steps.extract_tag.outputs.skip }}
+      release_tag: ${{ steps.extract_tag.outputs.tag }}
+      branch_type: ${{ steps.extract_tag.outputs.branch_type }}
+      merge_sha: ${{ github.event.pull_request.merge_commit_sha }}
+    steps:
+      - name: Extract and validate branch tag
+        id: extract_tag
+        env:
+          HEAD_REF: ${{ github.event.pull_request.head.ref }}
+        run: |
+          set -eu
+
+          # Extract tag from PR head branch name.
+          if ! [[ "$HEAD_REF" =~ ^(release|hotfix)/(.*)$ ]]; then
+            echo "Not a release or hotfix branch, skipping release creation"
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          BRANCH_TYPE="${BASH_REMATCH[1]}"
+          BRANCH_TAG="${BASH_REMATCH[2]}"
+
+          if ! printf '%s' "$BRANCH_TAG" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "Version tag must follow semver format: vX.Y.Z"
+            echo "Current tag: $BRANCH_TAG"
+            exit 1
+          fi
+
+          echo "tag=$BRANCH_TAG" >> "$GITHUB_OUTPUT"
+          echo "branch_type=$BRANCH_TYPE" >> "$GITHUB_OUTPUT"
+          echo "skip=false" >> "$GITHUB_OUTPUT"
+          echo "Valid branch: $HEAD_REF -> $BRANCH_TAG ($BRANCH_TYPE)"
+
+      - name: Ensure release tag exists on merge commit
+        if: steps.extract_tag.outputs.skip != 'true'
+        id: ensure_tag
+        env:
+          RELEASE_TAG: ${{ steps.extract_tag.outputs.tag }}
+          MERGE_SHA: ${{ github.event.pull_request.merge_commit_sha }}
+          GITHUB_TOKEN_VALUE: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -eu
+
+          if [ -z "$MERGE_SHA" ] || [ "$MERGE_SHA" = "null" ]; then
+            echo "Missing merge commit SHA from pull_request event"
+            exit 1
+          fi
+
+          REF_API="repos/${{ github.repository }}/git/ref/tags/$RELEASE_TAG"
+
+          if GH_TOKEN="$GITHUB_TOKEN_VALUE" gh api "$REF_API" > /dev/null 2>&1; then
+            echo "created=false" >> "$GITHUB_OUTPUT"
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+            echo "Tag already exists: $RELEASE_TAG"
+          else
+            if GH_TOKEN="$GITHUB_TOKEN_VALUE" gh api \
+              -X POST \
+              "repos/${{ github.repository }}/git/refs" \
+              -f ref="refs/tags/$RELEASE_TAG" \
+              -f sha="$MERGE_SHA" > /dev/null 2>&1; then
+              echo "created=true" >> "$GITHUB_OUTPUT"
+              echo "ready=true" >> "$GITHUB_OUTPUT"
+              echo "Created tag $RELEASE_TAG at merge commit $MERGE_SHA"
+            elif GH_TOKEN="$GITHUB_TOKEN_VALUE" gh api "$REF_API" > /dev/null 2>&1; then
+              echo "created=false" >> "$GITHUB_OUTPUT"
+              echo "ready=true" >> "$GITHUB_OUTPUT"
+              echo "Tag exists after create attempt: $RELEASE_TAG"
+            else
+              echo "Failed to create release tag $RELEASE_TAG from merge commit $MERGE_SHA"
+              echo "If repository rules restrict ref creation, allow GITHUB_TOKEN to create tags"
+              exit 1
+            fi
+          fi
+
+      - name: Generate release notes
+        if: steps.extract_tag.outputs.skip != 'true' && steps.ensure_tag.outputs.ready == 'true'
+        id: release_notes
+        env:
+          PR_BODY_RAW: ${{ github.event.pull_request.body }}
+        run: |
+          set -eu
+
+          RELEASE_TAG="${{ steps.extract_tag.outputs.tag }}"
+          BRANCH_TYPE="${{ steps.extract_tag.outputs.branch_type }}"
+          PR_NUMBER="${{ github.event.pull_request.number }}"
+
+          PR_BODY="$(printf '%s' "$PR_BODY_RAW" | sed 's/\r$//')"
+
+          if [ -z "$PR_BODY" ] || [ "$PR_BODY" = "null" ]; then
+            PR_BODY="$(printf '## Summary\nRelease %s published from a %s branch.\n\n## Source\n- Pull Request: #%s\n' "$RELEASE_TAG" "$BRANCH_TYPE" "$PR_NUMBER")"
+          fi
+
+          {
+            echo "body<<EOF"
+            printf '%s\n' "$PR_BODY"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+          echo "Release notes prepared from PR description"
+
+      - name: Delete previous hotfix/release images from GHCR
+        if: steps.extract_tag.outputs.skip != 'true' && steps.ensure_tag.outputs.ready == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set +e
+          PACKAGE_API_PREFIX="/orgs/${{ github.repository_owner }}/packages/container"
+
+          RELEASE_TAG="${{ steps.extract_tag.outputs.tag }}"
+          BRANCH_TYPE="${{ steps.extract_tag.outputs.branch_type }}"
+          PREFIXED_TAG="$BRANCH_TYPE-$RELEASE_TAG"
+
+          echo "Deleting previous images from GHCR..."
+
+          delete_tag_from_image() {
+            local image_name=$1
+            local tag=$2
+            echo "Deleting $image_name:$tag..."
+
+            gh api \
+              -X GET \
+              "$PACKAGE_API_PREFIX/$image_name/versions" \
+              --paginate \
+              --jq ".[] | select(.tags[]? == \"$tag\") | .id" | \
+              while read version_id; do
+                if [ -n "$version_id" ]; then
+                  echo "  Deleting version $version_id"
+                  gh api -X DELETE "$PACKAGE_API_PREFIX/$image_name/versions/$version_id" || true
+                fi
+              done
+          }
+
+          for image_name in respira-data-app respira-data-worker; do
+            delete_tag_from_image "$image_name" "$RELEASE_TAG"
+            delete_tag_from_image "$image_name" "$PREFIXED_TAG"
+          done
+
+          echo "Previous images deletion completed"
+          set -e
+
+      - name: Create GitHub Release
+        if: steps.extract_tag.outputs.skip != 'true' && steps.ensure_tag.outputs.ready == 'true'
+        uses: softprops/action-gh-release@718ea10b132b3b2eba29c1007bb80653f286566b # v3.0.1
+        with:
+          name: Release ${{ steps.extract_tag.outputs.tag }}
+          tag_name: ${{ steps.extract_tag.outputs.tag }}
+          target_commitish: ${{ github.event.pull_request.merge_commit_sha }}
+          body: ${{ steps.release_notes.outputs.body }}
+          draft: false
+          prerelease: false
+          generate_release_notes: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Release creation summary
+        if: steps.extract_tag.outputs.skip != 'true' && steps.ensure_tag.outputs.ready == 'true'
+        run: |
+          echo "GitHub Release created"
+          echo "  Tag: ${{ steps.extract_tag.outputs.tag }}"
+          echo "  Branch Type: ${{ steps.extract_tag.outputs.branch_type }}"
+          echo "  Release Type: Full Release"
+          echo "  Tag Created: ${{ steps.ensure_tag.outputs.created }}"
+          echo "  Merge Commit: ${{ github.event.pull_request.merge_commit_sha }}"
+          echo "  PR: #${{ github.event.pull_request.number }}"
+          echo ""
+          echo "Intermediate images deleted"
+          echo "  Deleted: ${{ steps.extract_tag.outputs.branch_type }}-${{ steps.extract_tag.outputs.tag }}"
+          echo "  From: respira-data-app, respira-data-worker"
+
+  publish-release-images:
+    name: Publish Release Images to GHCR
+    needs: create-release
+    if: needs.create-release.outputs.skip != 'true'
+    runs-on: ubuntu-latest
+    env:
+      REGISTRY: ghcr.io
+      IMAGE_OWNER: ${{ github.repository_owner }}
+      RELEASE_TAG: ${{ needs.create-release.outputs.release_tag }}
+
+    steps:
+      - name: Validate release tag format
+        shell: bash
+        run: |
+          set -eu
+
+          if ! printf '%s' "$RELEASE_TAG" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "Release tag must match strict semver format: vX.Y.Z"
+            exit 1
+          fi
+
+      - name: Normalize image owner
+        id: normalize_owner
+        shell: bash
+        run: |
+          echo "image_owner_lc=${IMAGE_OWNER,,}" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout release tag
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: ${{ needs.create-release.outputs.release_tag }}
+          fetch-depth: 0
+
+      - name: Validate release tag is on main
+        shell: bash
+        run: |
+          set -eu
+
+          git fetch origin main --depth=1
+
+          if ! git merge-base --is-ancestor HEAD origin/main; then
+            echo "Release tag $RELEASE_TAG does not point to a commit contained in origin/main"
+            exit 1
+          fi
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4.2.0
+
+      - name: Log in to GHCR
+        uses: docker/login-action@af1e73f918a031802d376d3c8bbc3fe56130a9b0 # v4.4.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Docker metadata app
+        id: meta_app
+        uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
+        with:
+          images: ${{ env.REGISTRY }}/${{ steps.normalize_owner.outputs.image_owner_lc }}/respira-data-app
+          tags: |
+            type=raw,value=${{ env.RELEASE_TAG }}
+            type=sha,prefix=sha-
+            type=raw,value=latest
+
+      - name: Docker metadata worker
+        id: meta_worker
+        uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
+        with:
+          images: ${{ env.REGISTRY }}/${{ steps.normalize_owner.outputs.image_owner_lc }}/respira-data-worker
+          tags: |
+            type=raw,value=${{ env.RELEASE_TAG }}
+            type=sha,prefix=sha-
+            type=raw,value=latest
+
+      - name: Build and push app image
+        id: push_app
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
+        with:
+          context: .
+          file: ./Dockerfile
+          push: true
+          tags: ${{ steps.meta_app.outputs.tags }}
+          labels: ${{ steps.meta_app.outputs.labels }}
+          cache-from: type=gha,scope=release-on-merge-app
+          cache-to: type=gha,scope=release-on-merge-app,mode=max,ignore-error=true
+          provenance: true
+          sbom: true
+
+      - name: Build and push worker image
+        id: push_worker
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
+        with:
+          context: .
+          file: ./Dockerfile.worker
+          push: true
+          tags: ${{ steps.meta_worker.outputs.tags }}
+          labels: ${{ steps.meta_worker.outputs.labels }}
+          cache-from: type=gha,scope=release-on-merge-worker
+          cache-to: type=gha,scope=release-on-merge-worker,mode=max,ignore-error=true
+          provenance: true
+          sbom: true
+
+      - name: Generate app image attestation
+        uses: actions/attest@a1948c3f048ba23858d222213b7c278aabede763 # v4.1.1
+        with:
+          subject-name: ${{ env.REGISTRY }}/${{ steps.normalize_owner.outputs.image_owner_lc }}/respira-data-app
+          subject-digest: ${{ steps.push_app.outputs.digest }}
+          push-to-registry: true
+
+      - name: Generate worker image attestation
+        uses: actions/attest@a1948c3f048ba23858d222213b7c278aabede763 # v4.1.1
+        with:
+          subject-name: ${{ env.REGISTRY }}/${{ steps.normalize_owner.outputs.image_owner_lc }}/respira-data-worker
+          subject-digest: ${{ steps.push_worker.outputs.digest }}
+          push-to-registry: true
