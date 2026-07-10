@@ -203,7 +203,8 @@ jobs:
           fi
 
           CURRENT_USER="${{ github.actor }}"
-          if echo "$ALLOWED_USERS" | grep -qw "$CURRENT_USER"; then
+          escaped_user="$(printf '%s' "$CURRENT_USER" | sed 's/[][(){}.*+?^$|\\]/\\&/g')"
+          if printf '%s\n' "$ALLOWED_USERS" | grep -Eq "(^|[[:space:],])${escaped_user}([[:space:],]|$)"; then
             echo "User $CURRENT_USER is authorized to deploy to demo"
           else
             echo "User $CURRENT_USER is NOT authorized to deploy to demo"
@@ -362,8 +363,8 @@ jobs:
           # Keep repository file unchanged; adjust fallback tag only in deployed copy.
           cp docker-compose.remote.yml docker-compose.remote.demo.yml
           sed -i \
-            -e 's/${APP_IMAGE_TAG:-latest}/${APP_IMAGE_TAG:-dev-latest}/g' \
-            -e 's/${WORKER_IMAGE_TAG:-latest}/${WORKER_IMAGE_TAG:-dev-latest}/g' \
+            -e 's/\${APP_IMAGE_TAG:-latest}/\${APP_IMAGE_TAG:-dev-latest}/g' \
+            -e 's/\${WORKER_IMAGE_TAG:-latest}/\${WORKER_IMAGE_TAG:-dev-latest}/g' \
             docker-compose.remote.demo.yml
 
           docker compose \

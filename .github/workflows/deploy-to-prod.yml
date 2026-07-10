@@ -38,7 +38,8 @@ jobs:
           fi
 
           CURRENT_USER="${{ github.actor }}"
-          if echo "$ALLOWED_USERS" | grep -qw "$CURRENT_USER"; then
+          escaped_user="$(printf '%s' "$CURRENT_USER" | sed 's/[][(){}.*+?^$|\\]/\\&/g')"
+          if printf '%s\n' "$ALLOWED_USERS" | grep -Eq "(^|[[:space:],])${escaped_user}([[:space:],]|$)"; then
             echo "User $CURRENT_USER is authorized to deploy to production"
           else
             echo "User $CURRENT_USER is NOT authorized to deploy to production"
