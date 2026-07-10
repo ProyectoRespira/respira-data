@@ -53,7 +53,13 @@
 		},
 		"ghcr.io/devcontainers-extra/features/poetry:2": {
 			"version": "latest"
-		}
+		},
+		"ghcr.io/devcontainers-extra/features/ripgrep:1": {
+      		"version": "latest"
+    	},
+    	"ghcr.io/devcontainers-extra/features/actionlint:1": {
+      		"version": "latest"
+    	}
 	},
 	"remoteUser": "vscode",
 
