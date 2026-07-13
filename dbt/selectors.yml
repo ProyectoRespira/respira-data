@@ -113,6 +113,82 @@ selectors:
             - method: path
               value: tests/respira_gold_seeds
 
+  - name: shared_core_seed
+    description: Shared core seeds, excluding project-scoped seeds.
+    definition:
+      union:
+        - method: path
+          value: seeds/calibration_factors_seed.csv
+          indirect_selection: empty
+        - method: path
+          value: seeds/data_sources.csv
+          indirect_selection: empty
+        - method: path
+          value: seeds/organizations.csv
+          indirect_selection: empty
+        - method: path
+          value: seeds/project_data_sources.csv
+          indirect_selection: empty
+        - method: path
+          value: seeds/project_organizations.csv
+          indirect_selection: empty
+        - method: path
+          value: seeds/projects.csv
+          indirect_selection: empty
+        - method: path
+          value: seeds/regions_seed.csv
+          indirect_selection: empty
+        - method: path
+          value: seeds/station_region_seed.csv
+          indirect_selection: empty
+        - method: path
+          value: seeds/stations_static.csv
+          indirect_selection: empty
+        - method: path
+          value: seeds/variable_rules.csv
+          indirect_selection: empty
+        - method: path
+          value: seeds/variables.csv
+          indirect_selection: empty
+
+  - name: shared_core_seed_tests
+    description: Tests attached to shared core seeds, excluding project-scoped seed tests.
+    definition:
+      union:
+        - method: path
+          value: seeds/calibration_factors_seed.csv
+          indirect_selection: cautious
+        - method: path
+          value: seeds/data_sources.csv
+          indirect_selection: cautious
+        - method: path
+          value: seeds/organizations.csv
+          indirect_selection: cautious
+        - method: path
+          value: seeds/project_data_sources.csv
+          indirect_selection: cautious
+        - method: path
+          value: seeds/project_organizations.csv
+          indirect_selection: cautious
+        - method: path
+          value: seeds/projects.csv
+          indirect_selection: cautious
+        - method: path
+          value: seeds/regions_seed.csv
+          indirect_selection: cautious
+        - method: path
+          value: seeds/station_region_seed.csv
+          indirect_selection: cautious
+        - method: path
+          value: seeds/stations_static.csv
+          indirect_selection: cautious
+        - method: path
+          value: seeds/variable_rules.csv
+          indirect_selection: cautious
+        - method: path
+          value: seeds/variables.csv
+          indirect_selection: cautious
+
   - name: project_respira_gold_tests
     description: Data tests scoped to respira_gold project models.
     definition:
