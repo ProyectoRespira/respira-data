@@ -114,7 +114,7 @@ selectors:
               value: tests/respira_gold_seeds
 
   - name: shared_core_seed
-    description: Shared core seeds, excluding project-scoped seeds.
+    description: Shared core metadata seeds (seed CSVs in dbt/seeds/, excluding per-project seeds under dbt/seeds/projects/).
     definition:
       union:
         - method: path
