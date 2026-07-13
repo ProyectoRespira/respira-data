@@ -16,6 +16,8 @@ class ProjectConfig:
     inference_source_table: str
     inference_runs_table: str
     inference_results_table: str
+    dbt_seed_selector: str | None = None
+    dbt_seed_tests_selector: str | None = None
 
     def __post_init__(self) -> None:
         for field_name in (
@@ -41,6 +43,8 @@ PROJECTS: dict[str, ProjectConfig] = {
         inference_source_table="respira_gold.station_inference_features",
         inference_runs_table="respira_gold.inference_runs",
         inference_results_table="respira_gold.inference_results",
+        dbt_seed_selector="project_respira_gold_seed",
+        dbt_seed_tests_selector="project_respira_gold_seed_tests",
     )
 }
 

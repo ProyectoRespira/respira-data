@@ -1,0 +1,34 @@
+# CODEOWNERS for CI/CD, release, and data platform governance.
+#
+# This layout is designed to work with branch rules/rulesets requiring
+# code-owner review on protected branches.
+
+# Ownership metadata and repository governance.
+/.github/CODEOWNERS @ProyectoRespira/platform-admins
+/.github/workflows/ @ProyectoRespira/platform-admins @ProyectoRespira/release-managers
+/.github/dependabot.yml @ProyectoRespira/platform-admins
+/.github/codeql/ @ProyectoRespira/platform-admins
+/.github/pull_request_template.md @ProyectoRespira/platform-admins
+
+# Security and repository policy documents.
+/SECURITY.md @ProyectoRespira/platform-admins
+/LICENSE @ProyectoRespira/platform-admins
+/README.md @ProyectoRespira/release-managers
+
+# Runtime and deployment infrastructure.
+/docker-compose*.yml @ProyectoRespira/platform-admins @ProyectoRespira/release-managers
+/Dockerfile @ProyectoRespira/platform-admins @ProyectoRespira/release-managers
+/Dockerfile.worker @ProyectoRespira/platform-admins @ProyectoRespira/release-managers
+/.env.example @ProyectoRespira/platform-admins @ProyectoRespira/release-managers
+/.devcontainer/ @ProyectoRespira/platform-admins
+/Makefile @ProyectoRespira/platform-admins @ProyectoRespira/release-managers
+/scripts/ @ProyectoRespira/platform-admins @ProyectoRespira/release-managers
+
+# Data platform source ownership.
+/dbt/ @ProyectoRespira/release-managers
+/pipelines/ @ProyectoRespira/release-managers
+/src/ @ProyectoRespira/release-managers
+/models/ @ProyectoRespira/release-managers
+/inference/ @ProyectoRespira/release-managers
+/tests/ @ProyectoRespira/release-managers
+/docs/ @ProyectoRespira/release-managers

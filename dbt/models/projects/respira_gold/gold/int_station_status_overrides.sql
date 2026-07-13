@@ -1,0 +1,37 @@
+{{ config(materialized='view') }}
+
+with project_data_sources as (
+  select data_source_id
+  from {{ ref('bridge_project_data_sources') }}
+  where project_code = 'respira_gold'
+),
+
+eligible_air_quality_stations as (
+  select distinct
+    stations.id as core_station_id,
+    stations.code as station_code
+  from {{ ref('dim_streams') }} streams
+  join project_data_sources pds
+    on pds.data_source_id = streams.data_source_id
+  join {{ ref('dim_stations') }} stations
+    on stations.id = streams.station_id
+  where lower(coalesce(stations.properties->>'source', '')) <> 'meteostat'
+),
+
+seeded_overrides as (
+  select
+    station_code::text as station_code,
+    lower(status::text) as status,
+    nullif(note::text, '') as note
+  from {{ ref('station_status_seed') }}
+  where nullif(station_code::text, '') is not null
+)
+
+select
+  eligible.core_station_id,
+  seeded.station_code,
+  seeded.status,
+  seeded.note
+from seeded_overrides seeded
+join eligible_air_quality_stations eligible
+  on eligible.station_code = seeded.station_code

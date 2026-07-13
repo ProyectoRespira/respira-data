@@ -218,3 +218,9 @@ dbt/.user.yml
 
 # Conda
 .conda/
+
+# Deployment/local secret artifacts
+.env.demo
+.env.prod
+base64.demo
+base64.prod

@@ -12,7 +12,7 @@
 			"installOhMyZshConfig": true,
 			"upgradePackages": true,
 			"installSsl": true,
-			"username": "respira",
+			"username": "vscode",
 			"userUid": "automatic",
 			"userGid": "automatic"
 		},
@@ -46,16 +46,22 @@
 		"ghcr.io/devcontainers-extra/features/zsh-plugins:0": {
 			"plugins": "ssh-agent npm",
 			"omzPlugins": "https://github.com/zsh-users/zsh-autosuggestions",
-			"username": "respira"
+			"username": "vscode"
 		},
 		"ghcr.io/devcontainers/features/conda:2": {
 			"version": "latest"
 		},
 		"ghcr.io/devcontainers-extra/features/poetry:2": {
 			"version": "latest"
-		}
+		},
+		"ghcr.io/devcontainers-extra/features/ripgrep:1": {
+      		"version": "latest"
+    	},
+    	"ghcr.io/devcontainers-extra/features/actionlint:1": {
+      		"version": "latest"
+    	}
 	},
-	"remoteUser": "respira",
+	"remoteUser": "vscode",
 
 	// Features to add to the dev container. More info: https://containers.dev/features.
 	// "features": {},
@@ -65,6 +71,9 @@
 
 	// Use 'postCreateCommand' to run commands after the container is created.
 	"postCreateCommand": "pre-commit install",
+	"containerEnv": {
+		"HOST_WORKSPACE_FOLDER": "${localWorkspaceFolder}"
+	},
 
 	// Configure tool-specific properties.
 	"customizations": {
