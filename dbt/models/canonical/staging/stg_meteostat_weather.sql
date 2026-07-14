@@ -17,7 +17,7 @@ with src as (
   select
     'posadas_airport' as station_code,
     *
-  from {{ source('airbyte', 'meteostat_pss-airport') }}
+  from {{ source('airbyte', 'meteostat_pss_airport') }}
 
 ),
 

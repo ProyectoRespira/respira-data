@@ -11,7 +11,7 @@ sources:
       - name: Respira_measures_current_list
       - name: meteostat_asu_airport
       - name: meteostat_cde_airport
-      - name: meteostat_pss-airport
+      - name: meteostat_pss_airport
       - name: MADES_Open_stations
       - name: MADES_Open_pm10_data
       - name: MADES_Open_pm25_data
