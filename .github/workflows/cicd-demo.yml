@@ -425,6 +425,23 @@ jobs:
             elapsed=$((elapsed + interval_seconds))
           done
 
+          echo "Running shared metadata sync..."
+          APP_IMAGE_TAG="$APP_IMAGE_TAG" \
+          WORKER_IMAGE_TAG="$WORKER_IMAGE_TAG" \
+          docker compose \
+            -f docker-compose.yml \
+            -f docker-compose.remote.demo.yml \
+            --env-file .env.demo \
+            run --rm --no-deps app bash -lc '
+              set -euo pipefail
+              cd /app/dbt
+              target="${DBT_TARGET:-prod}"
+              dbt deps
+              dbt seed --target "$target" --selector shared_core_seed
+              dbt test --target "$target" --selector shared_core_seed_tests
+              dbt run --target "$target" --selector canonical_core
+            '
+
           docker system prune -af
           docker image prune -af
           docker builder prune -af
