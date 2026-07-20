@@ -161,7 +161,7 @@ jobs:
 
       - name: Create GitHub Release
         if: steps.extract_tag.outputs.skip != 'true' && steps.ensure_tag.outputs.ready == 'true'
-        uses: softprops/action-gh-release@718ea10b132b3b2eba29c1007bb80653f286566b # v3.0.1
+        uses: softprops/action-gh-release@3d0d9888cb7fd7b750713d6e236d1fcb99157228 # v3.0.2
         with:
           name: Release ${{ steps.extract_tag.outputs.tag }}
           tag_name: ${{ steps.extract_tag.outputs.tag }}
@@ -292,14 +292,14 @@ jobs:
           sbom: true
 
       - name: Generate app image attestation
-        uses: actions/attest@a1948c3f048ba23858d222213b7c278aabede763 # v4.1.1
+        uses: actions/attest@f7c74d28b9d84cb8768d0b8ca14a4bac6ef463e6 # v4.2.0
         with:
           subject-name: ${{ env.REGISTRY }}/${{ steps.normalize_owner.outputs.image_owner_lc }}/respira-data-app
           subject-digest: ${{ steps.push_app.outputs.digest }}
           push-to-registry: true
 
       - name: Generate worker image attestation
-        uses: actions/attest@a1948c3f048ba23858d222213b7c278aabede763 # v4.1.1
+        uses: actions/attest@f7c74d28b9d84cb8768d0b8ca14a4bac6ef463e6 # v4.2.0
         with:
           subject-name: ${{ env.REGISTRY }}/${{ steps.normalize_owner.outputs.image_owner_lc }}/respira-data-worker
           subject-digest: ${{ steps.push_worker.outputs.digest }}
