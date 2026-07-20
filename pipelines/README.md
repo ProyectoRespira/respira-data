@@ -79,6 +79,7 @@ Si `MODEL_6H_PATH` y `MODEL_12H_PATH` no están definidos, el pipeline del proye
 `prefect/sql/02_ops_audit.sql` crea:
 
 - `ops.dbt_run_audit`
+- `ops.measurement_stream_state`
 - `ops.inference_station_status`
 
 Además, `warehouse_bootstrap` crea tablas de inferencia por proyecto según `prefect/config/projects.py`. Para `respira_gold`:

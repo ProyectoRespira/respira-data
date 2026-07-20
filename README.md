@@ -192,7 +192,7 @@ The warehouse is organized into logical schemas:
 - `core`: canonical dimensions and metadata models
 - `silver`: canonical reusable fact layer
 - `respira_gold`: project-specific marts, features, and inference tables
-- `ops`: operational audit and inference status tables
+- `ops`: operational audit, measurement stream state, and inference status tables
 
 Current architectural rules:
 
