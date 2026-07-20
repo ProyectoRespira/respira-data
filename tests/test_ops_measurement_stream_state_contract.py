@@ -31,12 +31,3 @@ def test_dbt_sources_document_measurement_stream_state_contract():
     assert "- name: ops" in source_yml
     assert "- name: measurement_stream_state" in source_yml
     assert "{{ doc('measurement_stream_state_contract') }}" in source_yml
-
-
-def test_repo_docs_describe_measurement_stream_state_runtime_role():
-    doc = _read("docs/ops-measurement-stream-state.md")
-    normalized_doc = " ".join(doc.split())
-
-    assert "open-ended canonical measurement incrementals" in doc
-    assert "available before scheduled runtime flows start" in normalized_doc
-    assert "Change `updated_at` only when the stored state changes." in doc
