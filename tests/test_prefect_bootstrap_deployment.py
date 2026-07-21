@@ -21,7 +21,10 @@ def test_checked_in_warehouse_bootstrap_deployment_is_manual_only():
     deployment = _read("pipelines/deployments/warehouse_bootstrap.yaml")
 
     assert "name: warehouse-bootstrap" in deployment
-    assert "entrypoint: pipelines/flows/warehouse_bootstrap.py:warehouse_bootstrap" in deployment
+    assert (
+        "entrypoint: pipelines/flows/warehouse_bootstrap.py:warehouse_bootstrap"
+        in deployment
+    )
     assert "name: canonical" in deployment
     assert "concurrency_limit:" in deployment
     assert "schedules:" not in deployment
