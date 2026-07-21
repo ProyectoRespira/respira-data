@@ -68,7 +68,7 @@ Al iniciar `prefect_worker`, el script de bootstrap:
 
 1. espera a que Prefect API esté lista
 2. crea o actualiza los work pools `canonical` y `respira_gold`
-3. despliega `canonical_incremental` y `canonical_full_refresh` en `canonical`
+3. despliega `warehouse_bootstrap`, `canonical_incremental` y `canonical_full_refresh` en `canonical`
 4. despliega `project_pipeline(project_code=respira_gold)` en `respira_gold`
 5. inicia un worker por cada work pool configurado
 
