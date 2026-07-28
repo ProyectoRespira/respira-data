@@ -30,8 +30,14 @@ def test_worker_start_registers_and_verifies_stream_state_bootstrap_deployment()
         '"measurement_stream_state_bootstrap/measurement-stream-state-bootstrap"'
         in script
     )
-    assert script.count("--concurrency-limit 1") >= 2
-    assert script.count("--collision-strategy ENQUEUE") >= 2
+    assert (
+        '"warehouse-bootstrap" \\\n    "${PREFECT_CANONICAL_WORK_POOL}" \\\n    "" \\\n    --concurrency-limit 1 \\\n    --collision-strategy ENQUEUE'
+        in script
+    )
+    assert (
+        '"measurement-stream-state-bootstrap" \\\n    "${PREFECT_CANONICAL_WORK_POOL}" \\\n    "" \\\n    --concurrency-limit 1 \\\n    --collision-strategy ENQUEUE'
+        in script
+    )
 
 
 def test_checked_in_warehouse_bootstrap_deployment_is_manual_only():
