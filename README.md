@@ -491,6 +491,11 @@ through the canonical layer and into one or more projects.
    Add `cursor_id` when the source has a reliable sequential identifier, and
    keep any extra columns needed later for station enrichment.
 
+   Sources that need stateful timestamp cleanup should use the FIUNA-style
+   three-layer pattern: a raw normalization view, a persisted repaired table,
+   and a thin public `stg_*` view. Keep source-specific continuity out of the
+   shared intermediate models.
+
 4. Add tests and documentation for the new staging model.
 
    Register the model in `dbt/models/canonical/staging/schema.yml` with:
@@ -507,6 +512,8 @@ through the canonical layer and into one or more projects.
    - `raw_payload_col`
    - `is_measured_at_valid_col`
    - `cursor_id_col` when available
+   - the complete optional prepared-time trio: `measured_at_silver_col`,
+     `is_time_imputed_col`, and `time_impute_method_col`
    - the `variables` mapping from canonical variable code to staging column
 
    `int_measurements_long` uses this registry to union all measurement sources,
@@ -540,10 +547,10 @@ through the canonical layer and into one or more projects.
 
 9. Add timestamp repair logic if the source needs custom handling.
 
-   `dbt/models/canonical/intermediate/int_measurements_time_silver.sql`
-   currently contains source-specific logic for `fiuna_airbyte`. If the new
-   source has broken timestamps, delayed cursors, or custom imputation rules,
-   add that logic there explicitly.
+   Implement source-specific repair in a persisted prepared staging model and
+   expose the three canonical time fields through the public staging view.
+   Register all three prepared-time columns together; sources without custom
+   repair retain the generic parsed-time pass-through behavior.
 
 10. Validate the full path from canonical to project.
 

@@ -3,8 +3,8 @@ version: 2
 models:
   - name: int_measurement_timestamps_silver
     description: >
-      Row-grain time cleaning/imputation output. Computes the final canonical measurement timestamp once per
-      source record before the wide-to-long explosion.
+      Generic row-grain canonical timestamp output. Prepared sources provide their canonical time fields;
+      simple sources use parsed-time pass-through before the wide-to-long explosion.
     columns:
       - name: source_row_id
         tests: [not_null]
