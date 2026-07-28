@@ -70,7 +70,7 @@ Al iniciar `prefect_worker`, el script de bootstrap:
 
 1. espera a que Prefect API esté lista
 2. crea o actualiza los work pools `canonical` y `respira_gold`
-3. despliega `canonical_incremental` y `canonical_full_refresh` en `canonical`
+3. despliega `warehouse_bootstrap`, `canonical_incremental` y `canonical_full_refresh` en `canonical`
 4. despliega `project_pipeline(project_code=respira_gold)` en `respira_gold`
 5. inicia un worker por cada work pool configurado
 
@@ -81,6 +81,7 @@ Si `MODEL_6H_PATH` y `MODEL_12H_PATH` no están definidos, el pipeline del proye
 `pipelines/sql/02_ops_audit.sql` crea:
 
 - `ops.dbt_run_audit`
+- `ops.measurement_stream_state`
 - `ops.inference_station_status`
 
 Además, `warehouse_bootstrap` crea tablas de inferencia por proyecto según `pipelines/config/projects.py`. Para `respira_gold`:

@@ -1,0 +1,12 @@
+name: warehouse-bootstrap
+entrypoint: pipelines/flows/warehouse_bootstrap.py:warehouse_bootstrap
+work_pool:
+  name: canonical
+parameters: {}
+concurrency_limit:
+  limit: 1
+  collision_strategy: ENQUEUE
+tags:
+  - ops
+  - bootstrap
+  - maintenance

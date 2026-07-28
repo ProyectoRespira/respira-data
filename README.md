@@ -102,6 +102,7 @@ running the flow files directly.
 
 ```bash
 docker compose exec prefect_server prefect deployment ls
+docker compose exec prefect_server prefect deployment run 'warehouse_bootstrap/warehouse-bootstrap'
 docker compose exec prefect_server prefect deployment run 'canonical_incremental/canonical-incremental'
 docker compose exec prefect_server prefect deployment run 'project_pipeline/project-pipeline-respira_gold'
 ```
@@ -192,7 +193,7 @@ The warehouse is organized into logical schemas:
 - `core`: canonical dimensions and metadata models
 - `silver`: canonical reusable fact layer
 - `respira_gold`: project-specific marts, features, and inference tables
-- `ops`: operational audit and inference status tables
+- `ops`: operational audit, measurement stream state, and inference status tables
 
 Current architectural rules:
 
@@ -288,6 +289,7 @@ What happens automatically when `prefect_worker` starts:
 
 - waits for the Prefect API health check
 - creates or updates the `canonical` and `respira_gold` work pools
+- deploys `warehouse_bootstrap`
 - deploys `canonical_incremental`
 - deploys `canonical_full_refresh`
 - deploys `project_pipeline(project_code=respira_gold)`
@@ -353,6 +355,8 @@ The local scheduling model is controlled by
 
 Current behavior:
 
+- `warehouse_bootstrap` is deployed without a schedule and is intended to be
+  triggered after deploys or when runtime tables must be re-ensured
 - `canonical_incremental` is deployed on a cron schedule
 - `canonical_full_refresh` is deployed without a schedule and is intended to be
   manual
@@ -379,6 +383,7 @@ This repository uses warehouse tables for runtime auditability.
 Created by `make prefect-bootstrap`:
 
 - `ops.dbt_run_audit`
+- `ops.measurement_stream_state`
 - `ops.inference_station_status`
 - `respira_gold.inference_runs`
 - `respira_gold.inference_results`

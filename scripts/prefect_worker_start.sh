@@ -137,6 +137,10 @@ main() {
 
   log "Deploying canonical flows..."
   deploy_flow \
+    "pipelines/flows/warehouse_bootstrap.py:warehouse_bootstrap" \
+    "warehouse-bootstrap" \
+    "${PREFECT_CANONICAL_WORK_POOL}"
+  deploy_flow \
     "pipelines/flows/canonical_incremental.py:canonical_incremental" \
     "canonical-incremental" \
     "${PREFECT_CANONICAL_WORK_POOL}" \
