@@ -4,7 +4,7 @@ import logging
 from pathlib import Path
 
 from sqlalchemy import create_engine
-from sqlalchemy.engine import Engine
+from sqlalchemy.engine import Connection, Engine
 from sqlalchemy.exc import SQLAlchemyError
 
 from pipelines.config.projects import ProjectConfig
@@ -27,13 +27,22 @@ def get_engine(settings) -> Engine:
     return create_engine(dsn, pool_pre_ping=True)
 
 
-def execute_sql_file(engine: Engine, path: str) -> None:
+def read_sql_statements(path: str | Path) -> list[str]:
     sql_path = Path(path)
     if not sql_path.exists():
         raise FileNotFoundError(f"SQL file not found: {sql_path}")
 
     sql = sql_path.read_text(encoding="utf-8")
-    statements = [stmt.strip() for stmt in sql.split(";") if stmt.strip()]
+    return [stmt.strip() for stmt in sql.split(";") if stmt.strip()]
+
+
+def execute_sql_file_on_connection(connection: Connection, path: str | Path) -> None:
+    for statement in read_sql_statements(path):
+        connection.exec_driver_sql(statement)
+
+
+def execute_sql_file(engine: Engine, path: str) -> None:
+    statements = read_sql_statements(path)
 
     with engine.begin() as connection:
         for statement in statements:
@@ -46,10 +55,12 @@ def execute_statements(engine: Engine, statements: list[str]) -> None:
             connection.exec_driver_sql(statement)
 
 
-def ensure_ops_audit_tables(engine: Engine) -> None:
+def ensure_ops_audit_tables(engine: Engine, *, strict: bool = False) -> None:
     try:
         execute_sql_file(engine, str(OPS_AUDIT_SQL))
     except SQLAlchemyError as exc:
+        if strict:
+            raise
         logger.warning("Unable to ensure ops audit tables: %s", exc)
 
 

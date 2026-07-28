@@ -9,8 +9,8 @@ Esta carpeta contiene la orquestación Prefect 3 para un repositorio modular con
 
 Conexión a BD:
 
-- `REMOTE_PG_HOST`, `REMOTE_PG_PORT`, `REMOTE_PG_USER`, `REMOTE_PG_PASSWORD`, `REMOTE_PG_DB` (requeridos para dbt)
-- `DB_DSN` opcional para tareas Python (no reemplaza `REMOTE_PG_*` en dbt)
+- `DB_DSN` recomendado
+- o `REMOTE_PG_HOST`, `REMOTE_PG_PORT`, `REMOTE_PG_USER`, `REMOTE_PG_PASSWORD`, `REMOTE_PG_DB`
 
 dbt:
 
@@ -25,6 +25,7 @@ dbt:
 - `DBT_TIMEOUT_PROJECT_S` default `1200`
 - `DBT_TIMEOUT_TESTS_S` default `1200`
 - `MEASUREMENT_BACKFILL_PROCESS_BATCH_HOURS` default `720`
+- `MEASUREMENT_STREAM_STATE_BOOTSTRAP_TIMEOUT_S` default `1800`
 
 Inferencia:
 
@@ -42,12 +43,12 @@ Alertas:
 ## Flujos disponibles
 
 - `pipelines/flows/warehouse_bootstrap.py:warehouse_bootstrap`
+- `pipelines/flows/measurement_stream_state_bootstrap.py:measurement_stream_state_bootstrap`
 - `pipelines/flows/canonical_incremental.py:canonical_incremental`
 - `pipelines/flows/canonical_full_refresh.py:canonical_full_refresh`
 - `pipelines/flows/canonical_measurement_backfill.py:canonical_measurement_backfill`
 - `pipelines/flows/project_inference.py:project_inference`
 - `pipelines/flows/project_pipeline.py:project_pipeline`
-- `pipelines/flows/social_broadcast.py:social_broadcast`
 
 ## Ejecución local
 
@@ -59,7 +60,6 @@ Desde raíz del repositorio:
 - `make run-canonical-measurement-backfill`
 - `make run-project-pipeline`
 - `make run-project-inference`
-- `make run-social-broadcast`
 
 `canonical_measurement_backfill` no reconstruye `int_measurement_payloads` por defecto. Ese modelo queda como auditoria opcional de payloads crudos y se puede activar con `include_payload_audit=True` cuando haga falta.
 Tambien admite `run_prep=False` y `run_ingest=False` para retomar una corrida pesada ya materializada sin rehacer staging global ni el aterrizaje row-grain.
@@ -70,9 +70,12 @@ Al iniciar `prefect_worker`, el script de bootstrap:
 
 1. espera a que Prefect API esté lista
 2. crea o actualiza los work pools `canonical` y `respira_gold`
-3. despliega `warehouse_bootstrap`, `canonical_incremental` y `canonical_full_refresh` en `canonical`
-4. despliega `project_pipeline(project_code=respira_gold)` en `respira_gold`
-5. inicia un worker por cada work pool configurado
+3. despliega `warehouse_bootstrap`, `measurement_stream_state_bootstrap`,
+   `canonical_incremental` y `canonical_full_refresh` en `canonical`
+4. verifica que los dos deployments manuales de bootstrap existan en Prefect;
+   si falta uno, el worker falla antes de iniciar
+5. despliega `project_pipeline(project_code=respira_gold)` en `respira_gold`
+6. inicia un worker por cada work pool configurado
 
 Si `MODEL_6H_PATH` y `MODEL_12H_PATH` no están definidos, el pipeline del proyecto se registra sin schedule.
 
@@ -84,10 +87,18 @@ Si `MODEL_6H_PATH` y `MODEL_12H_PATH` no están definidos, el pipeline del proye
 - `ops.measurement_stream_state`
 - `ops.inference_station_status`
 
-Además, `warehouse_bootstrap` crea tablas de inferencia por proyecto según `pipelines/config/projects.py`. Para `respira_gold`:
+Además, `warehouse_bootstrap` crea tablas de inferencia por proyecto según `prefect/config/projects.py`. Para `respira_gold`:
 
 - `respira_gold.inference_runs`
 - `respira_gold.inference_results`
+
+Los deployments `warehouse-bootstrap` y
+`measurement-stream-state-bootstrap` no tienen schedule. Registrarlos no
+ejecuta el DDL. El segundo crea/verifica estrictamente
+`ops.measurement_stream_state`, lo completa desde silver + intermediate, y
+valida cobertura total antes de confirmar la transacción. Ver
+`docs/ops-measurement-stream-state.md` para el procedimiento de cutover,
+re-ejecución idempotente y rollback.
 
 ## Política actual
 
