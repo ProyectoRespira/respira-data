@@ -17,7 +17,7 @@ selectors:
       value: models/canonical/silver
 
   - name: canonical_incremental_core
-    description: Canonical runtime core path for normal incrementals. Skips recreating pure staging views.
+    description: Canonical runtime core path for normal incrementals. Refreshes persisted FIUNA repair and station caches while skipping pure staging views.
     definition:
       union:
         - method: path
@@ -25,12 +25,14 @@ selectors:
         - method: path
           value: models/canonical/staging/stg_respira_stations_cache.sql
         - method: path
+          value: models/canonical/staging/stg_fiuna_measurements_repaired.sql
+        - method: path
           value: models/canonical/intermediate
         - method: path
           value: models/canonical/core
 
   - name: canonical_batch_prep
-    description: Staging and prerequisite canonical dimensions for measurement backfills.
+    description: Stateless staging and prerequisite canonical dimensions for measurement backfills. FIUNA repaired/public staging runs in scoped batch ingest.
     definition:
       union:
         - method: path
@@ -45,11 +47,20 @@ selectors:
           value: models/canonical/core/dim_variables.sql
         - method: path
           value: models/canonical/core/dim_stations.sql
+        - exclude:
+            - method: path
+              value: models/canonical/staging/stg_fiuna_measurements_repaired.sql
+            - method: path
+              value: models/canonical/staging/stg_fiuna_measurements.sql
 
   - name: canonical_batch_ingest
-    description: Source-row ingest path for batched measurement backfills.
+    description: Source-row ingest path for batched measurement backfills, including scoped FIUNA repair and its public staging view.
     definition:
       union:
+        - method: path
+          value: models/canonical/staging/stg_fiuna_measurements_repaired.sql
+        - method: path
+          value: models/canonical/staging/stg_fiuna_measurements.sql
         - method: path
           value: models/canonical/intermediate/int_measurement_timestamps_silver.sql
         - method: path

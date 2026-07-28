@@ -41,6 +41,22 @@
   {%- set measured_col = source_cfg.get("measured_at_col", "measured_at") -%}
   {%- set cursor_col = source_cfg.get("cursor_id_col") -%}
   {%- set is_valid_col = source_cfg.get("is_measured_at_valid_col") -%}
+  {%- set measured_silver_col = source_cfg.get("measured_at_silver_col") -%}
+  {%- set is_time_imputed_col = source_cfg.get("is_time_imputed_col") -%}
+  {%- set time_impute_method_col = source_cfg.get("time_impute_method_col") -%}
+  {%- set prepared_time_columns = [
+    measured_silver_col,
+    is_time_imputed_col,
+    time_impute_method_col
+  ] -%}
+  {%- set configured_prepared_time_columns = prepared_time_columns | reject('none') | list -%}
+
+  {%- if configured_prepared_time_columns | length not in [0, 3] -%}
+    {{ exceptions.raise_compiler_error(
+      "Measurement source '" ~ source_name ~ "' must configure measured_at_silver_col, "
+      ~ "is_time_imputed_col, and time_impute_method_col together."
+    ) }}
+  {%- endif -%}
 
   select
     {{ raw_id_col }}::text as source_row_id,
@@ -54,9 +70,24 @@
     null::bigint as cursor_id,
     {%- endif %}
     {%- if is_valid_col %}
-    {{ is_valid_col }}::boolean as is_measured_at_valid
+    {{ is_valid_col }}::boolean as is_measured_at_valid,
     {%- else %}
-    null::boolean as is_measured_at_valid
+    null::boolean as is_measured_at_valid,
+    {%- endif %}
+    {%- if configured_prepared_time_columns | length == 3 %}
+    {{ measured_silver_col }}::timestamptz as measured_at_silver,
+    {{ is_time_imputed_col }}::boolean as is_time_imputed,
+    {{ time_impute_method_col }}::text as time_impute_method
+    {%- else %}
+    case
+      when {{ is_valid_col if is_valid_col else 'false' }} then {{ measured_col }}::timestamptz
+      else null::timestamptz
+    end as measured_at_silver,
+    false::boolean as is_time_imputed,
+    case
+      when {{ is_valid_col if is_valid_col else 'false' }} then null::text
+      else 'invalid_timestamp_no_imputation'::text
+    end as time_impute_method
     {%- endif %}
   from {{ rel }}
   {% if is_incremental() or measurement_has_ingest_batch_scope() %}
