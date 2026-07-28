@@ -250,7 +250,7 @@ def _validate_candidate_metrics(metrics: dict[str, int]) -> None:
         errors.append(f"duplicate_streams={metrics['duplicate_streams']}")
     if metrics["candidates"] != metrics["published_streams"]:
         errors.append(
-            "candidate_count=" f"{metrics['candidates']}/{metrics['published_streams']}"
+            f"candidate_count={metrics['candidates']}/{metrics['published_streams']}"
         )
 
     if errors:
