@@ -92,7 +92,7 @@ Además, `warehouse_bootstrap` crea tablas de inferencia por proyecto según `pi
 ## Política actual
 
 - `canonical_incremental` falla si falla `dbt deps`, `canonical_core` o `canonical_silver`
-- `canonical_incremental` usa `canonical_incremental_core`, que omite la recreacion de staging views puras para evitar esperas largas por locks, pero si reconstruye los station caches incrementales necesarios para descubrir estaciones nuevas. Si cambias SQL de staging o bootstrappeas un entorno nuevo, corre `canonical_full_refresh` o `canonical_batch_prep` primero.
+- `canonical_incremental` usa `canonical_incremental_core`, que omite la recreacion de staging views puras para evitar esperas largas por locks, pero si actualiza `stg_fiuna_measurements_repaired` y los station caches incrementales. Si cambias SQL de staging o bootstrappeas un entorno nuevo, corre `canonical_full_refresh`; el backfill construye las capas FIUNA preparadas durante `canonical_batch_ingest`.
 - `project_pipeline` corre `dbt deps`, luego `dbt seed` y `dbt test` bloqueante para project seeds, y despues `dbt run` del proyecto
 - `project_pipeline` falla si falla el seed del proyecto, sus seed tests bloqueantes, o el run dbt del proyecto
 - `project_pipeline` alerta por Slack si fallan tests del proyecto, pero no corta el pipeline por fallas de data tests

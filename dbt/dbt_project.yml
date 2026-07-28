@@ -48,6 +48,9 @@ vars:
       raw_payload_col: raw_payload
       cursor_id_col: cursor_id
       is_measured_at_valid_col: is_measured_at_valid
+      measured_at_silver_col: measured_at_silver
+      is_time_imputed_col: is_time_imputed
+      time_impute_method_col: time_impute_method
       variables:
         pm1: pm1
         pm25: pm25
