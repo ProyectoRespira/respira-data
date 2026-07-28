@@ -17,6 +17,29 @@ def test_worker_start_registers_manual_warehouse_bootstrap_deployment():
     assert '"${PREFECT_CANONICAL_WORK_POOL}"' in script
 
 
+def test_worker_start_registers_and_verifies_stream_state_bootstrap_deployment():
+    script = _read("scripts/prefect_worker_start.sh")
+
+    assert (
+        "pipelines/flows/measurement_stream_state_bootstrap.py:"
+        "measurement_stream_state_bootstrap"
+    ) in script
+    assert '"measurement-stream-state-bootstrap"' in script
+    assert 'verify_deployment "warehouse_bootstrap/warehouse-bootstrap"' in script
+    assert (
+        '"measurement_stream_state_bootstrap/measurement-stream-state-bootstrap"'
+        in script
+    )
+    assert (
+        '"warehouse-bootstrap" \\\n    "${PREFECT_CANONICAL_WORK_POOL}" \\\n    "" \\\n    --concurrency-limit 1 \\\n    --collision-strategy ENQUEUE'
+        in script
+    )
+    assert (
+        '"measurement-stream-state-bootstrap" \\\n    "${PREFECT_CANONICAL_WORK_POOL}" \\\n    "" \\\n    --concurrency-limit 1 \\\n    --collision-strategy ENQUEUE'
+        in script
+    )
+
+
 def test_checked_in_warehouse_bootstrap_deployment_is_manual_only():
     deployment = _read("pipelines/deployments/warehouse_bootstrap.yaml")
 
@@ -27,4 +50,17 @@ def test_checked_in_warehouse_bootstrap_deployment_is_manual_only():
     )
     assert "name: canonical" in deployment
     assert "concurrency_limit:" in deployment
+    assert "schedules:" not in deployment
+
+
+def test_checked_in_stream_state_bootstrap_deployment_is_manual_only():
+    deployment = _read("pipelines/deployments/measurement_stream_state_bootstrap.yaml")
+
+    assert "name: measurement-stream-state-bootstrap" in deployment
+    assert (
+        "entrypoint: pipelines/flows/measurement_stream_state_bootstrap.py:"
+        "measurement_stream_state_bootstrap" in deployment
+    )
+    assert "name: canonical" in deployment
+    assert "limit: 1" in deployment
     assert "schedules:" not in deployment

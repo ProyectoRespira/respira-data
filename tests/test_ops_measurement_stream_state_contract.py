@@ -2,6 +2,9 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+from pipelines.tasks import db
+
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
 
@@ -31,3 +34,24 @@ def test_dbt_sources_document_measurement_stream_state_contract():
     assert "- name: ops" in source_yml
     assert "- name: measurement_stream_state" in source_yml
     assert "{{ doc('measurement_stream_state_contract') }}" in source_yml
+
+
+def test_ops_ddl_errors_are_not_silenced_in_strict_mode(monkeypatch):
+    expected_error = db.SQLAlchemyError("ops DDL failed")
+
+    def _raise(_engine, _path):
+        raise expected_error
+
+    monkeypatch.setattr(db, "execute_sql_file", _raise)
+
+    with pytest.raises(db.SQLAlchemyError, match="ops DDL failed"):
+        db.ensure_ops_audit_tables(object(), strict=True)
+
+
+def test_ops_ddl_errors_remain_non_blocking_by_default(monkeypatch):
+    def _raise(_engine, _path):
+        raise db.SQLAlchemyError("ops DDL failed")
+
+    monkeypatch.setattr(db, "execute_sql_file", _raise)
+
+    db.ensure_ops_audit_tables(object())
