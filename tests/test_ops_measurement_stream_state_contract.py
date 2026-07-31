@@ -24,6 +24,33 @@ def test_ops_bootstrap_sql_creates_measurement_stream_state_contract():
     assert "idempotent refreshes should leave it unchanged" in sql
 
 
+def test_sql_file_splitter_preserves_semicolons_inside_quoted_content(tmp_path):
+    sql_path = tmp_path / "quoted_statements.sql"
+    sql_path.write_text(
+        """
+        comment on column ops.measurement_stream_state.data_source_name is
+        'Canonical data source name; part of the stream-state primary key.';
+        select 'escaped quote: it''s valid; still the same statement';
+        do $body$
+        begin
+            perform 'a semicolon; inside a dollar quote';
+        end;
+        $body$;
+        -- leading comment; remains attached to the following statement
+        select 1;
+        """,
+        encoding="utf-8",
+    )
+
+    statements = db.read_sql_statements(sql_path)
+
+    assert len(statements) == 4
+    assert "data source name; part" in statements[0]
+    assert "it''s valid; still" in statements[1]
+    assert "perform 'a semicolon; inside a dollar quote';" in statements[2]
+    assert statements[3].endswith("select 1")
+
+
 def test_dbt_sources_document_measurement_stream_state_contract():
     docs = _read("dbt/models/canonical/sources/docs.md")
     source_yml = _read("dbt/models/canonical/sources/sources_ops.yml")
