@@ -117,5 +117,5 @@ Table respira_gold.inference_results {
 
 ### Inference tables
 - The dbt models for `inference_runs` and `inference_results` are still stubbed and disabled by default.
-- The production-shaped tables are created and maintained by the inference pipeline SQL in [`pipelines/sql/03_inference_tables.sql`](/home/fer-dev/projects/respira/respira-data/pipelines/sql/03_inference_tables.sql).
+- The production-shaped tables are created and maintained by the inference pipeline SQL in `pipelines/sql/03_inference_tables.sql`.
 - Backend code should treat `run_date` as an application alias over `as_of` when preserving the existing API response shape.

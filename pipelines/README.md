@@ -9,8 +9,8 @@ Esta carpeta contiene la orquestación Prefect 3 para un repositorio modular con
 
 Conexión a BD:
 
-- `DB_DSN` recomendado
-- o `REMOTE_PG_HOST`, `REMOTE_PG_PORT`, `REMOTE_PG_USER`, `REMOTE_PG_PASSWORD`, `REMOTE_PG_DB`
+- `REMOTE_PG_HOST`, `REMOTE_PG_PORT`, `REMOTE_PG_USER`, `REMOTE_PG_PASSWORD`, `REMOTE_PG_DB` (requeridos para dbt)
+- `DB_DSN` opcional para tareas Python (no reemplaza `REMOTE_PG_*` en dbt)
 
 dbt:
 
@@ -41,12 +41,13 @@ Alertas:
 
 ## Flujos disponibles
 
-- `prefect/flows/warehouse_bootstrap.py:warehouse_bootstrap`
-- `prefect/flows/canonical_incremental.py:canonical_incremental`
-- `prefect/flows/canonical_full_refresh.py:canonical_full_refresh`
-- `prefect/flows/canonical_measurement_backfill.py:canonical_measurement_backfill`
-- `prefect/flows/project_inference.py:project_inference`
-- `prefect/flows/project_pipeline.py:project_pipeline`
+- `pipelines/flows/warehouse_bootstrap.py:warehouse_bootstrap`
+- `pipelines/flows/canonical_incremental.py:canonical_incremental`
+- `pipelines/flows/canonical_full_refresh.py:canonical_full_refresh`
+- `pipelines/flows/canonical_measurement_backfill.py:canonical_measurement_backfill`
+- `pipelines/flows/project_inference.py:project_inference`
+- `pipelines/flows/project_pipeline.py:project_pipeline`
+- `pipelines/flows/social_broadcast.py:social_broadcast`
 
 ## Ejecución local
 
@@ -58,6 +59,7 @@ Desde raíz del repositorio:
 - `make run-canonical-measurement-backfill`
 - `make run-project-pipeline`
 - `make run-project-inference`
+- `make run-social-broadcast`
 
 `canonical_measurement_backfill` no reconstruye `int_measurement_payloads` por defecto. Ese modelo queda como auditoria opcional de payloads crudos y se puede activar con `include_payload_audit=True` cuando haga falta.
 Tambien admite `run_prep=False` y `run_ingest=False` para retomar una corrida pesada ya materializada sin rehacer staging global ni el aterrizaje row-grain.
@@ -76,12 +78,12 @@ Si `MODEL_6H_PATH` y `MODEL_12H_PATH` no están definidos, el pipeline del proye
 
 ## Auditoría operativa
 
-`prefect/sql/02_ops_audit.sql` crea:
+`pipelines/sql/02_ops_audit.sql` crea:
 
 - `ops.dbt_run_audit`
 - `ops.inference_station_status`
 
-Además, `warehouse_bootstrap` crea tablas de inferencia por proyecto según `prefect/config/projects.py`. Para `respira_gold`:
+Además, `warehouse_bootstrap` crea tablas de inferencia por proyecto según `pipelines/config/projects.py`. Para `respira_gold`:
 
 - `respira_gold.inference_runs`
 - `respira_gold.inference_results`
