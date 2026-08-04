@@ -44,6 +44,7 @@ Alertas:
 
 - `pipelines/flows/warehouse_bootstrap.py:warehouse_bootstrap`
 - `pipelines/flows/measurement_stream_state_bootstrap.py:measurement_stream_state_bootstrap`
+- `pipelines/flows/canonical_shadow_publish.py:canonical_shadow_publish`
 - `pipelines/flows/canonical_incremental.py:canonical_incremental`
 - `pipelines/flows/canonical_full_refresh.py:canonical_full_refresh`
 - `pipelines/flows/canonical_measurement_backfill.py:canonical_measurement_backfill`
@@ -71,8 +72,10 @@ Al iniciar `prefect_worker`, el script de bootstrap:
 1. espera a que Prefect API esté lista
 2. crea o actualiza los work pools `canonical` y `respira_gold`
 3. despliega `warehouse_bootstrap`, `measurement_stream_state_bootstrap`,
-   `canonical_incremental` y `canonical_full_refresh` en `canonical`
-4. verifica que los dos deployments manuales de bootstrap existan en Prefect;
+   `canonical_shadow_publish`, `canonical_incremental` y
+   `canonical_full_refresh` en `canonical`
+4. verifica que los deployments manuales de bootstrap y shadow publish existan
+   en Prefect;
    si falta uno, el worker falla antes de iniciar
 5. despliega `project_pipeline(project_code=respira_gold)` en `respira_gold`
 6. inicia un worker por cada work pool configurado
@@ -99,6 +102,12 @@ ejecuta el DDL. El segundo crea/verifica estrictamente
 valida cobertura total antes de confirmar la transacción. Ver
 `docs/ops-measurement-stream-state.md` para el procedimiento de cutover,
 re-ejecución idempotente y rollback.
+
+`canonical-shadow-publish` también es manual y tiene concurrencia `1`. Escribe
+solo `shadow.fct_measurements_silver` y `shadow.measurement_stream_state`; exige
+un reset inicial desde el estado productivo y luego permite validar continuidad
+entre lotes sin reset. Ver `docs/canonical-shadow-publish.md` para parámetros,
+replay histórico, validación y rollback.
 
 ## Política actual
 

@@ -48,6 +48,8 @@ def _timeout_for_command(settings, command: str, selector: str | None) -> int | 
         return _normalize_timeout(settings.DBT_TIMEOUT_CANONICAL_BATCH_INGEST_S)
     if selector == "canonical_batch_process":
         return _normalize_timeout(settings.DBT_TIMEOUT_CANONICAL_SILVER_S)
+    if selector in {"canonical_shadow_state", "canonical_shadow_publish"}:
+        return _normalize_timeout(settings.DBT_TIMEOUT_CANONICAL_SILVER_S)
     if selector == "canonical_batch_smoke_tests":
         return _normalize_timeout(settings.DBT_TIMEOUT_TESTS_S)
     if selector == "canonical_full_refresh":

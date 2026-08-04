@@ -1,0 +1,9 @@
+version: 2
+
+sources:
+  - name: shadow_runtime
+    schema: shadow
+    description: "Physical shadow relations consumed across validation runs without creating dbt graph cycles."
+    tables:
+      - name: measurement_stream_state
+        description: "Isolated carry-forward state for the shadow silver publisher."

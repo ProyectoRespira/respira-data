@@ -1,0 +1,14 @@
+name: canonical-shadow-publish
+entrypoint: pipelines/flows/canonical_shadow_publish.py:canonical_shadow_publish
+work_pool:
+  name: canonical
+parameters: {}
+concurrency_limit:
+  limit: 1
+  collision_strategy: ENQUEUE
+tags:
+  - dbt
+  - canonical
+  - shadow
+  - validation
+  - manual
