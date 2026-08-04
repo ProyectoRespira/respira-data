@@ -5,7 +5,7 @@ with weather as (
 ),
 
 station_map as (
-  select * from {{ ref('int_weather_station_regions') }}
+  select * from {{ ref('int_region_weather_stations') }}
 ),
 
 regions as (

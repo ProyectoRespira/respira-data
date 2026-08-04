@@ -95,6 +95,7 @@ Table respira_gold.inference_results {
 }
 
 ### Internal (not part of backend contract)
+- `int_region_weather_stations`: assigns each region its nearest available weather feed using the centroid of assigned air-quality stations, or the region bbox center when no stations are assigned.
 - `station_inference_features`: wide feature set for inference (station + region + weather).
 
 ## Implementation notes (dbt)
@@ -103,6 +104,7 @@ Table respira_gold.inference_results {
 - If `regions_seed` is empty, each air-quality station becomes its own region.
 - `station_region_seed` can override station → region assignments (and can include weather stations too).
 - `bbox` format: `min_lon,min_lat,max_lon,max_lat` (degrees).
+- Region weather aggregation uses `int_region_weather_stations`; the public `weather_stations` table keeps each weather station's home-region assignment from `int_weather_station_regions`.
 
 ### Manual station shutdowns
 - `respira_gold.station_status_seed` is a project-scoped seed that acts as a manual kill switch for eligible air-quality stations only.

@@ -7,6 +7,8 @@ from pipelines.compat import flow, get_flow_context, get_run_logger
 from pipelines.config.selectors import (
     SELECTOR_CANONICAL_INCREMENTAL_CORE,
     SELECTOR_CANONICAL_SILVER,
+    SELECTOR_SHARED_CORE_SEED,
+    SELECTOR_SHARED_CORE_SEED_TESTS,
 )
 from pipelines.config.settings import get_settings
 from pipelines.tasks.artifacts import (
@@ -15,7 +17,12 @@ from pipelines.tasks.artifacts import (
     summarize_run_results,
 )
 from pipelines.tasks.db import ensure_ops_audit_tables, get_engine
-from pipelines.tasks.dbt_tasks import dbt_deps, dbt_run_selector
+from pipelines.tasks.dbt_tasks import (
+    dbt_deps,
+    dbt_run_selector,
+    dbt_seed_selector,
+    dbt_test_selector,
+)
 from pipelines.tasks.gates import raise_if_failed
 from pipelines.tasks.notifications import notify_flow_failure
 
@@ -68,6 +75,22 @@ def canonical_incremental() -> None:
         deps_summary = _summary_from_result(deps_result)
         persist_dbt_audit(engine, deps_result, deps_summary, ctx)
         raise_if_failed(deps_result, "dbt deps failed")
+
+        seed_result = dbt_seed_selector(
+            settings,
+            selector=SELECTOR_SHARED_CORE_SEED,
+        )
+        seed_summary = _summary_from_result(seed_result)
+        persist_dbt_audit(engine, seed_result, seed_summary, ctx)
+        raise_if_failed(seed_result, "shared core seed stage failed")
+
+        seed_test_result = dbt_test_selector(
+            settings,
+            selector=SELECTOR_SHARED_CORE_SEED_TESTS,
+        )
+        seed_test_summary = _summary_from_result(seed_test_result)
+        persist_dbt_audit(engine, seed_test_result, seed_test_summary, ctx)
+        raise_if_failed(seed_test_result, "shared core seed tests failed")
 
         core_result = dbt_run_selector(
             settings,
