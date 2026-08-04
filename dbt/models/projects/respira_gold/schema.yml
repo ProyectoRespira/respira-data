@@ -21,6 +21,14 @@ models:
       - name: station_code
         tests: [not_null, unique]
 
+  - name: int_region_weather_stations
+    description: "Internal one-to-one mapping from each region to its nearest available weather station, anchored on assigned air-quality stations or the region bbox center."
+    columns:
+      - name: region_code
+        tests: [not_null, unique]
+      - name: station_code
+        tests: [not_null]
+
   - name: regions
     description: "Gold regions table exposed to backend (generated or seeded)."
     columns:

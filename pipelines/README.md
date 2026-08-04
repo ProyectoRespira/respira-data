@@ -102,7 +102,8 @@ re-ejecución idempotente y rollback.
 
 ## Política actual
 
-- `canonical_incremental` falla si falla `dbt deps`, `canonical_core` o `canonical_silver`
+- `canonical_incremental` corre `dbt deps`, carga y valida las seeds compartidas de `core`, y luego ejecuta `canonical_core` y `canonical_silver`; cualquier falla bloquea el flow
+- `canonical_full_refresh` recarga las seeds compartidas con `--full-refresh` y las valida antes de reconstruir y probar la capa canonica
 - `canonical_incremental` usa `canonical_incremental_core`, que omite la recreacion de staging views puras para evitar esperas largas por locks, pero si actualiza `stg_fiuna_measurements_repaired` y los station caches incrementales. Si cambias SQL de staging o bootstrappeas un entorno nuevo, corre `canonical_full_refresh`; el backfill construye las capas FIUNA preparadas durante `canonical_batch_ingest`.
 - `project_pipeline` corre `dbt deps`, luego `dbt seed` y `dbt test` bloqueante para project seeds, y despues `dbt run` del proyecto
 - `project_pipeline` falla si falla el seed del proyecto, sus seed tests bloqueantes, o el run dbt del proyecto
