@@ -13,7 +13,8 @@ See .env.example for a complete template.
 
 ## Core Database (Required)
 
-These variables are required for dbt and runtime DB access unless you use DB_DSN.
+These variables are required for dbt (`dbt/profiles.yml` reads `REMOTE_PG_*` directly).
+`DB_DSN` is optional and used by Python tasks only.
 
 | Variable | Required | Default | Where used | Notes |
 |---|---|---|---|---|

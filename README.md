@@ -317,6 +317,7 @@ make run-canonical-incremental
 make run-canonical-full-refresh
 make run-project-pipeline
 make run-project-inference
+make run-social-broadcast
 make smoke-test
 ```
 
@@ -331,6 +332,7 @@ What each operational command does:
 - `make run-project-pipeline`: runs dbt for `respira_gold`, project tests, and
   inference if enabled
 - `make run-project-inference`: runs inference only
+- `make run-social-broadcast`: runs social broadcast generation/publishing flow
 - `make smoke-test`: lightweight orchestration test suite on the host machine
 
 dbt-only layered commands:
