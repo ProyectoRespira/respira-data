@@ -53,20 +53,23 @@ def test_canonical_incremental_seeds_and_tests_shared_core_before_models(monkeyp
     monkeypatch.setattr(
         incremental_module,
         "dbt_seed_selector",
-        lambda _settings, selector: execution_order.append(f"seed:{selector}")
-        or _result("seed"),
+        lambda _settings, selector: (
+            execution_order.append(f"seed:{selector}") or _result("seed")
+        ),
     )
     monkeypatch.setattr(
         incremental_module,
         "dbt_test_selector",
-        lambda _settings, selector: execution_order.append(f"test:{selector}")
-        or _result("test"),
+        lambda _settings, selector: (
+            execution_order.append(f"test:{selector}") or _result("test")
+        ),
     )
     monkeypatch.setattr(
         incremental_module,
         "dbt_run_selector",
-        lambda _settings, selector: execution_order.append(f"run:{selector}")
-        or _result("run"),
+        lambda _settings, selector: (
+            execution_order.append(f"run:{selector}") or _result("run")
+        ),
     )
 
     _call_flow(incremental_module.canonical_incremental)
@@ -101,16 +104,17 @@ def test_canonical_full_refresh_full_refreshes_shared_seeds_before_models(
     monkeypatch.setattr(
         full_refresh_module,
         "dbt_run_selector",
-        lambda _settings, selector, full_refresh=False: execution_order.append(
-            f"run:{selector}:full_refresh={full_refresh}"
-        )
-        or _result("run"),
+        lambda _settings, selector, full_refresh=False: (
+            execution_order.append(f"run:{selector}:full_refresh={full_refresh}")
+            or _result("run")
+        ),
     )
     monkeypatch.setattr(
         full_refresh_module,
         "dbt_test_selector",
-        lambda _settings, selector: execution_order.append(f"test:{selector}")
-        or _result("test"),
+        lambda _settings, selector: (
+            execution_order.append(f"test:{selector}") or _result("test")
+        ),
     )
 
     _call_flow(full_refresh_module.canonical_full_refresh)
