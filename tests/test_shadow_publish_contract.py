@@ -24,6 +24,9 @@ def test_shadow_values_do_not_depend_on_legacy_value_history():
 def test_shadow_state_only_advances_from_published_shadow_winners():
     sql = _read("dbt/models/canonical/shadow/measurement_stream_state_shadow.sql")
 
+    assert "depends_on: {{ ref('dim_streams') }}" in sql
+    assert "depends_on: {{ ref('int_measurements_values_silver_shadow') }}" in sql
+    assert "depends_on: {{ ref('fct_measurements_silver_shadow') }}" in sql
     assert "ref('fct_measurements_silver_shadow')" in sql
     assert "fact.source_row_id = values.source_row_id" in sql
     assert "coalesce(candidates.last_cursor_id, -1)" in sql
