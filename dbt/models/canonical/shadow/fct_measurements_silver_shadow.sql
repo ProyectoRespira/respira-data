@@ -1,6 +1,7 @@
 {{ config(
   materialized='incremental',
-  alias='fct_measurements_silver',
+  schema='silver',
+  alias='fct_measurements_silver_shadow',
   unique_key=['stream_id', 'timestamp'],
   incremental_strategy='merge',
   on_schema_change='sync_all_columns',

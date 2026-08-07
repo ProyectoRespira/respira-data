@@ -104,7 +104,8 @@ valida cobertura total antes de confirmar la transacción. Ver
 re-ejecución idempotente y rollback.
 
 `canonical-shadow-publish` también es manual y tiene concurrencia `1`. Escribe
-solo `shadow.fct_measurements_silver` y `shadow.measurement_stream_state`; exige
+solo `silver.fct_measurements_silver_shadow` y
+`ops.measurement_stream_state_shadow`; exige
 un reset inicial desde el estado productivo y luego permite validar continuidad
 entre lotes sin reset. Ver `docs/canonical-shadow-publish.md` para parámetros,
 replay histórico, validación y rollback.

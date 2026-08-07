@@ -1,6 +1,7 @@
 {{ config(
   materialized='incremental',
-  alias='measurement_stream_state',
+  schema='ops',
+  alias='measurement_stream_state_shadow',
   unique_key=['data_source_name', 'station_code', 'variable_code'],
   incremental_strategy='merge',
   on_schema_change='sync_all_columns',

@@ -156,7 +156,7 @@ def test_reset_flow_runs_state_publish_refresh_and_tests_in_order(
     )
     engine.dispose.assert_called_once_with()
     mock_notify.assert_not_called()
-    _mock_state_ready.assert_called_once_with(engine, "ops")
+    _mock_state_ready.assert_called_once_with(engine, "ops", "measurement_stream_state")
 
 
 @patch.object(flow_module, "get_run_logger", return_value=MagicMock())
@@ -202,4 +202,6 @@ def test_non_reset_flow_requires_existing_shadow_state(
     mock_run.assert_not_called()
     mock_notify.assert_called_once()
     engine.dispose.assert_called_once_with()
-    _mock_state_ready.assert_called_once_with(engine, "shadow")
+    _mock_state_ready.assert_called_once_with(
+        engine, "ops", "measurement_stream_state_shadow"
+    )

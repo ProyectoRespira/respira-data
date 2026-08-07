@@ -2,7 +2,7 @@ version: 2
 
 models:
   - name: fct_measurements_silver_shadow
-    description: "Validation-only silver fact written to the isolated shadow schema."
+    description: "Validation-only silver fact isolated by its _shadow relation name in the silver schema."
     columns:
       - name: source_row_id
         tests: [not_null]

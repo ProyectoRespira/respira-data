@@ -46,6 +46,8 @@ def test_shadow_models_are_aliased_to_isolated_contract_names():
     fact = _read("dbt/models/canonical/shadow/fct_measurements_silver_shadow.sql")
     state = _read("dbt/models/canonical/shadow/measurement_stream_state_shadow.sql")
 
-    assert "shadow:\n        +schema: shadow" in project
-    assert "alias='fct_measurements_silver'" in fact
-    assert "alias='measurement_stream_state'" in state
+    assert "+schema: shadow" not in project
+    assert "schema='silver'" in fact
+    assert "alias='fct_measurements_silver_shadow'" in fact
+    assert "schema='ops'" in state
+    assert "alias='measurement_stream_state_shadow'" in state

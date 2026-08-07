@@ -28,8 +28,9 @@ from pipelines.tasks.measurement_backfill import (
 from pipelines.tasks.notifications import notify_flow_failure
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-SHADOW_SCHEMA = "shadow"
-SHADOW_STATE_TABLE = "measurement_stream_state"
+OPS_SCHEMA = "ops"
+PRODUCTION_STATE_TABLE = "measurement_stream_state"
+SHADOW_STATE_TABLE = "measurement_stream_state_shadow"
 
 
 def _git_sha() -> str | None:
@@ -114,15 +115,13 @@ def _validate_and_build_shadow_vars(
     return "stream_state", vars_payload
 
 
-def _state_relation_is_ready(engine, schema: str) -> bool:
-    if not inspect(engine).has_table(SHADOW_STATE_TABLE, schema=schema):
+def _state_relation_is_ready(engine, schema: str, table: str) -> bool:
+    if not inspect(engine).has_table(table, schema=schema):
         return False
     with engine.connect() as connection:
         return bool(
             connection.execute(
-                text(
-                    f"select exists (select 1 from {schema}.{SHADOW_STATE_TABLE} limit 1)"
-                )
+                text(f"select exists (select 1 from {schema}.{table} limit 1)")
             ).scalar_one()
         )
 
@@ -180,7 +179,7 @@ def canonical_shadow_publish(
         raise_if_failed(deps_result, "dbt deps failed")
 
         if reset_shadow:
-            if not _state_relation_is_ready(engine, "ops"):
+            if not _state_relation_is_ready(engine, OPS_SCHEMA, PRODUCTION_STATE_TABLE):
                 raise RuntimeError(
                     "ops.measurement_stream_state is missing or empty; run the production stream-state bootstrap first."
                 )
@@ -191,9 +190,9 @@ def canonical_shadow_publish(
             )
             _persist_result(engine, reset_result, ctx)
             raise_if_failed(reset_result, "shadow state reset failed")
-        elif not _state_relation_is_ready(engine, SHADOW_SCHEMA):
+        elif not _state_relation_is_ready(engine, OPS_SCHEMA, SHADOW_STATE_TABLE):
             raise RuntimeError(
-                "shadow.measurement_stream_state is missing or empty; rerun with reset_shadow=True."
+                "ops.measurement_stream_state_shadow is missing or empty; rerun with reset_shadow=True."
             )
 
         publish_result = dbt_run_selector(
