@@ -124,14 +124,14 @@ def test_reset_flow_runs_state_publish_refresh_and_tests_in_order(
     mock_get_settings.return_value = settings
     mock_get_engine.return_value = engine
     mock_load_registry.return_value = {"fiuna_airbyte": {}}
-    mock_deps.side_effect = (
-        lambda *_args, **_kwargs: events.append(("deps",)) or MagicMock()
+    mock_deps.side_effect = lambda *_args, **_kwargs: (
+        events.append(("deps",)) or MagicMock()
     )
-    mock_run.side_effect = (
-        lambda _settings, **kwargs: events.append(("run", kwargs)) or MagicMock()
+    mock_run.side_effect = lambda _settings, **kwargs: (
+        events.append(("run", kwargs)) or MagicMock()
     )
-    mock_test.side_effect = (
-        lambda _settings, **kwargs: events.append(("test", kwargs)) or MagicMock()
+    mock_test.side_effect = lambda _settings, **kwargs: (
+        events.append(("test", kwargs)) or MagicMock()
     )
 
     _call(
