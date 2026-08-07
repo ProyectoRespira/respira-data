@@ -12,6 +12,9 @@
   ]
 ) }}
 
+-- dbt cannot infer refs hidden inside the is_incremental() branch during parsing.
+-- depends_on: {{ ref('dim_streams') }}
+-- depends_on: {{ ref('int_measurements_values_silver_shadow') }}
 -- depends_on: {{ ref('fct_measurements_silver_shadow') }}
 
 {% if is_incremental() %}
