@@ -64,3 +64,31 @@ def test_checked_in_stream_state_bootstrap_deployment_is_manual_only():
     assert "name: canonical" in deployment
     assert "limit: 1" in deployment
     assert "schedules:" not in deployment
+
+
+def test_worker_start_registers_and_verifies_shadow_publish_deployment():
+    script = _read("scripts/prefect_worker_start.sh")
+
+    assert (
+        "pipelines/flows/canonical_shadow_publish.py:canonical_shadow_publish" in script
+    )
+    assert '"canonical-shadow-publish"' in script
+    assert (
+        'verify_deployment "canonical_shadow_publish/canonical-shadow-publish"'
+        in script
+    )
+    assert "--concurrency-limit 1" in script
+    assert "--collision-strategy ENQUEUE" in script
+
+
+def test_checked_in_shadow_publish_deployment_is_manual_only():
+    deployment = _read("pipelines/deployments/canonical_shadow_publish.yaml")
+
+    assert "name: canonical-shadow-publish" in deployment
+    assert (
+        "entrypoint: pipelines/flows/canonical_shadow_publish.py:"
+        "canonical_shadow_publish" in deployment
+    )
+    assert "name: canonical" in deployment
+    assert "limit: 1" in deployment
+    assert "schedules:" not in deployment

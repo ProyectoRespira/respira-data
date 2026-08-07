@@ -94,6 +94,30 @@ selectors:
         - method: path
           value: tests/batch_smoke
 
+  - name: canonical_shadow_state
+    description: Reset or incrementally refresh the isolated shadow stream state.
+    definition:
+      method: path
+      value: models/canonical/shadow/measurement_stream_state_shadow.sql
+
+  - name: canonical_shadow_publish
+    description: Publish validation rows to isolated shadow silver; ephemeral long/value dependencies compile inline.
+    definition:
+      method: path
+      value: models/canonical/shadow/fct_measurements_silver_shadow.sql
+
+  - name: canonical_shadow_tests
+    description: Contract tests for the persisted shadow silver and stream-state outputs.
+    definition:
+      union:
+        - intersection:
+            - method: resource_type
+              value: test
+            - method: path
+              value: models/canonical/shadow
+        - method: path
+          value: tests/shadow
+
   - name: project_respira_gold
     description: respira_gold project models.
     definition:

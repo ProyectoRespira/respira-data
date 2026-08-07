@@ -24,7 +24,6 @@ models:
         +schema: core
       silver:
         +schema: silver
-
     projects:
       +materialized: table
       respira_gold:
