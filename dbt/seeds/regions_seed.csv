@@ -1,3 +1,7 @@
 region_code,name,bbox
 GRAN_ASUNCION,Gran Asuncion,"-57.680,-25.410,-57.470,-25.140"
 CIUDAD_DEL_ESTE,Ciudad del Este,"-54.731,-25.542,-54.631,-25.451"
+ENCARNACION,Encarnacion,"-55.995,-27.405,-55.820,-27.300"
+CAAGUAZU,Caaguazu,"-56.857,-25.709,-54.923,-24.466"
+CONCEPCION,Concepcion,"-57.994,-23.510,-56.125,-22.079"
+SAN_PEDRO,San Pedro,"-57.474,-25.020,-55.707,-23.300"

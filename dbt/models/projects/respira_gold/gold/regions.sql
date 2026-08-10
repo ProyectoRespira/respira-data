@@ -9,7 +9,7 @@ station_map as (
 ),
 
 weather_map as (
-  select * from {{ ref('int_weather_station_regions') }}
+  select * from {{ ref('int_region_weather_stations') }}
 ),
 
 station_flags as (

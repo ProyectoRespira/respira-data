@@ -280,8 +280,6 @@ make up-build
 
 ```bash
 make prefect-bootstrap
-make dbt-deps
-make seed
 make run-canonical-incremental
 make run-project-pipeline
 ```
@@ -325,10 +323,10 @@ What each operational command does:
 
 - `make prefect-bootstrap`: creates `ops` audit tables and project inference
   tables, but does not run dbt
-- `make run-canonical-incremental`: runs `dbt deps`, canonical core, and
-  canonical silver
+- `make run-canonical-incremental`: runs `dbt deps`, loads and tests shared
+  core seeds, then runs canonical core and canonical silver
 - `make run-canonical-full-refresh`: manual maintenance flow for a full
-  canonical rebuild plus tests
+  shared-seed reload, canonical rebuild, and tests
 - `make run-project-pipeline`: runs dbt for `respira_gold`, project tests, and
   inference if enabled
 - `make run-project-inference`: runs inference only

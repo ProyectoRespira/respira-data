@@ -349,7 +349,100 @@ jobs:
             --env-file .env.demo \
             up -d --pull always --remove-orphans
 
-          docker compose ps
+          timeout_seconds=600
+          interval_seconds=10
+          elapsed=0
+
+          while true; do
+            containers="$(
+              APP_IMAGE_TAG="$APP_IMAGE_TAG" \
+              WORKER_IMAGE_TAG="$WORKER_IMAGE_TAG" \
+              docker compose \
+                -f docker-compose.yml \
+                -f docker-compose.remote.yml \
+                --env-file .env.demo \
+                ps -q
+            )"
+            if [ -z "$containers" ]; then
+              echo "No containers were created by docker compose."
+              APP_IMAGE_TAG="$APP_IMAGE_TAG" \
+              WORKER_IMAGE_TAG="$WORKER_IMAGE_TAG" \
+              docker compose \
+                -f docker-compose.yml \
+                -f docker-compose.remote.yml \
+                --env-file .env.demo \
+                ps
+              exit 1
+            fi
+
+            all_running=true
+            all_healthy=true
+
+            for container in $containers; do
+              name="$(docker inspect --format '{{.Name}}' "$container" | sed 's#^/##')"
+              state="$(docker inspect --format '{{.State.Status}}' "$container")"
+              health="$(docker inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}' "$container")"
+
+              echo "$name state=$state health=$health"
+
+              if [ "$state" != "running" ]; then
+                all_running=false
+              fi
+
+              if [ "$health" = "unhealthy" ]; then
+                echo "$name is unhealthy"
+                APP_IMAGE_TAG="$APP_IMAGE_TAG" \
+                WORKER_IMAGE_TAG="$WORKER_IMAGE_TAG" \
+                docker compose \
+                  -f docker-compose.yml \
+                  -f docker-compose.remote.yml \
+                  --env-file .env.demo \
+                  ps
+                exit 1
+              fi
+
+              if [ "$health" != "none" ] && [ "$health" != "healthy" ]; then
+                all_healthy=false
+              fi
+            done
+
+            if [ "$all_running" = true ] && [ "$all_healthy" = true ]; then
+              echo "Compose stack is up and healthy."
+              break
+            fi
+
+            if [ "$elapsed" -ge "$timeout_seconds" ]; then
+              echo "Timed out waiting for stack to become ready."
+              APP_IMAGE_TAG="$APP_IMAGE_TAG" \
+              WORKER_IMAGE_TAG="$WORKER_IMAGE_TAG" \
+              docker compose \
+                -f docker-compose.yml \
+                -f docker-compose.remote.yml \
+                --env-file .env.demo \
+                ps
+              exit 1
+            fi
+
+            sleep "$interval_seconds"
+            elapsed=$((elapsed + interval_seconds))
+          done
+
+          echo "Running shared metadata sync..."
+          APP_IMAGE_TAG="$APP_IMAGE_TAG" \
+          WORKER_IMAGE_TAG="$WORKER_IMAGE_TAG" \
+          docker compose \
+            -f docker-compose.yml \
+            -f docker-compose.remote.yml \
+            --env-file .env.demo \
+            run --rm --no-deps app bash -lc '
+              set -euo pipefail
+              cd /app/dbt
+              target="${DBT_TARGET:-prod}"
+              dbt deps
+              dbt seed --target "$target" --selector shared_core_seed
+              dbt test --target "$target" --selector shared_core_seed_tests
+              dbt run --target "$target" --selector canonical_core
+            '
           REMOTE_SCRIPT
 
       - name: Summary
