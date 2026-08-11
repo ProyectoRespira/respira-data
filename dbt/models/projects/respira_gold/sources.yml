@@ -35,9 +35,12 @@ sources:
             description: "When the override was last recorded."
           - name: processed
             description: >
-              Set once the pipeline has acknowledged the row. Deliberately not
-              used for filtering: an override is a desired state, not an event,
-              so it has to keep applying on every run.
+              Reserved, and unused today: nothing writes it and dbt never reads
+              it. It came from the original product sheet as a "the pipeline has
+              consumed this row" flag, which does not fit — an override is a
+              desired state, not an event, so it has to keep applying on every
+              run. Filtering on it would let a station turn itself back on after
+              the first run.
         tests:
           - dbt_utils.unique_combination_of_columns:
               combination_of_columns: ["station_code", "field"]
