@@ -1,0 +1,43 @@
+version: 2
+
+sources:
+  - name: respira_webapp
+    description: >
+      Tables owned by the respira-webapp Django backoffice. They live in the
+      respira_gold schema, next to the gold models dbt writes, but dbt only ever
+      reads them — the backoffice is their single writer.
+    # The backoffice always writes to the literal schema below (its
+    # BACKEND_POSTGRES_SCHEMA), while dbt's own gold models are target-prefixed
+    # outside prod. The var lets a non-prod run point somewhere else.
+    schema: "{{ var('respira_webapp_schema', 'respira_gold') }}"
+    tables:
+      - name: station_overrides
+        description: >
+          Operator decisions recorded from Django Admin, replacing the
+          station_status_seed.csv seed. One row per (station_code, field).
+        columns:
+          - name: station_code
+            description: "dim_stations.code the override applies to."
+            tests: [not_null]
+          - name: field
+            description: >
+              Name of the stations column being overridden. Only
+              'is_station_on' is consumed today.
+            tests: [not_null]
+          - name: value
+            description: >
+              Target value for `field`. For is_station_on: 'inactive' holds the
+              station off; 'active' records that the hold was lifted.
+            tests: [not_null]
+          - name: note
+            description: "Operator's reason. Required by the admin workflow."
+          - name: change_date
+            description: "When the override was last recorded."
+          - name: processed
+            description: >
+              Set once the pipeline has acknowledged the row. Deliberately not
+              used for filtering: an override is a desired state, not an event,
+              so it has to keep applying on every run.
+        tests:
+          - dbt_utils.unique_combination_of_columns:
+              combination_of_columns: ["station_code", "field"]
