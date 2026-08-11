@@ -2,14 +2,21 @@ version: 2
 
 models:
   - name: int_station_status_overrides
-    description: "Project-scoped manual shutdown overrides for eligible air-quality stations."
+    description: "Project-scoped manual shutdown overrides for eligible air-quality stations, read from respira_webapp.station_overrides."
     columns:
       - name: core_station_id
         tests: [not_null]
       - name: station_code
         tests: [not_null, unique]
       - name: status
-        tests: [not_null]
+        tests:
+          # Downstream, a row being present means "force this station inactive",
+          # so nothing else may reach this model. Carried over from the seed's
+          # schema when station_status_seed.csv was retired.
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['inactive']
 
   - name: int_station_id_map
     description: "Internal mapping from canonical station ids to sequential respira_gold station ids."
@@ -43,6 +50,9 @@ models:
     description: "Gold stations table exposed to backend (air quality stations only)."
     columns:
       - name: id
+        tests: [not_null, unique]
+      - name: station_code
+        description: "Stable natural key (dim_stations.code). The Backoffice writes station_overrides against it."
         tests: [not_null, unique]
       - name: region_id
         tests:
