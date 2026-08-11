@@ -36,9 +36,6 @@ models:
 seeds:
   respira_data:
     +schema: core
-    projects:
-      respira_gold:
-        +schema: respira_gold
 vars:
   default_region_code: GRAN_ASUNCION
   # Historical queue cutover is aggregate-gated; normal runtime remains exact.
