@@ -58,9 +58,17 @@ jobs:
         env:
           RELEASE_TAG: ${{ steps.extract_tag.outputs.tag }}
           MERGE_SHA: ${{ github.event.pull_request.merge_commit_sha }}
-          GITHUB_TOKEN_VALUE: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TOKEN: ${{ secrets.RELEASE_TOKEN }}
+          GITHUB_FALLBACK_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -eu
+
+          AUTH_TOKEN="$RELEASE_TOKEN"
+          TOKEN_SOURCE="RELEASE_TOKEN"
+          if [ -z "$AUTH_TOKEN" ]; then
+            AUTH_TOKEN="$GITHUB_FALLBACK_TOKEN"
+            TOKEN_SOURCE="GITHUB_TOKEN"
+          fi
 
           if [ -z "$MERGE_SHA" ] || [ "$MERGE_SHA" = "null" ]; then
             echo "Missing merge commit SHA from pull_request event"
@@ -69,12 +77,12 @@ jobs:
 
           REF_API="repos/${{ github.repository }}/git/ref/tags/$RELEASE_TAG"
 
-          if GH_TOKEN="$GITHUB_TOKEN_VALUE" gh api "$REF_API" > /dev/null 2>&1; then
+          if GH_TOKEN="$AUTH_TOKEN" gh api "$REF_API" > /dev/null 2>&1; then
             echo "created=false" >> "$GITHUB_OUTPUT"
             echo "ready=true" >> "$GITHUB_OUTPUT"
             echo "Tag already exists: $RELEASE_TAG"
           else
-            if GH_TOKEN="$GITHUB_TOKEN_VALUE" gh api \
+            if GH_TOKEN="$AUTH_TOKEN" gh api \
               -X POST \
               "repos/${{ github.repository }}/git/refs" \
               -f ref="refs/tags/$RELEASE_TAG" \
@@ -82,13 +90,14 @@ jobs:
               echo "created=true" >> "$GITHUB_OUTPUT"
               echo "ready=true" >> "$GITHUB_OUTPUT"
               echo "Created tag $RELEASE_TAG at merge commit $MERGE_SHA"
-            elif GH_TOKEN="$GITHUB_TOKEN_VALUE" gh api "$REF_API" > /dev/null 2>&1; then
+            elif GH_TOKEN="$AUTH_TOKEN" gh api "$REF_API" > /dev/null 2>&1; then
               echo "created=false" >> "$GITHUB_OUTPUT"
               echo "ready=true" >> "$GITHUB_OUTPUT"
               echo "Tag exists after create attempt: $RELEASE_TAG"
             else
               echo "Failed to create release tag $RELEASE_TAG from merge commit $MERGE_SHA"
-              echo "If repository rules restrict ref creation, allow GITHUB_TOKEN to create tags"
+              echo "Token source: $TOKEN_SOURCE"
+              echo "If repository rules restrict ref creation, configure a repo secret named RELEASE_TOKEN"
               exit 1
             fi
           fi
@@ -161,7 +170,7 @@ jobs:
 
       - name: Create GitHub Release
         if: steps.extract_tag.outputs.skip != 'true' && steps.ensure_tag.outputs.ready == 'true'
-        uses: softprops/action-gh-release@718ea10b132b3b2eba29c1007bb80653f286566b # v3.0.1
+        uses: softprops/action-gh-release@3d0d9888cb7fd7b750713d6e236d1fcb99157228 # v3.0.2
         with:
           name: Release ${{ steps.extract_tag.outputs.tag }}
           tag_name: ${{ steps.extract_tag.outputs.tag }}
@@ -292,14 +301,14 @@ jobs:
           sbom: true
 
       - name: Generate app image attestation
-        uses: actions/attest@a1948c3f048ba23858d222213b7c278aabede763 # v4.1.1
+        uses: actions/attest@f7c74d28b9d84cb8768d0b8ca14a4bac6ef463e6 # v4.2.0
         with:
           subject-name: ${{ env.REGISTRY }}/${{ steps.normalize_owner.outputs.image_owner_lc }}/respira-data-app
           subject-digest: ${{ steps.push_app.outputs.digest }}
           push-to-registry: true
 
       - name: Generate worker image attestation
-        uses: actions/attest@a1948c3f048ba23858d222213b7c278aabede763 # v4.1.1
+        uses: actions/attest@f7c74d28b9d84cb8768d0b8ca14a4bac6ef463e6 # v4.2.0
         with:
           subject-name: ${{ env.REGISTRY }}/${{ steps.normalize_owner.outputs.image_owner_lc }}/respira-data-worker
           subject-digest: ${{ steps.push_worker.outputs.digest }}
