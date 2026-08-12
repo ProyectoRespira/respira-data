@@ -70,6 +70,12 @@ jobs:
             TOKEN_SOURCE="GITHUB_TOKEN"
           fi
 
+          if [ -z "$AUTH_TOKEN" ]; then
+            echo "No GitHub token available for release tag creation."
+            echo "Set either RELEASE_TOKEN or allow GITHUB_TOKEN to be used for this workflow."
+            exit 1
+          fi
+
           if [ -z "$MERGE_SHA" ] || [ "$MERGE_SHA" = "null" ]; then
             echo "Missing merge commit SHA from pull_request event"
             exit 1
