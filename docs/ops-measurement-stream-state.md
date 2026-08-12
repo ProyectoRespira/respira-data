@@ -65,6 +65,25 @@ This gives the runtime an idempotent state refresh contract: retries may
 re-submit the same published batch without corrupting or regressing stream
 continuity.
 
+## Production Incremental Runtime
+
+`canonical_incremental` now uses this table as the only carry-forward anchor
+authority. The stored watermark must be strictly earlier than the first target
+row before `last_value_silver` can seed forward-fill processing; equal or future
+state is not used as an anchor.
+
+After `silver.fct_measurements_silver` publishes successfully, the flow runs the
+`canonical_incremental_state` selector. Its candidates must match a published
+fact exactly on stream, source row, canonical timestamp, ingestion timestamp,
+and value. It keeps only the newest candidate per natural stream and submits
+only rows whose full watermark advances the stored state. Consequently, a
+retry after a state-stage failure is safe, and rerunning stable inputs leaves
+`updated_at` unchanged.
+
+The flow fails before dbt processing when silver already contains history but
+the state table is empty. A warehouse with neither silver history nor state
+rows is allowed as a cold start.
+
 ## Bootstrap Contract
 
 Before the publish-path cutover away from persisted intermediate history, run
@@ -126,6 +145,14 @@ Because the conflict update is skipped, `updated_at` remains unchanged.
    and idempotency both pass.
 7. Keep legacy intermediate history until shadow equivalence and the rollback
    window are complete.
+8. Run `canonical_incremental` with a stable acceptance batch, verify
+   carry-forward into silver, then rerun without changing inputs and confirm
+   silver plus state values and `updated_at` are unchanged.
+
+Until the dedicated full-refresh and backfill state-refresh work is complete,
+rerun `measurement_stream_state_bootstrap` after either workflow and before
+resuming `canonical_incremental`. Otherwise the first incremental could anchor
+from state that predates the newly published history.
 
 ### Rollback
 
@@ -134,8 +161,8 @@ Before enabling the new publish path, copy the bootstrapped state to a dated
 is rejected:
 
 1. switch execution back to the legacy publisher and resume its schedule
-2. leave `ops.measurement_stream_state` in place for diagnosis because the
-   legacy path does not consume it
+2. leave `ops.measurement_stream_state` in place for diagnosis; the legacy
+   anchor path does not consume it
 3. retain the snapshot and all legacy intermediate tables
 4. before another cutover attempt, restore the snapshot or explicitly clear
    the state table and rerun the bootstrap from retained intermediate history

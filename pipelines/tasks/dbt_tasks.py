@@ -40,7 +40,7 @@ def _timeout_for_command(settings, command: str, selector: str | None) -> int | 
         return _normalize_timeout(settings.DBT_TIMEOUT_TESTS_S)
     if selector in {"canonical_core", "canonical_incremental_core"}:
         return _normalize_timeout(settings.DBT_TIMEOUT_CANONICAL_CORE_S)
-    if selector == "canonical_silver":
+    if selector in {"canonical_silver", "canonical_incremental_state"}:
         return _normalize_timeout(settings.DBT_TIMEOUT_CANONICAL_SILVER_S)
     if selector == "canonical_batch_prep":
         return _normalize_timeout(settings.DBT_TIMEOUT_CANONICAL_CORE_S)

@@ -82,3 +82,47 @@ def test_ops_ddl_errors_remain_non_blocking_by_default(monkeypatch):
     monkeypatch.setattr(db, "execute_sql_file", _raise)
 
     db.ensure_ops_audit_tables(object())
+
+
+def test_production_values_anchor_from_ops_stream_state():
+    sql = _read(
+        "dbt/models/canonical/intermediate/int_measurements_values_silver.sql"
+    ).lower()
+    anchor_sql = sql.split("anchor_rows as (", maxsplit=1)[1].split(
+        "observed_validation as (", maxsplit=1
+    )[0]
+
+    assert "source('ops', 'measurement_stream_state')" in anchor_sql
+    assert "state.last_value_silver as observed_value_silver" in anchor_sql
+    assert "state.last_measured_at_silver" in anchor_sql
+    assert "coalesce(state.last_cursor_id, -1)" in anchor_sql
+    assert ") < (" in anchor_sql
+    assert "join lateral" not in anchor_sql
+    assert "from {{ this }} existing" not in anchor_sql
+
+
+def test_production_state_refresh_only_uses_published_advances():
+    sql = _read("dbt/models/canonical/ops/measurement_stream_state.sql").lower()
+
+    assert "alias='measurement_stream_state'" in sql
+    assert "ref('int_measurements_values_silver')" in sql
+    assert "ref('fct_measurements_silver')" in sql
+    assert "fact.source_row_id = values.source_row_id" in sql
+    assert "fact.timestamp = values.measured_at_silver" in sql
+    assert "fact.ingested_at = values.extracted_at" in sql
+    assert "fact.value_parsed is not distinct from values.value_silver" in sql
+    assert "coalesce(values.cursor_id, -1)" in sql
+    assert ") > (" in sql
+    assert "where rn = 1" in sql
+    assert "now() as updated_at" in sql
+    assert "does not support --full-refresh" in sql
+
+
+def test_incremental_state_selector_targets_only_production_state_model():
+    selectors = _read("dbt/selectors.yml")
+    state_selector = selectors.split("- name: canonical_incremental_state", maxsplit=1)[
+        1
+    ].split("- name:", maxsplit=1)[0]
+
+    assert "models/canonical/ops/measurement_stream_state.sql" in state_selector
+    assert "models/canonical/shadow" not in state_selector

@@ -3,9 +3,12 @@ from __future__ import annotations
 import subprocess
 from pathlib import Path
 
+from sqlalchemy import inspect, text
+
 from pipelines.compat import flow, get_flow_context, get_run_logger
 from pipelines.config.selectors import (
     SELECTOR_CANONICAL_INCREMENTAL_CORE,
+    SELECTOR_CANONICAL_INCREMENTAL_STATE,
     SELECTOR_CANONICAL_SILVER,
     SELECTOR_SHARED_CORE_SEED,
     SELECTOR_SHARED_CORE_SEED_TESTS,
@@ -27,6 +30,10 @@ from pipelines.tasks.gates import raise_if_failed
 from pipelines.tasks.notifications import notify_flow_failure
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
+OPS_SCHEMA = "ops"
+STREAM_STATE_TABLE = "measurement_stream_state"
+SILVER_SCHEMA = "silver"
+SILVER_FACT_TABLE = "fct_measurements_silver"
 
 
 def _git_sha() -> str | None:
@@ -52,12 +59,38 @@ def _summary_from_result(result) -> dict:
     return summarize_run_results(run_results)
 
 
+def _relation_has_rows(engine, schema: str, table: str) -> bool:
+    with engine.connect() as connection:
+        return bool(
+            connection.execute(
+                text(f"select exists (select 1 from {schema}.{table} limit 1)")
+            ).scalar_one()
+        )
+
+
+def _validate_stream_state_ready(engine) -> None:
+    inspector = inspect(engine)
+    if not inspector.has_table(STREAM_STATE_TABLE, schema=OPS_SCHEMA):
+        raise RuntimeError(
+            "ops.measurement_stream_state is missing; run warehouse bootstrap and measurement stream state bootstrap before the incremental cutover."
+        )
+
+    if not inspector.has_table(SILVER_FACT_TABLE, schema=SILVER_SCHEMA):
+        return
+
+    if _relation_has_rows(
+        engine, SILVER_SCHEMA, SILVER_FACT_TABLE
+    ) and not _relation_has_rows(engine, OPS_SCHEMA, STREAM_STATE_TABLE):
+        raise RuntimeError(
+            "ops.measurement_stream_state is empty while silver.fct_measurements_silver contains history; run measurement_stream_state_bootstrap before canonical_incremental."
+        )
+
+
 @flow(name="canonical_incremental")
 def canonical_incremental() -> None:
     logger = get_run_logger()
     settings = get_settings()
     engine = get_engine(settings)
-    ensure_ops_audit_tables(engine)
 
     ctx = get_flow_context()
     ctx.update(
@@ -71,6 +104,9 @@ def canonical_incremental() -> None:
     )
 
     try:
+        ensure_ops_audit_tables(engine)
+        _validate_stream_state_ready(engine)
+
         deps_result = dbt_deps(settings)
         deps_summary = _summary_from_result(deps_result)
         persist_dbt_audit(engine, deps_result, deps_summary, ctx)
@@ -104,6 +140,14 @@ def canonical_incremental() -> None:
         silver_summary = _summary_from_result(silver_result)
         persist_dbt_audit(engine, silver_result, silver_summary, ctx)
         raise_if_failed(silver_result, "canonical silver stage failed")
+
+        state_result = dbt_run_selector(
+            settings,
+            selector=SELECTOR_CANONICAL_INCREMENTAL_STATE,
+        )
+        state_summary = _summary_from_result(state_result)
+        persist_dbt_audit(engine, state_result, state_summary, ctx)
+        raise_if_failed(state_result, "canonical stream state refresh failed")
 
         logger.info("canonical_incremental completed successfully")
     except Exception as exc:  # noqa: BLE001

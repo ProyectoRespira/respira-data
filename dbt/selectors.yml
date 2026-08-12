@@ -16,6 +16,12 @@ selectors:
       method: path
       value: models/canonical/silver
 
+  - name: canonical_incremental_state
+    description: Refresh production measurement stream state after a successful incremental silver publish.
+    definition:
+      method: path
+      value: models/canonical/ops/measurement_stream_state.sql
+
   - name: canonical_incremental_core
     description: Canonical runtime core path for normal incrementals. Refreshes persisted FIUNA repair and station caches while skipping pure staging views.
     definition:
