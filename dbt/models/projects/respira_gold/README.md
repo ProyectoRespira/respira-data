@@ -14,7 +14,6 @@ Table respira_gold.regions {
 
 Table respira_gold.stations {
   id integer [primary key]
-  station_code varchar [unique]
   name varchar
   latitude float
   longitude float
@@ -108,13 +107,11 @@ Table respira_gold.inference_results {
 - Region weather aggregation uses `int_region_weather_stations`; the public `weather_stations` table keeps each weather station's home-region assignment from `int_weather_station_regions`.
 
 ### Manual station shutdowns
-- The kill switch for eligible air-quality stations is `respira_webapp.station_overrides`, a table written by the **Django backoffice** in respira-webapp (Station Administration → Stations → Activate / Deactivate). It replaced the `station_status_seed` CSV seed; the retired file is kept under `dbt/archive/station_status_seed.csv` for reference.
-- `int_station_status_overrides` is still the single project relation consumed downstream. It reads the table as `source('respira_webapp', 'station_overrides')` and emits **only** the rows that hold a station off (`field='is_station_on'` and `value='inactive'`), because downstream a row being present means "force inactive".
-- To shut a station down, an operator deactivates it in the backoffice. The next scheduled `project_pipeline` run rebuilds the project models and turns the station off — no deploy, no code change.
-- Reactivating in the backoffice writes `value='active'`, which drops the row out of this model. The station's normal derived status applies again on the next run, so it comes back **only if** its source still reports it active and it has reported recently — an override can hold a station off, but cannot bring a silent sensor back.
-- `processed` on the table is not used for filtering: an override is a desired state, not an event, so it has to keep applying on every run.
-- `stations.station_code` is exposed on the gold table so the backoffice can address a station by the pipeline's stable key rather than by `id`, which a `row_number()` reshuffles.
-- `station_override_codes_are_valid_air_quality_stations` guards against an override naming a station this project does not serve.
+- `respira_gold.station_status_seed` is a project-scoped seed that acts as a manual kill switch for eligible air-quality stations only.
+- `int_station_status_overrides` is the single project relation consumed downstream; it is the handoff point for a future Django-admin-managed table.
+- To manually shut down a station, add a row with `status=inactive` to the CSV and deploy it. The next scheduled `project_pipeline` run will seed it, validate it, rebuild the project models, and turn the station off.
+- Removing the row re-enables the normal derived station status on the next `project_pipeline` run.
+- Example: `respira_123,inactive,Temporarily disabled for maintenance`
 
 ### Calibration factors
 - If an external `calibration_factors` table exists (schema configurable via `calibration_factors_schema`), dbt reads from it.

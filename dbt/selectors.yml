@@ -124,6 +124,30 @@ selectors:
       method: path
       value: models/projects/respira_gold
 
+  - name: project_respira_gold_seed
+    description: respira_gold project-scoped seeds.
+    definition:
+      intersection:
+        - method: resource_type
+          value: seed
+        - method: path
+          value: seeds/projects/respira_gold
+
+  - name: project_respira_gold_seed_tests
+    description: Blocking tests for respira_gold project-scoped seeds.
+    definition:
+      union:
+        - intersection:
+            - method: resource_type
+              value: test
+            - method: path
+              value: seeds/projects/respira_gold
+        - intersection:
+            - method: resource_type
+              value: test
+            - method: path
+              value: tests/respira_gold_seeds
+
   - name: shared_core_seed
     description: Shared core metadata seeds (seed CSVs in dbt/seeds/, excluding per-project seeds under dbt/seeds/projects/).
     definition:

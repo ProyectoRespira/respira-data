@@ -1,5 +1,3 @@
-{{ config(materialized='view') }}
-
 with project_data_sources as (
   select data_source_id
   from {{ ref('bridge_project_data_sources') }}
@@ -8,7 +6,6 @@ with project_data_sources as (
 
 eligible_air_quality_stations as (
   select distinct
-    stations.id as core_station_id,
     stations.code as station_code
   from {{ ref('dim_streams') }} streams
   join project_data_sources pds
@@ -19,19 +16,12 @@ eligible_air_quality_stations as (
 ),
 
 seeded_overrides as (
-  select
-    station_code::text as station_code,
-    lower(status::text) as status,
-    nullif(note::text, '') as note
+  select station_code::text as station_code
   from {{ ref('station_status_seed') }}
-  where nullif(station_code::text, '') is not null
 )
 
-select
-  eligible.core_station_id,
-  seeded.station_code,
-  seeded.status,
-  seeded.note
+select seeded.station_code
 from seeded_overrides seeded
-join eligible_air_quality_stations eligible
+left join eligible_air_quality_stations eligible
   on eligible.station_code = seeded.station_code
+where eligible.station_code is null
