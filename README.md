@@ -90,7 +90,7 @@ docker compose exec app bash -lc "cd /app/dbt && dbt run --target prod --selecto
 docker compose exec app bash -lc "cd /app/dbt && dbt test --target prod --selector project_respira_gold_tests"
 ```
 
-8. Run inference or the full project pipeline.
+8. Run inference or the full project pipeline
 
 ```bash
 docker compose exec prefect_worker bash -lc "cd /app && python3 pipelines/flows/project_inference.py"
