@@ -1,6 +1,7 @@
 SELECTOR_CANONICAL_CORE = "canonical_core"
 SELECTOR_CANONICAL_INCREMENTAL_CORE = "canonical_incremental_core"
 SELECTOR_CANONICAL_SILVER = "canonical_silver"
+SELECTOR_CANONICAL_INCREMENTAL_STATE = "canonical_incremental_state"
 SELECTOR_CANONICAL_FULL_REFRESH = "canonical_full_refresh"
 SELECTOR_SHARED_CORE_SEED = "shared_core_seed"
 SELECTOR_SHARED_CORE_SEED_TESTS = "shared_core_seed_tests"

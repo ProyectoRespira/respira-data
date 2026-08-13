@@ -108,47 +108,30 @@ anchor_rows as (
     null::text as time_impute_method,
     first_targets.variable_code,
     ''::text as value_raw,
-    existing.anchor_value_silver as value_parsed,
+    state.last_value_silver as value_parsed,
     null::double precision as min_value,
     null::double precision as max_value,
     true as allow_null,
     true as is_anchor,
     true as is_observed_value_valid,
-    existing.anchor_value_silver as observed_value_silver
+    state.last_value_silver as observed_value_silver
   from stream_first_targets first_targets
-  join lateral (
-    select
-      existing.value_silver as anchor_value_silver
-    from {{ this }} existing
-    where existing.data_source_name = first_targets.data_source_name
-      and existing.station_code = first_targets.station_code
-      and existing.variable_code = first_targets.variable_code
-      and existing.value_silver is not null
-      and (
-        existing.measured_at_silver < first_targets.first_measured_at_silver
-        or (
-          existing.measured_at_silver = first_targets.first_measured_at_silver
-          and coalesce(existing.cursor_id, -1) < first_targets.first_cursor_sort
-        )
-        or (
-          existing.measured_at_silver = first_targets.first_measured_at_silver
-          and coalesce(existing.cursor_id, -1) = first_targets.first_cursor_sort
-          and existing.extracted_at < first_targets.first_extracted_at
-        )
-        or (
-          existing.measured_at_silver = first_targets.first_measured_at_silver
-          and coalesce(existing.cursor_id, -1) = first_targets.first_cursor_sort
-          and existing.extracted_at = first_targets.first_extracted_at
-          and existing.source_row_id < first_targets.first_source_row_id
-        )
-      )
-    order by
-      existing.measured_at_silver desc,
-      coalesce(existing.cursor_id, -1) desc,
-      existing.extracted_at desc,
-      existing.source_row_id desc
-    limit 1
-  ) existing on true
+  join {{ source('ops', 'measurement_stream_state') }} state
+    on state.data_source_name = first_targets.data_source_name
+   and state.station_code = first_targets.station_code
+   and state.variable_code = first_targets.variable_code
+   and state.last_value_silver is not null
+   and (
+     state.last_measured_at_silver,
+     coalesce(state.last_cursor_id, -1),
+     state.last_extracted_at,
+     state.last_source_row_id
+   ) < (
+     first_targets.first_measured_at_silver,
+     first_targets.first_cursor_sort,
+     first_targets.first_extracted_at,
+     first_targets.first_source_row_id
+   )
   {% else %}
   select
     null::text as source_row_id,

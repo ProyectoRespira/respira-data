@@ -112,7 +112,8 @@ replay histórico, validación y rollback.
 
 ## Política actual
 
-- `canonical_incremental` falla si falla `dbt deps`, `canonical_core` o `canonical_silver`
+- `canonical_incremental` falla si falla `dbt deps`, los seeds/tests compartidos, `canonical_incremental_core`, `canonical_silver` o `canonical_incremental_state`
+- `canonical_incremental` usa `ops.measurement_stream_state` para carry-forward y solo lo refresca despues de publicar silver correctamente; repetir entradas estables no avanza state ni cambia `updated_at`
 - `canonical_incremental` usa `canonical_incremental_core`, que omite la recreacion de staging views puras para evitar esperas largas por locks, pero si actualiza `stg_fiuna_measurements_repaired` y los station caches incrementales. Si cambias SQL de staging o bootstrappeas un entorno nuevo, corre `canonical_full_refresh`; el backfill construye las capas FIUNA preparadas durante `canonical_batch_ingest`.
 - `project_pipeline` corre `dbt deps`, luego `dbt seed` y `dbt test` bloqueante para project seeds, y despues `dbt run` del proyecto
 - `project_pipeline` falla si falla el seed del proyecto, sus seed tests bloqueantes, o el run dbt del proyecto

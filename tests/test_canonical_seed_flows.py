@@ -3,6 +3,7 @@ from __future__ import annotations
 from types import SimpleNamespace
 from unittest.mock import MagicMock
 
+import pytest
 from pipelines.flows import canonical_full_refresh as full_refresh_module
 from pipelines.flows import canonical_incremental as incremental_module
 
@@ -32,6 +33,10 @@ def _configure_common(monkeypatch, module):
     monkeypatch.setattr(module, "get_settings", lambda: _settings())
     monkeypatch.setattr(module, "get_engine", lambda _settings: engine)
     monkeypatch.setattr(module, "ensure_ops_audit_tables", lambda _engine: None)
+    if hasattr(module, "_validate_stream_state_ready"):
+        monkeypatch.setattr(
+            module, "_validate_stream_state_ready", lambda _engine: None
+        )
     monkeypatch.setattr(module, "get_flow_context", lambda: {})
     monkeypatch.setattr(module, "_git_sha", lambda: "abc123")
     monkeypatch.setattr(module, "_summary_from_result", lambda _result: {})
@@ -80,8 +85,111 @@ def test_canonical_incremental_seeds_and_tests_shared_core_before_models(monkeyp
         "test:shared_core_seed_tests",
         "run:canonical_incremental_core",
         "run:canonical_silver",
+        "run:canonical_incremental_state",
     ]
     engine.dispose.assert_called_once_with()
+
+
+def test_canonical_incremental_does_not_refresh_state_after_silver_failure(
+    monkeypatch,
+):
+    execution_order: list[str] = []
+    engine = _configure_common(monkeypatch, incremental_module)
+    monkeypatch.setattr(
+        incremental_module,
+        "dbt_deps",
+        lambda _settings: execution_order.append("deps") or _result("deps"),
+    )
+    monkeypatch.setattr(
+        incremental_module,
+        "dbt_seed_selector",
+        lambda _settings, selector: (
+            execution_order.append(f"seed:{selector}") or _result("seed")
+        ),
+    )
+    monkeypatch.setattr(
+        incremental_module,
+        "dbt_test_selector",
+        lambda _settings, selector: (
+            execution_order.append(f"test:{selector}") or _result("test")
+        ),
+    )
+    monkeypatch.setattr(
+        incremental_module,
+        "dbt_run_selector",
+        lambda _settings, selector: (
+            execution_order.append(f"run:{selector}") or _result("run")
+        ),
+    )
+
+    def _raise_on_silver(_result, message):
+        if message == "canonical silver stage failed":
+            raise RuntimeError(message)
+
+    monkeypatch.setattr(incremental_module, "raise_if_failed", _raise_on_silver)
+
+    with pytest.raises(RuntimeError, match="canonical silver stage failed"):
+        _call_flow(incremental_module.canonical_incremental)
+
+    assert "run:canonical_incremental_state" not in execution_order
+    engine.dispose.assert_called_once_with()
+
+
+def test_canonical_incremental_notifies_when_stream_state_is_not_ready(monkeypatch):
+    engine = _configure_common(monkeypatch, incremental_module)
+    notify = MagicMock()
+    deps = MagicMock()
+    monkeypatch.setattr(incremental_module, "notify_flow_failure", notify)
+    monkeypatch.setattr(incremental_module, "dbt_deps", deps)
+    monkeypatch.setattr(
+        incremental_module,
+        "_validate_stream_state_ready",
+        MagicMock(side_effect=RuntimeError("stream state not ready")),
+    )
+
+    with pytest.raises(RuntimeError, match="stream state not ready"):
+        _call_flow(incremental_module.canonical_incremental)
+
+    deps.assert_not_called()
+    notify.assert_called_once()
+    engine.dispose.assert_called_once_with()
+
+
+def test_stream_state_readiness_rejects_empty_state_over_existing_silver(
+    monkeypatch,
+):
+    inspector = MagicMock()
+    inspector.has_table.side_effect = [True, True]
+    monkeypatch.setattr(incremental_module, "inspect", lambda _engine: inspector)
+    monkeypatch.setattr(
+        incremental_module,
+        "_relation_has_rows",
+        MagicMock(side_effect=[True, False]),
+    )
+
+    with pytest.raises(RuntimeError, match="is empty while silver"):
+        incremental_module._validate_stream_state_ready(object())
+
+
+def test_stream_state_readiness_rejects_missing_state_relation(monkeypatch):
+    inspector = MagicMock()
+    inspector.has_table.return_value = False
+    monkeypatch.setattr(incremental_module, "inspect", lambda _engine: inspector)
+
+    with pytest.raises(RuntimeError, match="is missing"):
+        incremental_module._validate_stream_state_ready(object())
+
+
+def test_stream_state_readiness_allows_cold_start_without_silver(monkeypatch):
+    inspector = MagicMock()
+    inspector.has_table.side_effect = [True, False]
+    relation_has_rows = MagicMock()
+    monkeypatch.setattr(incremental_module, "inspect", lambda _engine: inspector)
+    monkeypatch.setattr(incremental_module, "_relation_has_rows", relation_has_rows)
+
+    incremental_module._validate_stream_state_ready(object())
+
+    relation_has_rows.assert_not_called()
 
 
 def test_canonical_full_refresh_full_refreshes_shared_seeds_before_models(
