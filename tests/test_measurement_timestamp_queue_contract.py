@@ -52,3 +52,13 @@ def test_backfill_bounds_are_derived_from_timestamp_queue():
     assert "min(measured_at_silver) as min_measured_at" in task_source
     assert "max(measured_at_silver) as max_measured_at" in task_source
     assert "count(*) as row_count" in task_source
+
+
+def test_fact_smoke_test_is_process_scoped_and_matches_fact_deduplication():
+    sql = _read("dbt/tests/batch_smoke/source_fact_matches_values_silver.sql")
+
+    assert "measurement_process_row_predicate" in sql
+    assert "measurement_process_measured_at_predicate('f.timestamp')" in sql
+    assert "row_number() over" in sql
+    assert "order by m.extracted_at desc" in sql
+    assert "where rn = 1" in sql

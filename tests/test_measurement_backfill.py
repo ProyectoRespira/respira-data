@@ -215,3 +215,66 @@ def test_backfill_resume_stops_before_processing_when_queue_is_empty(monkeypatch
 
     process_run.assert_not_called()
     engine.dispose.assert_called_once_with()
+
+
+def test_backfill_smoke_tests_receive_effective_queue_bounds(monkeypatch):
+    from pipelines.flows import canonical_measurement_backfill as flow_module
+
+    queue_from = datetime(2026, 7, 31, tzinfo=UTC)
+    queue_max = datetime(2026, 8, 1, 23, tzinfo=UTC)
+    queue_to = queue_max + timedelta(microseconds=1)
+    engine = MagicMock()
+    result = SimpleNamespace(run_results_path=None)
+    settings = SimpleNamespace(
+        DBT_TARGET="prod",
+        SLACK_WEBHOOK_URL=None,
+        MEASUREMENT_BACKFILL_PROCESS_BATCH_HOURS=48,
+    )
+    test_selector = MagicMock(return_value=result)
+
+    monkeypatch.setattr(flow_module, "get_settings", lambda: settings)
+    monkeypatch.setattr(flow_module, "get_engine", lambda _settings: engine)
+    monkeypatch.setattr(flow_module, "ensure_ops_audit_tables", lambda _engine: None)
+    monkeypatch.setattr(flow_module, "get_flow_context", lambda: {})
+    monkeypatch.setattr(flow_module, "_git_sha", lambda: "abc123")
+    monkeypatch.setattr(flow_module, "dbt_deps", lambda _settings: result)
+    monkeypatch.setattr(flow_module, "_persist_result", lambda *args: {})
+    monkeypatch.setattr(flow_module, "raise_if_failed", lambda *args: None)
+    monkeypatch.setattr(flow_module, "notify_flow_failure", lambda *args: None)
+    monkeypatch.setattr(flow_module, "load_measurement_source_registry", lambda _: {})
+    monkeypatch.setattr(
+        flow_module,
+        "validate_measurement_sources",
+        lambda *_args, **_kwargs: ["meteostat_airbyte"],
+    )
+    monkeypatch.setattr(
+        flow_module,
+        "get_measurement_process_bounds",
+        lambda *_args: {
+            "min_measured_at": queue_from,
+            "max_measured_at": queue_max,
+            "null_time_row_count": 0,
+            "row_count": 48,
+        },
+    )
+    monkeypatch.setattr(flow_module, "dbt_run_selector", lambda *args, **kwargs: result)
+    monkeypatch.setattr(flow_module, "dbt_test_selector", test_selector)
+
+    _call_flow(
+        flow_module.canonical_measurement_backfill,
+        data_sources=["meteostat_airbyte"],
+        run_prep=False,
+        run_ingest=False,
+        run_tests=True,
+    )
+
+    test_selector.assert_called_once_with(
+        settings,
+        selector=flow_module.SELECTOR_CANONICAL_BATCH_SMOKE_TESTS,
+        vars_payload={
+            "measurement_batch_data_source": "meteostat_airbyte",
+            "measurement_batch_measured_at_from": queue_from,
+            "measurement_batch_measured_at_to": queue_to,
+        },
+    )
+    engine.dispose.assert_called_once_with()
