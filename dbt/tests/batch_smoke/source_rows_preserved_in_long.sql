@@ -13,7 +13,11 @@ with expected as (
     {{ variable_count }}::bigint as expected_row_count
   from {{ ref('int_measurement_timestamps_silver') }} t
   where t.data_source_name = '{{ source_name }}'
-    and t.measured_at_silver is null
+    and {{ measurement_runtime_queue_row_predicate(
+      't.data_source_name',
+      't.measured_at_silver',
+      't.cleanup_eligible_at'
+    ) }}
 
   {%- if not loop.last %}
   union all
@@ -29,8 +33,6 @@ actual as (
     l.data_source_name,
     count(*)::bigint as actual_row_count
   from {{ ref('int_measurements_long') }} l
-  where {{ measurement_source_column_predicate('l.data_source_name') }}
-    and l.measured_at_silver is null
   group by l.source_row_id, l.data_source_name
 ),
 

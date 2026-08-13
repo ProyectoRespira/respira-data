@@ -32,8 +32,8 @@ def test_queue_cleanup_applies_age_floor_and_preserves_one_checkpoint_row():
     sql = str(delete_statement)
     assert deleted == 7
     assert "set cleanup_eligible_at = now()" in mark_sql
-    assert "from intermediate.int_measurements_values_silver processed" in mark_sql
-    assert "processed.source_row_id = q.source_row_id" in mark_sql
+    assert "int_measurements_values_silver" not in mark_sql
+    assert "int_measurements_long" not in mark_sql
     assert "q.measured_at_silver is not null" in mark_sql
     assert mark_params == {"retention_hours": 168}
     assert "q.cleanup_eligible_at is not null" in sql
@@ -114,7 +114,8 @@ def test_null_time_cleanup_requires_an_explicit_dedicated_scope():
     delete_sql = str(delete_call.args[0])
     assert "q.measured_at_silver is null" in mark_sql
     assert "q.measured_at_silver is null" in delete_sql
-    assert "from intermediate.int_measurements_long processed" in mark_sql
+    assert "int_measurements_long" not in mark_sql
+    assert "int_measurements_values_silver" not in mark_sql
     assert "q.measured_at_silver is not null" not in mark_sql
     assert "q.measured_at_silver is not null" not in delete_sql
 

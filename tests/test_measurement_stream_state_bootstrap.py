@@ -46,10 +46,11 @@ def test_bootstrap_query_uses_latest_published_identity_and_full_watermark():
     assert "order by" in candidate_sql
     assert "fact.timestamp desc" in candidate_sql
     assert "limit 1" in candidate_sql
-    assert "intermediate.int_measurements_values_silver" in candidate_sql
-    assert "intermediate.cursor_id as last_cursor_id" in candidate_sql
-    assert "intermediate.source_row_id = published.source_row_id" in candidate_sql
-    assert "intermediate.value_silver is not distinct from" in candidate_sql
+    assert "intermediate.int_measurement_timestamps_silver" in candidate_sql
+    assert "queue.cursor_id as last_cursor_id" in candidate_sql
+    assert "queue.source_row_id = published.source_row_id" in candidate_sql
+    assert "int_measurements_values_silver" not in candidate_sql
+    assert "true as is_exact_match" in candidate_sql
     assert "on conflict (data_source_name, station_code, variable_code)" in upsert_sql
     assert "coalesce(excluded.last_cursor_id, -1)" in upsert_sql
     assert "coalesce(state.last_cursor_id, -1)" in upsert_sql

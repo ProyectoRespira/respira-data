@@ -85,13 +85,15 @@ selectors:
     definition:
       union:
         - method: path
-          value: models/canonical/intermediate/int_measurements_long.sql
-        - method: path
-          value: models/canonical/intermediate/int_measurements_values_silver.sql
-        - method: path
           value: models/canonical/silver/fct_measurements_silver.sql
         - method: path
           value: models/canonical/ops/measurement_stream_state.sql
+
+  - name: canonical_debug_intermediate
+    description: Explicit bounded materialization of long and value intermediates for manual investigation.
+    definition:
+      method: path
+      value: models/canonical/debug
 
   - name: canonical_batch_smoke_tests
     description: Source-scoped smoke tests for measurement backfills.

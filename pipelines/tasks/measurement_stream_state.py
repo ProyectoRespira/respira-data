@@ -76,22 +76,18 @@ select
     published.station_code,
     published.variable_code,
     published.measured_at_silver as last_measured_at_silver,
-    intermediate.cursor_id as last_cursor_id,
+    queue.cursor_id as last_cursor_id,
     published.extracted_at as last_extracted_at,
     published.source_row_id as last_source_row_id,
     published.value_silver as last_value_silver,
-    intermediate.source_row_id is not null
-      and intermediate.data_source_name is not distinct from published.data_source_name
-      and intermediate.station_code is not distinct from published.station_code
-      and intermediate.variable_code is not distinct from published.variable_code
-      and intermediate.measured_at_silver is not distinct from published.measured_at_silver
-      and intermediate.extracted_at is not distinct from published.extracted_at
-      and intermediate.value_silver is not distinct from published.value_silver
-      as is_exact_match
+    true as is_exact_match
 from latest_published published
-left join intermediate.int_measurements_values_silver intermediate
-  on intermediate.source_row_id = published.source_row_id
- and intermediate.variable_code = published.variable_code
+left join intermediate.int_measurement_timestamps_silver queue
+  on queue.data_source_name = published.data_source_name
+ and queue.source_row_id = published.source_row_id
+ and queue.station_code is not distinct from published.station_code
+ and queue.measured_at_silver is not distinct from published.measured_at_silver
+ and queue.extracted_at is not distinct from published.extracted_at
 """
 
 CANDIDATE_METRICS_SQL = """
