@@ -24,48 +24,58 @@
 
 -- dbt cannot infer refs hidden behind the incremental relation guard while parsing.
 -- depends_on: {{ ref('dim_streams') }}
--- depends_on: {{ ref('int_measurements_values_silver') }}
 -- depends_on: {{ ref('fct_measurements_silver') }}
+-- depends_on: {{ ref('int_measurement_timestamps_silver') }}
 
 with streams as (
-  select id as stream_id, code
-  from {{ ref('dim_streams') }}
+  select
+    streams.id as stream_id,
+    data_sources.name as data_source_name,
+    stations.code as station_code,
+    variables.code as variable_code
+  from {{ ref('dim_streams') }} streams
+  join {{ ref('dim_data_sources') }} data_sources
+    on data_sources.id = streams.data_source_id
+  join {{ ref('dim_stations') }} stations
+    on stations.id = streams.station_id
+  join {{ ref('dim_variables') }} variables
+    on variables.id = streams.variable_id
 ),
 
 published_candidates as (
   select
-    values.data_source_name,
-    values.station_code,
-    values.variable_code,
-    values.measured_at_silver as last_measured_at_silver,
-    values.cursor_id as last_cursor_id,
-    values.extracted_at as last_extracted_at,
-    values.source_row_id as last_source_row_id,
-    values.value_silver as last_value_silver
-  from {{ ref('int_measurements_values_silver') }} values
+    streams.data_source_name,
+    streams.station_code,
+    streams.variable_code,
+    queue.measured_at_silver as last_measured_at_silver,
+    queue.cursor_id as last_cursor_id,
+    queue.extracted_at as last_extracted_at,
+    queue.source_row_id as last_source_row_id,
+    fact.value_parsed as last_value_silver
+  from {{ ref('int_measurement_timestamps_silver') }} queue
   join streams
-    on streams.code = (
-      values.station_code || '_' || values.variable_code || '_' || values.data_source_name
-    )
+    on streams.data_source_name = queue.data_source_name
+   and streams.station_code = queue.station_code
   join {{ ref('fct_measurements_silver') }} fact
     on fact.stream_id = streams.stream_id
-   and fact.source_row_id = values.source_row_id
-   and fact.timestamp = values.measured_at_silver
-   and fact.ingested_at = values.extracted_at
-   and fact.value_parsed is not distinct from values.value_silver
+   and fact.source_row_id = queue.source_row_id
+   and fact.timestamp = queue.measured_at_silver
+   and fact.ingested_at = queue.extracted_at
   left join {{ this }} state
     using (data_source_name, station_code, variable_code)
-  where values.value_silver is not null
-    {% if measurement_has_process_batch_scope() %}
-    and {{ measurement_process_row_predicate('values.data_source_name', 'values.measured_at_silver') }}
-    {% endif %}
+  where fact.value_parsed is not null
+    and {{ measurement_runtime_queue_row_predicate(
+      'queue.data_source_name',
+      'queue.measured_at_silver',
+      'queue.cleanup_eligible_at'
+    ) }}
     and (
       state.data_source_name is null
       or (
-        values.measured_at_silver,
-        coalesce(values.cursor_id, -1),
-        values.extracted_at,
-        values.source_row_id
+        queue.measured_at_silver,
+        coalesce(queue.cursor_id, -1),
+        queue.extracted_at,
+        queue.source_row_id
       ) > (
         state.last_measured_at_silver,
         coalesce(state.last_cursor_id, -1),

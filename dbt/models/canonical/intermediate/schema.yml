@@ -78,8 +78,13 @@ models:
 
   - name: int_measurements_long
     description: >
-      Canonical long-form measurements union across sources defined in vars.measurements_sources.
-      Selects eligible source rows from int_measurement_timestamps_silver first, then explodes each row by configured variable.
+      Ephemeral runtime transformation that selects unprocessed or explicitly scoped queue rows and
+      explodes each source row by configured variable. It is inlined into production consumers and
+      does not retain historical rows.
+    config:
+      meta:
+        operational_role: inline_runtime_transformation
+        historical_contract: false
     columns:
       - name: station_code
         tests: [not_null]
@@ -122,8 +127,8 @@ models:
 
   - name: int_measurements_time_silver
     description: >
-      Compatibility view that preserves the historical long-grain time-silver interface while delegating
-      canonical time computation to int_measurement_timestamps_silver upstream of int_measurements_long.
+      Temporary compatibility view over the current recent or explicitly scoped runtime transformation.
+      It is not historical and broad ad hoc queries may be expensive because long SQL is inlined.
     columns:
       - name: data_source_name
         tests: [not_null]
@@ -144,10 +149,13 @@ models:
 
   - name: int_measurements_values_silver
     description: >
-      Silver value validation/cleaning output. Applies variable-specific validation and
-      forward-fills missing values from the last valid observation in the same source/station/variable stream to produce value_silver.
-      Materialized incrementally with per-stream anchor rows so downstream silver facts do not need to recompute the full value window on every run.
-      The fact model should only consume rows where measured_at_silver is not null and value_silver is not null.
+      Ephemeral value validation/cleaning transformation. It forward-fills from stream state during
+      normal runtime and from prior published silver during bounded historical processing, then inlines
+      into production consumers without retaining intermediate history.
+    config:
+      meta:
+        operational_role: inline_runtime_transformation
+        historical_contract: false
     columns:
       - name: source_row_id
         tests: [not_null]

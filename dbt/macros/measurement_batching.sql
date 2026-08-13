@@ -144,6 +144,16 @@
   ) }}
 {%- endmacro %}
 
+{% macro measurement_runtime_queue_row_predicate(source_column_name, measured_at_column_name, cleanup_eligible_column_name) -%}
+  {%- if flags.FULL_REFRESH -%}
+    {{ return("1=1") }}
+  {%- elif measurement_has_process_batch_scope() -%}
+    {{ return(measurement_process_row_predicate(source_column_name, measured_at_column_name)) }}
+  {%- else -%}
+    {{ return(cleanup_eligible_column_name ~ " is null") }}
+  {%- endif -%}
+{%- endmacro %}
+
 {% macro measurement_source_incremental_predicate(source_name, extracted_at_col) -%}
   {%- if measurement_has_ingest_batch_scope() -%}
     {{ return(measurement_ingest_extracted_at_predicate(extracted_at_col)) }}

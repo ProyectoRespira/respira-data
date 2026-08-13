@@ -84,7 +84,7 @@ def test_ops_ddl_errors_remain_non_blocking_by_default(monkeypatch):
     db.ensure_ops_audit_tables(object())
 
 
-def test_production_values_anchor_from_ops_stream_state():
+def test_production_values_use_state_and_bounded_silver_anchors():
     sql = _read(
         "dbt/models/canonical/intermediate/int_measurements_values_silver.sql"
     ).lower()
@@ -97,7 +97,11 @@ def test_production_values_anchor_from_ops_stream_state():
     assert "state.last_measured_at_silver" in anchor_sql
     assert "coalesce(state.last_cursor_id, -1)" in anchor_sql
     assert ") < (" in anchor_sql
-    assert "join lateral" not in anchor_sql
+    assert "source('silver_runtime', 'fct_measurements_silver')" in anchor_sql
+    assert "join lateral" in anchor_sql
+    assert "fact.timestamp < first_targets.first_measured_at_silver" in anchor_sql
+    assert "measurement_batch_measured_at_from() is not none" in anchor_sql
+    assert "flags.full_refresh" in anchor_sql
     assert "from {{ this }} existing" not in anchor_sql
 
 
@@ -105,19 +109,19 @@ def test_production_state_refresh_only_uses_published_advances():
     sql = _read("dbt/models/canonical/ops/measurement_stream_state.sql").lower()
 
     assert "alias='measurement_stream_state'" in sql
-    assert "ref('int_measurements_values_silver')" in sql
+    assert "ref('int_measurements_values_silver')" not in sql
+    assert "ref('int_measurement_timestamps_silver')" in sql
     assert "ref('fct_measurements_silver')" in sql
-    assert "fact.source_row_id = values.source_row_id" in sql
-    assert "fact.timestamp = values.measured_at_silver" in sql
-    assert "fact.ingested_at = values.extracted_at" in sql
-    assert "fact.value_parsed is not distinct from values.value_silver" in sql
-    assert "coalesce(values.cursor_id, -1)" in sql
+    assert "fact.source_row_id = queue.source_row_id" in sql
+    assert "fact.timestamp = queue.measured_at_silver" in sql
+    assert "fact.ingested_at = queue.extracted_at" in sql
+    assert "fact.value_parsed as last_value_silver" in sql
+    assert "coalesce(queue.cursor_id, -1)" in sql
     assert ") > (" in sql
     assert "where rn = 1" in sql
     assert "now() as updated_at" in sql
     assert "does not support --full-refresh" in sql
-    assert "measurement_has_process_batch_scope()" in sql
-    assert "measurement_process_row_predicate" in sql
+    assert "measurement_runtime_queue_row_predicate" in sql
 
 
 def test_incremental_state_selector_targets_only_production_state_model():
@@ -138,3 +142,5 @@ def test_batch_process_selector_refreshes_state_after_publishing_silver():
 
     assert "models/canonical/silver/fct_measurements_silver.sql" in batch_selector
     assert "models/canonical/ops/measurement_stream_state.sql" in batch_selector
+    assert "int_measurements_long.sql" not in batch_selector
+    assert "int_measurements_values_silver.sql" not in batch_selector

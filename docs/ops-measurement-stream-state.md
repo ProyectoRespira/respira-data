@@ -86,8 +86,8 @@ rows is allowed as a cold start.
 
 ## Bootstrap Contract
 
-Before the publish-path cutover away from persisted intermediate history, run
-the manual Prefect deployment:
+To initialize or repair state independently of persisted intermediate history,
+run the manual Prefect deployment:
 
 - flow: `measurement_stream_state_bootstrap`
 - deployment: `measurement-stream-state-bootstrap`
@@ -95,17 +95,16 @@ the manual Prefect deployment:
 - schedule: none
 
 The flow uses the latest published row per stream from
-`silver.fct_measurements_silver` as the publication authority, then joins that
-small candidate set to `intermediate.int_measurements_values_silver`. The
-intermediate row supplies `cursor_id` and the complete deterministic watermark.
-The join must agree exactly on source identity, natural stream identity,
-canonical time, extraction time, and canonical value.
+`silver.fct_measurements_silver` as the publication authority. Dimensions
+supply the natural stream identity, and the recent timestamp queue supplies
+`cursor_id` when the matching source row is still retained. If it has aged out,
+bootstrap stores a null cursor; the other watermark fields remain complete and
+the next published runtime advance restores cursor-aware state.
 
 The bootstrap runs in one repeatable-read transaction and takes a transaction
 advisory lock. It fails and rolls back without partial state when:
 
 - no published streams are found
-- a published stream has no exact intermediate match
 - a candidate has an incomplete required state field
 - duplicate natural stream keys are found
 - post-write state has missing, extra, or mismatched rows

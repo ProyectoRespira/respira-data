@@ -15,8 +15,9 @@ Rules:
   incoming watermark is newer than the stored watermark.
 - Rerunning the same successful batch should be a no-op for the persisted state
   fields; `updated_at` should only change when the stored state changes.
-- Until the publish-path cutover is complete, the preferred bootstrap source is
-  `intermediate.int_measurements_values_silver` because it retains cursor-aware
-  ordering metadata not preserved in `silver.fct_measurements_silver`.
+- Bootstrap history comes from `silver.fct_measurements_silver`. The recent
+  timestamp queue supplies `last_cursor_id` when that source row is still
+  retained; otherwise bootstrap safely stores a null cursor and runtime refresh
+  restores cursor-aware state on the next published advance.
 
 {% enddocs %}

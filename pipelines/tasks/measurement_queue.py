@@ -17,8 +17,6 @@ else:
 
 INTERMEDIATE_SCHEMA = "intermediate"
 TIMESTAMP_QUEUE_TABLE = "int_measurement_timestamps_silver"
-MEASUREMENTS_LONG_TABLE = "int_measurements_long"
-MEASUREMENTS_VALUES_TABLE = "int_measurements_values_silver"
 
 
 def _cleanup_measurement_timestamp_queue(
@@ -51,12 +49,10 @@ def _cleanup_measurement_timestamp_queue(
 
     if include_null_time_rows:
         scope_clauses.append("q.measured_at_silver is null")
-        processed_table = MEASUREMENTS_LONG_TABLE
     else:
         # Null-time rows require their own successful process/test pass and
         # must never be marked by general incremental cleanup.
         scope_clauses.append("q.measured_at_silver is not null")
-        processed_table = MEASUREMENTS_VALUES_TABLE
         if measured_at_from is not None:
             scope_clauses.append("q.measured_at_silver >= :measured_at_from")
             params["measured_at_from"] = measured_at_from
@@ -64,25 +60,14 @@ def _cleanup_measurement_timestamp_queue(
             scope_clauses.append("q.measured_at_silver < :measured_at_to")
             params["measured_at_to"] = measured_at_to
 
-    # A timed queue row is marked only if it reached value validation; null-time
-    # rows are intentionally excluded there, so their dedicated pass is proved
-    # by the long model instead. The caller invokes this task after silver
-    # publish, stream-state refresh, and smoke-test gates, making the timestamp
-    # the durable eligibility record for recent rows that cannot be deleted yet.
+    # The caller invokes this task only after silver publish, stream-state
+    # refresh, and scoped smoke-test gates. Those gates are the durable proof
+    # that every queue row in this successful scope is eligible for retention.
     mark_query = text(
         f"""
         update {INTERMEDIATE_SCHEMA}.{TIMESTAMP_QUEUE_TABLE} q
         set cleanup_eligible_at = now()
         where {" and ".join(scope_clauses)}
-          and exists (
-            select 1
-            from {INTERMEDIATE_SCHEMA}.{processed_table} processed
-            where processed.data_source_name = q.data_source_name
-              and processed.source_row_id = q.source_row_id
-              and processed.extracted_at is not distinct from q.extracted_at
-              and processed.station_code is not distinct from q.station_code
-              and processed.measured_at_silver is not distinct from q.measured_at_silver
-          )
         """
     )
 
