@@ -72,10 +72,10 @@ Al iniciar `prefect_worker`, el script de bootstrap:
 1. espera a que Prefect API esté lista
 2. crea o actualiza los work pools `canonical` y `respira_gold`
 3. despliega `warehouse_bootstrap`, `measurement_stream_state_bootstrap`,
-   `canonical_shadow_publish`, `canonical_incremental` y
-   `canonical_full_refresh` en `canonical`
-4. verifica que los deployments manuales de bootstrap y shadow publish existan
-   en Prefect;
+   `canonical_shadow_publish`, `canonical_measurement_backfill`,
+   `canonical_incremental` y `canonical_full_refresh` en `canonical`
+4. verifica que los deployments manuales de bootstrap, shadow publish y
+   measurement backfill existan en Prefect;
    si falta uno, el worker falla antes de iniciar
 5. despliega `project_pipeline(project_code=respira_gold)` en `respira_gold`
 6. inicia un worker por cada work pool configurado
@@ -109,6 +109,11 @@ solo `silver.fct_measurements_silver_shadow` y
 un reset inicial desde el estado productivo y luego permite validar continuidad
 entre lotes sin reset. Ver `docs/canonical-shadow-publish.md` para parámetros,
 replay histórico, validación y rollback.
+
+`canonical-measurement-backfill` es manual, no tiene schedule y tiene
+concurrencia `1` con estrategia `ENQUEUE`. Se puede ejecutar desde Prefect UI
+con bounds acotados y luego repetir con `run_ingest=False` mientras las filas
+requeridas sigan en la cola de timestamps.
 
 ## Política actual
 

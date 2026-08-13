@@ -17,7 +17,7 @@
 -- * extracted_at is the incremental ingest checkpoint
 -- * measured_at_silver coordinates half-open process windows
 -- * rows remain resumable until a separate, post-success cleanup removes them
-{%- set sources_cfg = var('measurements_sources') -%}
+{% set sources_cfg = var('measurements_sources') -%}
 {%- set selected_source_names = get_selected_measurement_sources(sources_cfg) -%}
 
 with source_rows as (
