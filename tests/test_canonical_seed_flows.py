@@ -17,6 +17,7 @@ def _settings() -> SimpleNamespace:
     return SimpleNamespace(
         DBT_TARGET="prod",
         SLACK_WEBHOOK_URL=None,
+        MEASUREMENT_TIMESTAMP_QUEUE_RETENTION_HOURS=168,
     )
 
 
@@ -43,6 +44,10 @@ def _configure_common(monkeypatch, module):
     monkeypatch.setattr(module, "persist_dbt_audit", lambda *args: None)
     monkeypatch.setattr(module, "raise_if_failed", lambda *args: None)
     monkeypatch.setattr(module, "notify_flow_failure", lambda *args: None)
+    if hasattr(module, "cleanup_measurement_timestamp_queue"):
+        monkeypatch.setattr(
+            module, "cleanup_measurement_timestamp_queue", lambda *args, **kwargs: 0
+        )
     return engine
 
 
@@ -86,6 +91,7 @@ def test_canonical_incremental_seeds_and_tests_shared_core_before_models(monkeyp
         "run:canonical_incremental_core",
         "run:canonical_silver",
         "run:canonical_incremental_state",
+        "test:canonical_batch_smoke_tests",
     ]
     engine.dispose.assert_called_once_with()
 
@@ -132,7 +138,90 @@ def test_canonical_incremental_does_not_refresh_state_after_silver_failure(
         _call_flow(incremental_module.canonical_incremental)
 
     assert "run:canonical_incremental_state" not in execution_order
+    assert "test:canonical_batch_smoke_tests" not in execution_order
     engine.dispose.assert_called_once_with()
+
+
+def test_canonical_incremental_cleans_queue_only_after_smoke_success(monkeypatch):
+    execution_order: list[str] = []
+    _configure_common(monkeypatch, incremental_module)
+
+    monkeypatch.setattr(
+        incremental_module,
+        "dbt_deps",
+        lambda _settings: execution_order.append("deps") or _result("deps"),
+    )
+    monkeypatch.setattr(
+        incremental_module,
+        "dbt_seed_selector",
+        lambda _settings, selector: _result(f"seed:{selector}"),
+    )
+    monkeypatch.setattr(
+        incremental_module,
+        "dbt_run_selector",
+        lambda _settings, selector: (
+            execution_order.append(f"run:{selector}") or _result("run")
+        ),
+    )
+    monkeypatch.setattr(
+        incremental_module,
+        "dbt_test_selector",
+        lambda _settings, selector: (
+            execution_order.append(f"test:{selector}") or _result("test")
+        ),
+    )
+    monkeypatch.setattr(
+        incremental_module,
+        "cleanup_measurement_timestamp_queue",
+        lambda *_args, **_kwargs: execution_order.append("cleanup") or 12,
+    )
+
+    _call_flow(incremental_module.canonical_incremental)
+
+    assert execution_order[-4:] == [
+        "run:canonical_silver",
+        "run:canonical_incremental_state",
+        "test:canonical_batch_smoke_tests",
+        "cleanup",
+    ]
+
+
+def test_canonical_incremental_preserves_queue_when_smoke_tests_fail(monkeypatch):
+    _configure_common(monkeypatch, incremental_module)
+    cleanup = MagicMock()
+
+    monkeypatch.setattr(incremental_module, "dbt_deps", lambda _: _result("deps"))
+    monkeypatch.setattr(
+        incremental_module,
+        "dbt_seed_selector",
+        lambda _settings, selector: _result("seed"),
+    )
+    monkeypatch.setattr(
+        incremental_module,
+        "dbt_run_selector",
+        lambda _settings, selector: _result("run"),
+    )
+    monkeypatch.setattr(
+        incremental_module,
+        "dbt_test_selector",
+        lambda _settings, selector: _result("test"),
+    )
+    monkeypatch.setattr(
+        incremental_module,
+        "cleanup_measurement_timestamp_queue",
+        cleanup,
+    )
+
+    def _raise_on_smoke(_result, message):
+        if message == "canonical incremental smoke tests failed":
+            raise RuntimeError(message)
+
+    monkeypatch.setattr(incremental_module, "raise_if_failed", _raise_on_smoke)
+
+    with pytest.raises(RuntimeError, match="incremental smoke tests failed"):
+        _call_flow(incremental_module.canonical_incremental)
+
+    cleanup.assert_not_called()
 
 
 def test_canonical_incremental_notifies_when_stream_state_is_not_ready(monkeypatch):

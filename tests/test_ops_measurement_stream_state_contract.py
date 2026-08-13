@@ -116,6 +116,8 @@ def test_production_state_refresh_only_uses_published_advances():
     assert "where rn = 1" in sql
     assert "now() as updated_at" in sql
     assert "does not support --full-refresh" in sql
+    assert "measurement_has_process_batch_scope()" in sql
+    assert "measurement_process_row_predicate" in sql
 
 
 def test_incremental_state_selector_targets_only_production_state_model():
@@ -126,3 +128,13 @@ def test_incremental_state_selector_targets_only_production_state_model():
 
     assert "models/canonical/ops/measurement_stream_state.sql" in state_selector
     assert "models/canonical/shadow" not in state_selector
+
+
+def test_batch_process_selector_refreshes_state_after_publishing_silver():
+    selectors = _read("dbt/selectors.yml")
+    batch_selector = selectors.split("- name: canonical_batch_process", maxsplit=1)[
+        1
+    ].split("- name:", maxsplit=1)[0]
+
+    assert "models/canonical/silver/fct_measurements_silver.sql" in batch_selector
+    assert "models/canonical/ops/measurement_stream_state.sql" in batch_selector

@@ -81,7 +81,7 @@ selectors:
       value: models/canonical/intermediate/int_measurement_payloads.sql
 
   - name: canonical_batch_process
-    description: Post-validation measured-time processing path for batched measurement backfills.
+    description: Post-validation measured-time publish and stream-state refresh path for batched measurement backfills.
     definition:
       union:
         - method: path
@@ -90,6 +90,8 @@ selectors:
           value: models/canonical/intermediate/int_measurements_values_silver.sql
         - method: path
           value: models/canonical/silver/fct_measurements_silver.sql
+        - method: path
+          value: models/canonical/ops/measurement_stream_state.sql
 
   - name: canonical_batch_smoke_tests
     description: Source-scoped smoke tests for measurement backfills.

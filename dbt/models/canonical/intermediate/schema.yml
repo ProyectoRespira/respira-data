@@ -9,7 +9,8 @@ models:
       parsed-time pass-through before the wide-to-long explosion. Rows may be removed only after their
       process scope has published successfully, stream state has refreshed, and smoke tests have passed.
       Backfill continuation with run_ingest=False is supported only while all required source rows remain
-      in this queue.
+      in this queue. Automatic cleanup uses the configurable extraction-age retention floor and always
+      preserves one row at each source's newest extraction checkpoint edge.
     config:
       meta:
         operational_role: processing_queue
@@ -43,6 +44,8 @@ models:
         description: "True when measured_at_silver was imputed from prior valid continuity."
       - name: time_impute_method
         description: "Method used to repair time or the reason it could not be repaired."
+      - name: cleanup_eligible_at
+        description: "Set only after this row's silver publish, stream-state refresh, and smoke tests succeed; null means retention must not delete it."
     tests:
       - dbt_utils.unique_combination_of_columns:
           arguments:
