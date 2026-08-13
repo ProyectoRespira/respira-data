@@ -334,12 +334,20 @@ def canonical_measurement_backfill(
                 )
 
             if run_tests:
+                smoke_test_vars = _build_process_vars(
+                    data_source_name,
+                    measured_at_from=effective_from,
+                    measured_at_to=effective_to,
+                    include_null_time_rows=(
+                        effective_from is None
+                        and effective_to is None
+                        and null_time_row_count > 0
+                    ),
+                )
                 test_result = dbt_test_selector(
                     settings,
                     selector=SELECTOR_CANONICAL_BATCH_SMOKE_TESTS,
-                    vars_payload={
-                        "measurement_batch_data_source": data_source_name,
-                    },
+                    vars_payload=smoke_test_vars,
                 )
                 _persist_result(engine, test_result, ctx)
                 raise_if_failed(
