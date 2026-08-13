@@ -22,6 +22,17 @@ def test_timestamp_relation_has_incremental_queue_contract():
     assert "['data_source_name', 'measured_at_silver']" in sql
 
 
+def test_queue_contract_comment_does_not_comment_out_generated_cte():
+    sql = _read(
+        "dbt/models/canonical/intermediate/int_measurement_timestamps_silver.sql"
+    )
+
+    comment_end = "cleanup removes them\n"
+    assert comment_end in sql
+    assert comment_end + "{% set sources_cfg" in sql
+    assert comment_end + "{%- set sources_cfg" not in sql
+
+
 def test_incremental_checkpoint_is_derived_from_retained_queue_rows():
     macros = _read("dbt/macros/measurement_batching.sql")
     predicate = macros.split(
