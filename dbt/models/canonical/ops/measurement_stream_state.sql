@@ -56,6 +56,9 @@ published_candidates as (
   left join {{ this }} state
     using (data_source_name, station_code, variable_code)
   where values.value_silver is not null
+    {% if measurement_has_process_batch_scope() %}
+    and {{ measurement_process_row_predicate('values.data_source_name', 'values.measured_at_silver') }}
+    {% endif %}
     and (
       state.data_source_name is null
       or (

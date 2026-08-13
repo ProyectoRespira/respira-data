@@ -7,6 +7,7 @@ from sqlalchemy import inspect, text
 
 from pipelines.compat import flow, get_flow_context, get_run_logger
 from pipelines.config.selectors import (
+    SELECTOR_CANONICAL_BATCH_SMOKE_TESTS,
     SELECTOR_CANONICAL_INCREMENTAL_CORE,
     SELECTOR_CANONICAL_INCREMENTAL_STATE,
     SELECTOR_CANONICAL_SILVER,
@@ -27,6 +28,7 @@ from pipelines.tasks.dbt_tasks import (
     dbt_test_selector,
 )
 from pipelines.tasks.gates import raise_if_failed
+from pipelines.tasks.measurement_queue import cleanup_measurement_timestamp_queue
 from pipelines.tasks.notifications import notify_flow_failure
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -148,6 +150,25 @@ def canonical_incremental() -> None:
         state_summary = _summary_from_result(state_result)
         persist_dbt_audit(engine, state_result, state_summary, ctx)
         raise_if_failed(state_result, "canonical stream state refresh failed")
+
+        smoke_result = dbt_test_selector(
+            settings,
+            selector=SELECTOR_CANONICAL_BATCH_SMOKE_TESTS,
+        )
+        smoke_summary = _summary_from_result(smoke_result)
+        persist_dbt_audit(engine, smoke_result, smoke_summary, ctx)
+        raise_if_failed(smoke_result, "canonical incremental smoke tests failed")
+
+        deleted_rows = cleanup_measurement_timestamp_queue(
+            engine,
+            retention_hours=settings.MEASUREMENT_TIMESTAMP_QUEUE_RETENTION_HOURS,
+        )
+        logger.info(
+            "Cleaned %s eligible non-null timestamp queue rows outside the %s-hour "
+            "retention floor; null-time rows and one checkpoint row per source remain.",
+            deleted_rows,
+            settings.MEASUREMENT_TIMESTAMP_QUEUE_RETENTION_HOURS,
+        )
 
         logger.info("canonical_incremental completed successfully")
     except Exception as exc:  # noqa: BLE001

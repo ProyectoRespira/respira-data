@@ -25,6 +25,8 @@ dbt:
 - `DBT_TIMEOUT_PROJECT_S` default `1200`
 - `DBT_TIMEOUT_TESTS_S` default `1200`
 - `MEASUREMENT_BACKFILL_PROCESS_BATCH_HOURS` default `720`
+- `MEASUREMENT_TIMESTAMP_QUEUE_RETENTION_HOURS` default `168`; debe ser mayor
+  que cero
 - `MEASUREMENT_STREAM_STATE_BOOTSTRAP_TIMEOUT_S` default `1800`
 
 Inferencia:
@@ -114,6 +116,13 @@ replay histórico, validación y rollback.
 concurrencia `1` con estrategia `ENQUEUE`. Se puede ejecutar desde Prefect UI
 con bounds acotados y luego repetir con `run_ingest=False` mientras las filas
 requeridas sigan en la cola de timestamps.
+
+La limpieza de la cola ocurre automaticamente despues de publish silver,
+refresh de `ops.measurement_stream_state` y smoke tests exitosos. En backfills
+se ejecuta por ventana; con `run_tests=False` no se elimina nada. La limpieza
+incremental normal excluye filas null-time, y el borde `max(extracted_at)` de
+cada fuente siempre conserva una fila como checkpoint aunque sea mas antiguo
+que la retencion configurada.
 
 ## Política actual
 

@@ -175,6 +175,7 @@ def test_backfill_resume_stops_before_processing_when_queue_is_empty(monkeypatch
         DBT_TARGET="prod",
         SLACK_WEBHOOK_URL=None,
         MEASUREMENT_BACKFILL_PROCESS_BATCH_HOURS=24,
+        MEASUREMENT_TIMESTAMP_QUEUE_RETENTION_HOURS=168,
     )
     process_run = MagicMock()
 
@@ -229,6 +230,7 @@ def test_backfill_smoke_tests_receive_effective_queue_bounds(monkeypatch):
         DBT_TARGET="prod",
         SLACK_WEBHOOK_URL=None,
         MEASUREMENT_BACKFILL_PROCESS_BATCH_HOURS=48,
+        MEASUREMENT_TIMESTAMP_QUEUE_RETENTION_HOURS=168,
     )
     test_selector = MagicMock(return_value=result)
 
@@ -259,6 +261,12 @@ def test_backfill_smoke_tests_receive_effective_queue_bounds(monkeypatch):
     )
     monkeypatch.setattr(flow_module, "dbt_run_selector", lambda *args, **kwargs: result)
     monkeypatch.setattr(flow_module, "dbt_test_selector", test_selector)
+    cleanup = MagicMock(return_value=48)
+    monkeypatch.setattr(
+        flow_module,
+        "cleanup_measurement_timestamp_queue",
+        cleanup,
+    )
 
     _call_flow(
         flow_module.canonical_measurement_backfill,
@@ -277,4 +285,160 @@ def test_backfill_smoke_tests_receive_effective_queue_bounds(monkeypatch):
             "measurement_batch_measured_at_to": queue_to,
         },
     )
+    cleanup.assert_called_once_with(
+        engine,
+        retention_hours=168,
+        data_source_name="meteostat_airbyte",
+        measured_at_from=queue_from,
+        measured_at_to=queue_to,
+    )
+    engine.dispose.assert_called_once_with()
+
+
+def test_backfill_preserves_window_rows_when_smoke_tests_fail(monkeypatch):
+    from pipelines.flows import canonical_measurement_backfill as flow_module
+
+    queue_from = datetime(2026, 1, 1, tzinfo=UTC)
+    queue_max = queue_from + timedelta(hours=1)
+    engine = MagicMock()
+    result = SimpleNamespace(run_results_path=None)
+    settings = SimpleNamespace(
+        DBT_TARGET="prod",
+        SLACK_WEBHOOK_URL=None,
+        MEASUREMENT_BACKFILL_PROCESS_BATCH_HOURS=6,
+        MEASUREMENT_TIMESTAMP_QUEUE_RETENTION_HOURS=168,
+    )
+    cleanup = MagicMock()
+
+    monkeypatch.setattr(flow_module, "get_settings", lambda: settings)
+    monkeypatch.setattr(flow_module, "get_engine", lambda _settings: engine)
+    monkeypatch.setattr(flow_module, "ensure_ops_audit_tables", lambda _engine: None)
+    monkeypatch.setattr(flow_module, "get_flow_context", lambda: {})
+    monkeypatch.setattr(flow_module, "_git_sha", lambda: "abc123")
+    monkeypatch.setattr(flow_module, "dbt_deps", lambda _settings: result)
+    monkeypatch.setattr(flow_module, "_persist_result", lambda *args: {})
+    monkeypatch.setattr(flow_module, "notify_flow_failure", lambda *args: None)
+    monkeypatch.setattr(flow_module, "load_measurement_source_registry", lambda _: {})
+    monkeypatch.setattr(
+        flow_module,
+        "validate_measurement_sources",
+        lambda *_args, **_kwargs: ["meteostat_airbyte"],
+    )
+    monkeypatch.setattr(
+        flow_module,
+        "get_measurement_process_bounds",
+        lambda *_args: {
+            "min_measured_at": queue_from,
+            "max_measured_at": queue_max,
+            "null_time_row_count": 0,
+            "row_count": 2,
+        },
+    )
+    monkeypatch.setattr(flow_module, "dbt_run_selector", lambda *args, **kwargs: result)
+    monkeypatch.setattr(
+        flow_module, "dbt_test_selector", lambda *args, **kwargs: result
+    )
+    monkeypatch.setattr(flow_module, "cleanup_measurement_timestamp_queue", cleanup)
+
+    def _raise_on_smoke(_result, message):
+        if message.startswith("canonical batch smoke tests failed"):
+            raise RuntimeError(message)
+
+    monkeypatch.setattr(flow_module, "raise_if_failed", _raise_on_smoke)
+
+    with pytest.raises(RuntimeError, match="batch smoke tests failed"):
+        _call_flow(
+            flow_module.canonical_measurement_backfill,
+            data_sources=["meteostat_airbyte"],
+            run_prep=False,
+            run_ingest=False,
+            run_tests=True,
+        )
+
+    cleanup.assert_not_called()
+    engine.dispose.assert_called_once_with()
+
+
+def test_backfill_cleans_null_rows_only_after_dedicated_process_and_tests(monkeypatch):
+    from pipelines.flows import canonical_measurement_backfill as flow_module
+
+    engine = MagicMock()
+    result = SimpleNamespace(run_results_path=None)
+    settings = SimpleNamespace(
+        DBT_TARGET="prod",
+        SLACK_WEBHOOK_URL=None,
+        MEASUREMENT_BACKFILL_PROCESS_BATCH_HOURS=6,
+        MEASUREMENT_TIMESTAMP_QUEUE_RETENTION_HOURS=168,
+    )
+    execution_order: list[str] = []
+
+    monkeypatch.setattr(flow_module, "get_settings", lambda: settings)
+    monkeypatch.setattr(flow_module, "get_engine", lambda _settings: engine)
+    monkeypatch.setattr(flow_module, "ensure_ops_audit_tables", lambda _engine: None)
+    monkeypatch.setattr(flow_module, "get_flow_context", lambda: {})
+    monkeypatch.setattr(flow_module, "_git_sha", lambda: "abc123")
+    monkeypatch.setattr(flow_module, "dbt_deps", lambda _settings: result)
+    monkeypatch.setattr(flow_module, "_persist_result", lambda *args: {})
+    monkeypatch.setattr(flow_module, "raise_if_failed", lambda *args: None)
+    monkeypatch.setattr(flow_module, "notify_flow_failure", lambda *args: None)
+    monkeypatch.setattr(flow_module, "load_measurement_source_registry", lambda _: {})
+    monkeypatch.setattr(
+        flow_module,
+        "validate_measurement_sources",
+        lambda *_args, **_kwargs: ["fiuna_airbyte"],
+    )
+    monkeypatch.setattr(
+        flow_module,
+        "get_measurement_process_bounds",
+        lambda *_args: {
+            "min_measured_at": None,
+            "max_measured_at": None,
+            "null_time_row_count": 2,
+            "row_count": 2,
+        },
+    )
+    monkeypatch.setattr(
+        flow_module,
+        "dbt_run_selector",
+        lambda *_args, **kwargs: (
+            execution_order.append(
+                f"process:null={kwargs['vars_payload'].get('measurement_batch_include_null_time_rows', False)}"
+            )
+            or result
+        ),
+    )
+    monkeypatch.setattr(
+        flow_module,
+        "dbt_test_selector",
+        lambda *_args, **kwargs: (
+            execution_order.append(
+                f"test:null={kwargs['vars_payload'].get('measurement_batch_include_null_time_rows', False)}"
+            )
+            or result
+        ),
+    )
+    monkeypatch.setattr(
+        flow_module,
+        "cleanup_measurement_timestamp_queue",
+        lambda *_args, **kwargs: (
+            execution_order.append(
+                f"cleanup:null={kwargs.get('include_null_time_rows', False)}"
+            )
+            or 2
+        ),
+    )
+
+    _call_flow(
+        flow_module.canonical_measurement_backfill,
+        data_sources=["fiuna_airbyte"],
+        run_prep=False,
+        run_ingest=False,
+        run_tests=True,
+    )
+
+    assert execution_order == [
+        "process:null=True",
+        "test:null=True",
+        "cleanup:null=True",
+    ]
     engine.dispose.assert_called_once_with()
