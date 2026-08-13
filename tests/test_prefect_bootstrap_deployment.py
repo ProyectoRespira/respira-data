@@ -9,6 +9,20 @@ def _read(relative_path: str) -> str:
     return (REPO_ROOT / relative_path).read_text(encoding="utf-8")
 
 
+def _deployment_block(script: str, deployment_name: str) -> str:
+    return script.split(f'"{deployment_name}"', maxsplit=1)[1].split(
+        "deploy_flow", maxsplit=1
+    )[0]
+
+
+def _assert_manual_deploy_call(script: str, deployment_name: str) -> None:
+    block = _deployment_block(script, deployment_name)
+    assert '"${PREFECT_CANONICAL_WORK_POOL}"' in block
+    assert '""' in block
+    assert "--concurrency-limit 1" in block
+    assert "--collision-strategy ENQUEUE" in block
+
+
 def test_worker_start_registers_manual_warehouse_bootstrap_deployment():
     script = _read("scripts/prefect_worker_start.sh")
 
@@ -30,14 +44,8 @@ def test_worker_start_registers_and_verifies_stream_state_bootstrap_deployment()
         '"measurement_stream_state_bootstrap/measurement-stream-state-bootstrap"'
         in script
     )
-    assert (
-        '"warehouse-bootstrap" \\\n    "${PREFECT_CANONICAL_WORK_POOL}" \\\n    "" \\\n    --concurrency-limit 1 \\\n    --collision-strategy ENQUEUE'
-        in script
-    )
-    assert (
-        '"measurement-stream-state-bootstrap" \\\n    "${PREFECT_CANONICAL_WORK_POOL}" \\\n    "" \\\n    --concurrency-limit 1 \\\n    --collision-strategy ENQUEUE'
-        in script
-    )
+    _assert_manual_deploy_call(script, "warehouse-bootstrap")
+    _assert_manual_deploy_call(script, "measurement-stream-state-bootstrap")
 
 
 def test_checked_in_warehouse_bootstrap_deployment_is_manual_only():
@@ -77,8 +85,7 @@ def test_worker_start_registers_and_verifies_shadow_publish_deployment():
         'verify_deployment "canonical_shadow_publish/canonical-shadow-publish"'
         in script
     )
-    assert "--concurrency-limit 1" in script
-    assert "--collision-strategy ENQUEUE" in script
+    _assert_manual_deploy_call(script, "canonical-shadow-publish")
 
 
 def test_checked_in_shadow_publish_deployment_is_manual_only():
@@ -91,4 +98,30 @@ def test_checked_in_shadow_publish_deployment_is_manual_only():
     )
     assert "name: canonical" in deployment
     assert "limit: 1" in deployment
+    assert "schedules:" not in deployment
+
+
+def test_worker_start_registers_and_verifies_measurement_backfill_deployment():
+    script = _read("scripts/prefect_worker_start.sh")
+
+    assert (
+        "pipelines/flows/canonical_measurement_backfill.py:"
+        "canonical_measurement_backfill" in script
+    )
+    assert '"canonical-measurement-backfill"' in script
+    assert '"canonical_measurement_backfill/canonical-measurement-backfill"' in script
+    _assert_manual_deploy_call(script, "canonical-measurement-backfill")
+
+
+def test_checked_in_measurement_backfill_deployment_is_manual_only():
+    deployment = _read("pipelines/deployments/canonical_measurement_backfill.yaml")
+
+    assert "name: canonical-measurement-backfill" in deployment
+    assert (
+        "entrypoint: pipelines/flows/canonical_measurement_backfill.py:"
+        "canonical_measurement_backfill" in deployment
+    )
+    assert "name: canonical" in deployment
+    assert "limit: 1" in deployment
+    assert "collision_strategy: ENQUEUE" in deployment
     assert "schedules:" not in deployment

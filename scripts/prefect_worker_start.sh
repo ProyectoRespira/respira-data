@@ -164,11 +164,20 @@ main() {
     "" \
     --concurrency-limit 1 \
     --collision-strategy ENQUEUE
+  deploy_flow \
+    "pipelines/flows/canonical_measurement_backfill.py:canonical_measurement_backfill" \
+    "canonical-measurement-backfill" \
+    "${PREFECT_CANONICAL_WORK_POOL}" \
+    "" \
+    --concurrency-limit 1 \
+    --collision-strategy ENQUEUE
 
   verify_deployment "warehouse_bootstrap/warehouse-bootstrap"
   verify_deployment \
     "measurement_stream_state_bootstrap/measurement-stream-state-bootstrap"
   verify_deployment "canonical_shadow_publish/canonical-shadow-publish"
+  verify_deployment \
+    "canonical_measurement_backfill/canonical-measurement-backfill"
 
   deploy_flow \
     "pipelines/flows/canonical_incremental.py:canonical_incremental" \
