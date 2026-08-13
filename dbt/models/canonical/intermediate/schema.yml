@@ -3,12 +3,24 @@ version: 2
 models:
   - name: int_measurement_timestamps_silver
     description: >
-      Generic row-grain canonical timestamp output. Prepared sources provide their canonical time fields;
-      simple sources use parsed-time pass-through before the wide-to-long explosion.
+      Recent row-grain processing queue for canonical timestamps. It supplies per-source incremental
+      checkpoints, measured-time process bounds, and resumable backfill input; it is not a historical
+      analytical contract. Prepared sources provide their canonical time fields and simple sources use
+      parsed-time pass-through before the wide-to-long explosion. Rows may be removed only after their
+      process scope has published successfully, stream state has refreshed, and smoke tests have passed.
+      Backfill continuation with run_ingest=False is supported only while all required source rows remain
+      in this queue.
+    config:
+      meta:
+        operational_role: processing_queue
+        grain: data_source_name, source_row_id
+        historical_contract: false
     columns:
       - name: source_row_id
+        description: "Source-local row identity; unique together with data_source_name and stable across retries."
         tests: [not_null]
       - name: extracted_at
+        description: "Source extraction timestamp used as the per-source incremental ingest checkpoint."
         tests: [not_null]
       - name: data_source_name
         tests:
@@ -25,7 +37,7 @@ models:
         description: "Raw parsed timestamp (UTC) from source."
       - name: is_measured_at_valid
       - name: measured_at_silver
-        description: "Final canonical timestamp after time cleaning. May be null when no valid timestamp exists and no imputation is possible."
+        description: "Final canonical timestamp after time cleaning and the basis for half-open process windows. May be null when no valid timestamp exists and no imputation is possible."
       - name: is_time_imputed
         tests: [not_null]
         description: "True when measured_at_silver was imputed from prior valid continuity."

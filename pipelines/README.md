@@ -63,7 +63,7 @@ Desde raíz del repositorio:
 - `make run-project-inference`
 
 `canonical_measurement_backfill` no reconstruye `int_measurement_payloads` por defecto. Ese modelo queda como auditoria opcional de payloads crudos y se puede activar con `include_payload_audit=True` cuando haga falta.
-Tambien admite `run_prep=False` y `run_ingest=False` para retomar una corrida pesada ya materializada sin rehacer staging global ni el aterrizaje row-grain.
+Tambien admite `run_prep=False` y `run_ingest=False` para retomar una corrida pesada ya materializada sin rehacer staging global ni el aterrizaje row-grain. `run_ingest=False` solo esta soportado mientras todas las filas necesarias sigan retenidas en la cola `intermediate.int_measurement_timestamps_silver`; si ya fueron limpiadas, el flujo falla y se debe repetir con `run_ingest=True`. El contrato completo de granularidad, bounds y elegibilidad de limpieza esta en `docs/measurement-timestamp-queue.md`.
 
 ## Deployments automáticos
 

@@ -125,6 +125,39 @@ def _effective_process_bounds(
     return effective_from, effective_to
 
 
+def _validate_resume_queue_available(
+    data_source_name: str,
+    source_bounds: MeasurementProcessBounds,
+    effective_from: datetime | None,
+    effective_to: datetime | None,
+    process_measured_at_from: datetime | None,
+    process_measured_at_to: datetime | None,
+) -> None:
+    """Fail a resume that cannot be satisfied from the retained queue."""
+    row_count = int(source_bounds.get("row_count", 0))
+    null_time_row_count = int(source_bounds.get("null_time_row_count", 0))
+
+    if row_count == 0:
+        raise RuntimeError(
+            "Cannot resume backfill with run_ingest=False: no rows for "
+            f"data_source_name={data_source_name} remain in "
+            "intermediate.int_measurement_timestamps_silver. Re-run with "
+            "run_ingest=True to land the required source rows again."
+        )
+
+    requested_timed_scope = (
+        process_measured_at_from is not None or process_measured_at_to is not None
+    )
+    timed_scope_available = effective_from is not None and effective_to is not None
+    if requested_timed_scope and not timed_scope_available and null_time_row_count == 0:
+        raise RuntimeError(
+            "Cannot resume backfill with run_ingest=False: the requested measured-time "
+            f"scope for data_source_name={data_source_name} is not present in "
+            "intermediate.int_measurement_timestamps_silver. The queue may have been "
+            "cleaned; re-run with run_ingest=True to land the required source rows again."
+        )
+
+
 @flow(name="canonical_measurement_backfill")
 def canonical_measurement_backfill(
     data_sources: list[str] | None = None,
@@ -224,7 +257,7 @@ def canonical_measurement_backfill(
                     )
             else:
                 logger.info(
-                    "Skipping canonical batch ingest; assuming source-row timestamps and streams already exist for data_source_name=%s.",
+                    "Skipping canonical batch ingest; validating that source-row timestamps remain in the processing queue and streams already exist for data_source_name=%s.",
                     data_source_name,
                 )
 
@@ -234,6 +267,21 @@ def canonical_measurement_backfill(
                 process_measured_at_from,
                 process_measured_at_to,
             )
+
+            if not run_ingest:
+                _validate_resume_queue_available(
+                    data_source_name,
+                    source_bounds,
+                    effective_from,
+                    effective_to,
+                    process_measured_at_from,
+                    process_measured_at_to,
+                )
+                logger.info(
+                    "Resuming from retained timestamp queue rows for data_source_name=%s; "
+                    "resume is supported only while the required queue rows remain.",
+                    data_source_name,
+                )
 
             process_windows = build_measured_at_windows(
                 effective_from,
