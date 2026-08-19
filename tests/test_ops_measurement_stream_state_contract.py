@@ -140,6 +140,7 @@ def test_incremental_state_selector_targets_only_production_state_model():
 
 def test_batch_process_selector_refreshes_state_after_publishing_silver():
     selectors = _read("dbt/selectors.yml")
+    state_model = _read("dbt/models/canonical/ops/measurement_stream_state.sql")
     batch_selector = selectors.split("- name: canonical_batch_process", maxsplit=1)[
         1
     ].split("- name:", maxsplit=1)[0]
@@ -148,3 +149,4 @@ def test_batch_process_selector_refreshes_state_after_publishing_silver():
     assert "models/canonical/ops/measurement_stream_state.sql" in batch_selector
     assert "int_measurements_long.sql" not in batch_selector
     assert "int_measurements_values_silver.sql" not in batch_selector
+    assert "depends_on: {{ ref('fct_measurements_silver') }}" in state_model

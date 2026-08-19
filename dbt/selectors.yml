@@ -1,6 +1,6 @@
 selectors:
   - name: canonical_core
-    description: Canonical staging, intermediate, and core models.
+    description: Canonical staging, executable runtime intermediate, and core models without opt-in audits or standalone ephemeral nodes.
     definition:
       union:
         - method: path
@@ -9,6 +9,13 @@ selectors:
           value: models/canonical/intermediate
         - method: path
           value: models/canonical/core
+        - exclude:
+            - method: path
+              value: models/canonical/intermediate/int_measurement_payloads.sql
+            - method: path
+              value: models/canonical/intermediate/int_measurements_long.sql
+            - method: path
+              value: models/canonical/intermediate/int_measurements_values_silver.sql
 
   - name: canonical_silver
     description: Canonical silver models.
@@ -23,7 +30,7 @@ selectors:
       value: models/canonical/ops/measurement_stream_state.sql
 
   - name: canonical_incremental_core
-    description: Canonical runtime core path for normal incrementals. Refreshes persisted FIUNA repair and station caches while skipping pure staging views.
+    description: Canonical executable runtime core path for normal incrementals. Ephemeral measurement transformations are pulled inline only by consumers.
     definition:
       union:
         - method: path
@@ -36,6 +43,13 @@ selectors:
           value: models/canonical/intermediate
         - method: path
           value: models/canonical/core
+        - exclude:
+            - method: path
+              value: models/canonical/intermediate/int_measurement_payloads.sql
+            - method: path
+              value: models/canonical/intermediate/int_measurements_long.sql
+            - method: path
+              value: models/canonical/intermediate/int_measurements_values_silver.sql
 
   - name: canonical_batch_prep
     description: Stateless staging and prerequisite canonical dimensions for measurement backfills. FIUNA repaired/public staging runs in scoped batch ingest.
@@ -75,7 +89,7 @@ selectors:
           value: models/canonical/core/dim_streams.sql
 
   - name: canonical_batch_payload_audit
-    description: Optional raw payload audit path for batched measurement backfills.
+    description: Explicit raw payload audit path for requested batched measurement backfills.
     definition:
       method: path
       value: models/canonical/intermediate/int_measurement_payloads.sql
@@ -92,8 +106,17 @@ selectors:
   - name: canonical_debug_intermediate
     description: Explicit bounded materialization of long and value intermediates for manual investigation.
     definition:
+      union:
+        - method: path
+          value: models/canonical/debug/debug_int_measurements_long.sql
+        - method: path
+          value: models/canonical/debug/debug_int_measurements_values_silver.sql
+
+  - name: canonical_debug_payload_audit
+    description: Explicit bounded raw payload materialization for manual investigation.
+    definition:
       method: path
-      value: models/canonical/debug
+      value: models/canonical/debug/debug_int_measurement_payloads.sql
 
   - name: canonical_batch_smoke_tests
     description: Source-scoped smoke tests for measurement backfills.
@@ -259,7 +282,7 @@ selectors:
               value: tests/respira_gold
 
   - name: canonical_full_refresh
-    description: Safe full-refresh scope for canonical models.
+    description: Safe full-refresh scope without opt-in payload audit or standalone ephemeral runtime nodes.
     definition:
       union:
         - method: path
@@ -270,3 +293,10 @@ selectors:
           value: models/canonical/core
         - method: path
           value: models/canonical/silver
+        - exclude:
+            - method: path
+              value: models/canonical/intermediate/int_measurement_payloads.sql
+            - method: path
+              value: models/canonical/intermediate/int_measurements_long.sql
+            - method: path
+              value: models/canonical/intermediate/int_measurements_values_silver.sql

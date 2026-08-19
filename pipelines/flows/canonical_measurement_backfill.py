@@ -177,6 +177,12 @@ def canonical_measurement_backfill(
     run_project_models_after: bool = False,
     include_payload_audit: bool = False,
 ) -> None:
+    if include_payload_audit and not run_ingest:
+        raise ValueError(
+            "include_payload_audit=True requires run_ingest=True because payload "
+            "audit rows are built from the explicit ingest scope."
+        )
+
     logger = get_run_logger()
     settings = get_settings()
     effective_process_batch_hours = int(

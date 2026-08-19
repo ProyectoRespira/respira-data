@@ -55,8 +55,9 @@ models:
 
   - name: int_measurement_payloads
     description: >
-      One-row-per-source-record payload store for audit/debug.
-      Keeps raw JSON exactly once per ingested source row.
+      Explicit backfill-only one-row-per-source-record payload audit store.
+      Normal production selectors skip this model; bounded manual inspection
+      uses the separate debug_int_measurement_payloads table.
     columns:
       - name: source_row_id
         tests: [not_null]

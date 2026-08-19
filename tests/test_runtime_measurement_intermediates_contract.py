@@ -25,6 +25,29 @@ def test_runtime_long_and_values_models_are_ephemeral():
     assert "{{ this }}" not in values_sql
 
 
+def test_production_selectors_exclude_standalone_runtime_intermediates():
+    selectors = _read("dbt/selectors.yml")
+    compatibility_view = _read(
+        "dbt/models/canonical/intermediate/int_measurements_time_silver.sql"
+    )
+
+    for selector_name in (
+        "canonical_core",
+        "canonical_incremental_core",
+        "canonical_full_refresh",
+    ):
+        selector = selectors.split(f"- name: {selector_name}", maxsplit=1)[1]
+        selector = selector.split("- name:", maxsplit=1)[0]
+        assert "exclude:" in selector
+        assert "int_measurements_long.sql" in selector
+        assert "int_measurements_values_silver.sql" in selector
+        assert "int_measurement_payloads.sql" in selector
+        assert "int_measurements_time_silver.sql" not in selector
+
+    assert "materialized='view'" in compatibility_view
+    assert "ref('int_measurements_long')" in compatibility_view
+
+
 def test_runtime_queue_selection_uses_unmarked_rows_or_explicit_scope():
     long_sql = _read("dbt/models/canonical/intermediate/int_measurements_long.sql")
     batching_sql = _read("dbt/macros/measurement_batching.sql")
@@ -55,16 +78,28 @@ def test_debug_models_are_explicit_bounded_tables_in_intermediate_schema():
     debug_values = _read(
         "dbt/models/canonical/debug/debug_int_measurements_values_silver.sql"
     )
+    debug_payloads = _read(
+        "dbt/models/canonical/debug/debug_int_measurement_payloads.sql"
+    )
 
     assert "debug:\n        +schema: intermediate" in project
     assert "- name: canonical_debug_intermediate" in selectors
-    assert "value: models/canonical/debug" in selectors
+    assert "models/canonical/debug/debug_int_measurements_long.sql" in selectors
+    assert (
+        "models/canonical/debug/debug_int_measurements_values_silver.sql" in selectors
+    )
+    assert "- name: canonical_debug_payload_audit" in selectors
+    assert "models/canonical/debug/debug_int_measurement_payloads.sql" in selectors
     assert "measurement_batch_data_source" in debug_macro
     assert "requires both measured-time bounds" in debug_macro
+    assert "requires both extracted-time bounds" in debug_macro
     assert "materialized='table'" in debug_long
     assert "materialized='table'" in debug_values
+    assert "materialized='table'" in debug_payloads
     assert "alias='debug_int_measurements_long'" in debug_long
     assert "alias='debug_int_measurements_values_silver'" in debug_values
+    assert "alias='debug_int_measurement_payloads'" in debug_payloads
+    assert "measurement_payloads_from_source" in debug_payloads
 
 
 def test_retirement_operation_is_confirmed_paired_and_reversible():
@@ -78,6 +113,33 @@ def test_retirement_operation_is_confirmed_paired_and_reversible():
     assert "_pre_ephemeral" in macro
     assert "both runtime relations must move together" in macro
     assert "refusing to manage non-table relation" in macro.lower()
+
+
+def test_payload_audit_is_explicit_and_has_guarded_retirement():
+    selectors = _read("dbt/selectors.yml")
+    payload_model = _read(
+        "dbt/models/canonical/intermediate/int_measurement_payloads.sql"
+    )
+    payload_guard = _read("dbt/macros/measurement_payload_audit.sql")
+    retirement = _read("dbt/macros/manage_measurement_payload_audit.sql")
+
+    for selector_name in (
+        "canonical_core",
+        "canonical_incremental_core",
+        "canonical_full_refresh",
+    ):
+        selector = selectors.split(f"- name: {selector_name}", maxsplit=1)[1]
+        selector = selector.split("- name:", maxsplit=1)[0]
+        assert "exclude:" in selector
+        assert "int_measurement_payloads.sql" in selector
+
+    assert "- name: canonical_batch_payload_audit" in selectors
+    assert "validate_measurement_payload_audit_scope" in payload_model
+    assert "requires an explicit measurement_batch_data_source" in payload_guard
+    assert "confirm: true" in retirement
+    assert "_pre_opt_in" in retirement
+    assert "canonical_relation is not none" in retirement
+    assert "drop table {{ backup_relation }}" in retirement
 
 
 def test_scoped_smoke_test_uses_exact_runtime_and_cutover_coverage_gates():
