@@ -27,6 +27,10 @@ dbt:
 - `MEASUREMENT_BACKFILL_PROCESS_BATCH_HOURS` default `720`
 - `MEASUREMENT_TIMESTAMP_QUEUE_RETENTION_HOURS` default `168`; debe ser mayor
   que cero
+- `MEASUREMENT_INCREMENTAL_MAX_EXPANDED_ROWS` default `2000000`; un incremental
+  que excede este limite falla antes de publicar silver
+- `MEASUREMENT_QUEUE_CUTOVER_BATCH_HOURS` default `168`
+- `MEASUREMENT_QUEUE_CUTOVER_MAX_QUEUE_ROWS` default `250000`
 - `MEASUREMENT_STREAM_STATE_BOOTSTRAP_TIMEOUT_S` default `1800`
 
 Inferencia:
@@ -50,6 +54,7 @@ Alertas:
 - `pipelines/flows/canonical_incremental.py:canonical_incremental`
 - `pipelines/flows/canonical_full_refresh.py:canonical_full_refresh`
 - `pipelines/flows/canonical_measurement_backfill.py:canonical_measurement_backfill`
+- `pipelines/flows/canonical_measurement_queue_cutover.py:canonical_measurement_queue_cutover`
 - `pipelines/flows/project_inference.py:project_inference`
 - `pipelines/flows/project_pipeline.py:project_pipeline`
 
@@ -61,6 +66,7 @@ Desde raíz del repositorio:
 - `make run-canonical-incremental`
 - `make run-canonical-full-refresh`
 - `make run-canonical-measurement-backfill`
+- `make run-canonical-measurement-queue-cutover-plan`
 - `make run-project-pipeline`
 - `make run-project-inference`
 
@@ -75,9 +81,10 @@ Al iniciar `prefect_worker`, el script de bootstrap:
 2. crea o actualiza los work pools `canonical` y `respira_gold`
 3. despliega `warehouse_bootstrap`, `measurement_stream_state_bootstrap`,
    `canonical_shadow_publish`, `canonical_measurement_backfill`,
+   `canonical_measurement_queue_cutover`,
    `canonical_incremental` y `canonical_full_refresh` en `canonical`
 4. verifica que los deployments manuales de bootstrap, shadow publish y
-   measurement backfill existan en Prefect;
+   measurement backfill y queue cutover existan en Prefect;
    si falta uno, el worker falla antes de iniciar
 5. despliega `project_pipeline(project_code=respira_gold)` en `respira_gold`
 6. inicia un worker por cada work pool configurado
