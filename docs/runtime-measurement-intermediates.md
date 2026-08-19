@@ -5,6 +5,11 @@ models. Production runs inline their SQL into silver publication and do not
 create or update historical relations with those names. Published history
 continues to live in `silver.fct_measurements_silver`.
 
+The broad `canonical_core`, `canonical_incremental_core`, and
+`canonical_full_refresh` selectors explicitly exclude the two ephemeral models
+as standalone nodes. dbt still compiles them automatically when selected
+consumers such as silver or the compatibility view reference them.
+
 ## Runtime selection and carry-in state
 
 Normal incrementals process timestamp queue rows whose `cleanup_eligible_at` is
@@ -189,12 +194,18 @@ cancellable subprocess runner, even if `DBT_USE_PREFECT_DBT=true`.
 
 ## Demo acceptance
 
-1. Record count and checksum evidence for a bounded silver window.
-2. Run the scoped backfill with smoke tests enabled.
-3. Quarantine the legacy tables.
-4. Repeat the scoped backfill and run `canonical_incremental` twice.
-5. Confirm silver is unchanged, the second incremental is idempotent, stream
-   state does not regress, retention succeeds, and no missing-relation error
+1. Record count/checksum evidence for bounded silver, stream-state watermarks,
+   queue counts, and legacy relation sizes.
+2. Run both bounded debug selectors independently.
+3. Run a scoped backfill without payload audit, then one small ingest with
+   `include_payload_audit=True`.
+4. Resume a retained window with `run_ingest=False` and verify missing retained
+   input fails explicitly.
+5. Quarantine the historical payload audit table and verify normal runtime and
+   bounded payload debugging do not recreate it.
+6. Run `canonical_incremental` twice and verify the second run is idempotent.
+7. Quarantine the legacy long/value tables as the final cutover step.
+8. Repeat bounded debug, backfill, and incremental validation; confirm silver
+   is unchanged, state does not regress, retention succeeds, and no runtime SQL
    references the quarantined tables.
-6. Run the debug selector for the same scope.
-7. Drop the quarantined tables only after the observation period.
+9. Drop quarantined relations only after the observation period.

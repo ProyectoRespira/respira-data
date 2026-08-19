@@ -31,7 +31,9 @@ def _call_flow(flow_or_fn, *args, **kwargs):
 def _stub_backfill_run_logger(monkeypatch):
     from pipelines.flows import canonical_measurement_backfill as flow_module
 
-    monkeypatch.setattr(flow_module, "get_run_logger", MagicMock(return_value=MagicMock()))
+    monkeypatch.setattr(
+        flow_module, "get_run_logger", MagicMock(return_value=MagicMock())
+    )
     monkeypatch.setattr(
         flow_module,
         "build_measured_at_windows",

@@ -132,10 +132,12 @@ cada fuente siempre conserva una fila como checkpoint aunque sea mas antiguo
 que la retencion configurada.
 
 `int_measurements_long` e `int_measurements_values_silver` son transformaciones
-ephemeral en runtime: dbt las inserta como CTEs y no persiste su historico. Para
-inspeccion manual, `canonical_debug_intermediate` materializa tablas `debug_*`
-solamente con source y ventana acotados. El retiro reversible de las tablas
-legacy esta documentado en `docs/runtime-measurement-intermediates.md`.
+ephemeral en runtime: los selectores productivos las excluyen como nodos
+independientes y dbt las inserta como CTEs solamente cuando un consumidor las
+referencia. Para inspeccion manual, `canonical_debug_intermediate` materializa
+tablas `debug_*` solamente con source y ventana acotados. El retiro reversible
+de las tablas legacy esta documentado en
+`docs/runtime-measurement-intermediates.md`.
 
 ## Política actual
 

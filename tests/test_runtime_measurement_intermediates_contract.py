@@ -25,6 +25,29 @@ def test_runtime_long_and_values_models_are_ephemeral():
     assert "{{ this }}" not in values_sql
 
 
+def test_production_selectors_exclude_standalone_runtime_intermediates():
+    selectors = _read("dbt/selectors.yml")
+    compatibility_view = _read(
+        "dbt/models/canonical/intermediate/int_measurements_time_silver.sql"
+    )
+
+    for selector_name in (
+        "canonical_core",
+        "canonical_incremental_core",
+        "canonical_full_refresh",
+    ):
+        selector = selectors.split(f"- name: {selector_name}", maxsplit=1)[1]
+        selector = selector.split("- name:", maxsplit=1)[0]
+        assert "exclude:" in selector
+        assert "int_measurements_long.sql" in selector
+        assert "int_measurements_values_silver.sql" in selector
+        assert "int_measurement_payloads.sql" in selector
+        assert "int_measurements_time_silver.sql" not in selector
+
+    assert "materialized='view'" in compatibility_view
+    assert "ref('int_measurements_long')" in compatibility_view
+
+
 def test_runtime_queue_selection_uses_unmarked_rows_or_explicit_scope():
     long_sql = _read("dbt/models/canonical/intermediate/int_measurements_long.sql")
     batching_sql = _read("dbt/macros/measurement_batching.sql")
@@ -62,7 +85,9 @@ def test_debug_models_are_explicit_bounded_tables_in_intermediate_schema():
     assert "debug:\n        +schema: intermediate" in project
     assert "- name: canonical_debug_intermediate" in selectors
     assert "models/canonical/debug/debug_int_measurements_long.sql" in selectors
-    assert "models/canonical/debug/debug_int_measurements_values_silver.sql" in selectors
+    assert (
+        "models/canonical/debug/debug_int_measurements_values_silver.sql" in selectors
+    )
     assert "- name: canonical_debug_payload_audit" in selectors
     assert "models/canonical/debug/debug_int_measurement_payloads.sql" in selectors
     assert "measurement_batch_data_source" in debug_macro
