@@ -18,6 +18,7 @@ def _settings() -> SimpleNamespace:
         DBT_TARGET="prod",
         SLACK_WEBHOOK_URL=None,
         MEASUREMENT_TIMESTAMP_QUEUE_RETENTION_HOURS=168,
+        MEASUREMENT_INCREMENTAL_MAX_EXPANDED_ROWS=2_000_000,
     )
 
 
@@ -47,6 +48,10 @@ def _configure_common(monkeypatch, module):
     if hasattr(module, "cleanup_measurement_timestamp_queue"):
         monkeypatch.setattr(
             module, "cleanup_measurement_timestamp_queue", lambda *args, **kwargs: 0
+        )
+    if hasattr(module, "validate_incremental_queue_workload"):
+        monkeypatch.setattr(
+            module, "validate_incremental_queue_workload", lambda *args: []
         )
     return engine
 
@@ -139,6 +144,54 @@ def test_canonical_incremental_does_not_refresh_state_after_silver_failure(
 
     assert "run:canonical_incremental_state" not in execution_order
     assert "test:canonical_batch_smoke_tests" not in execution_order
+    engine.dispose.assert_called_once_with()
+
+
+def test_canonical_incremental_stops_before_silver_above_workload_cap(monkeypatch):
+    execution_order: list[str] = []
+    engine = _configure_common(monkeypatch, incremental_module)
+
+    monkeypatch.setattr(
+        incremental_module,
+        "dbt_deps",
+        lambda _settings: execution_order.append("deps") or _result("deps"),
+    )
+    monkeypatch.setattr(
+        incremental_module,
+        "dbt_seed_selector",
+        lambda _settings, selector: (
+            execution_order.append(f"seed:{selector}") or _result("seed")
+        ),
+    )
+    monkeypatch.setattr(
+        incremental_module,
+        "dbt_test_selector",
+        lambda _settings, selector: (
+            execution_order.append(f"test:{selector}") or _result("test")
+        ),
+    )
+    monkeypatch.setattr(
+        incremental_module,
+        "dbt_run_selector",
+        lambda _settings, selector: (
+            execution_order.append(f"run:{selector}") or _result("run")
+        ),
+    )
+    monkeypatch.setattr(
+        incremental_module,
+        "validate_incremental_queue_workload",
+        lambda *_args: (_ for _ in ()).throw(RuntimeError("above configured limit")),
+    )
+
+    with pytest.raises(RuntimeError, match="above configured limit"):
+        _call_flow(incremental_module.canonical_incremental)
+
+    assert execution_order == [
+        "deps",
+        "seed:shared_core_seed",
+        "test:shared_core_seed_tests",
+        "run:canonical_incremental_core",
+    ]
     engine.dispose.assert_called_once_with()
 
 

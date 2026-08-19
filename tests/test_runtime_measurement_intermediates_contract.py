@@ -34,6 +34,7 @@ def test_runtime_queue_selection_uses_unmarked_rows_or_explicit_scope():
     assert "measurement_has_process_batch_scope()" in batching_sql
     assert 'cleanup_eligible_column_name ~ " is null"' in batching_sql
     assert "measurement_process_row_predicate" in batching_sql
+    assert "measurement_batch_unmarked_only" in batching_sql
 
 
 def test_silver_consumes_only_inline_values_without_historical_cutoff():
@@ -43,6 +44,7 @@ def test_silver_consumes_only_inline_values_without_historical_cutoff():
     assert "existing_source_cutoffs" not in fact_sql
     assert "max_ingested_at" not in fact_sql
     assert "unique_key=['stream_id','timestamp']" in fact_sql
+    assert "order by ingested_at desc, source_row_id desc" in fact_sql
 
 
 def test_debug_models_are_explicit_bounded_tables_in_intermediate_schema():
@@ -78,10 +80,58 @@ def test_retirement_operation_is_confirmed_paired_and_reversible():
     assert "refusing to manage non-table relation" in macro.lower()
 
 
-def test_scoped_smoke_test_proves_every_queue_row_reaches_long():
+def test_scoped_smoke_test_uses_exact_runtime_and_cutover_coverage_gates():
     smoke_sql = _read("dbt/tests/batch_smoke/source_rows_preserved_in_long.sql")
+    project = _read("dbt/dbt_project.yml")
 
     assert "measurement_runtime_queue_row_predicate" in smoke_sql
     assert "expected_row_count" in smoke_sql
     assert "actual_row_count" in smoke_sql
     assert "ref('int_measurements_long')" in smoke_sql
+    assert "measurement_batch_unmarked_only()" in smoke_sql
+    assert "source('legacy_runtime_intermediate', 'int_measurements_long')" in smoke_sql
+    assert "coverage_ratio" in smoke_sql
+    assert "where not is_complete" in smoke_sql
+    assert "measurement_cutover_min_long_coverage_ratio: 0.90" in project
+
+
+def test_cutover_witnesses_are_bounded_and_use_physical_legacy_sources():
+    selectors = _read("dbt/selectors.yml")
+    guard = _read("dbt/macros/measurement_cutover.sql")
+    long_witness = _read("dbt/tests/cutover/legacy_long_rows_match_queue.sql")
+    values_witness = _read("dbt/tests/cutover/legacy_values_match_published_silver.sql")
+
+    assert "canonical_cutover_witness_tests" in selectors
+    assert "require both measured-time bounds" in guard
+    assert "legacy_runtime_intermediate" in long_witness
+    assert "legacy_runtime_intermediate" in values_witness
+    assert "cleanup_eligible_at is null" in long_witness
+    assert "measurement_cutover_witness_enabled" in long_witness
+
+
+def test_batch_smoke_checks_stream_state_coverage():
+    state_smoke = _read("dbt/tests/batch_smoke/source_state_covers_published_queue.sql")
+
+    assert "measurement_runtime_queue_row_predicate" in state_smoke
+    assert "ref('measurement_stream_state')" in state_smoke
+    assert "last_measured_at_silver" in state_smoke
+
+
+def test_queue_runtime_indexes_have_existing_relation_reconciliation():
+    queue_model = _read(
+        "dbt/models/canonical/intermediate/int_measurement_timestamps_silver.sql"
+    )
+    runtime_task = _read("pipelines/tasks/measurement_runtime.py")
+
+    assert "['data_source_name', 'measured_at_silver']" in queue_model
+    assert "['cleanup_eligible_at', 'extracted_at']" in queue_model
+    assert "['data_source_name', 'extracted_at', 'source_row_id']" in queue_model
+    assert "merge_exclude_columns=['cleanup_eligible_at']" in queue_model
+    assert "create index concurrently if not exists" in runtime_task
+    assert "indisvalid" in runtime_task
+
+
+def test_dbt_profile_accepts_per_process_application_name():
+    profiles = _read("dbt/profiles.yml")
+
+    assert profiles.count("DBT_APPLICATION_NAME") == 2

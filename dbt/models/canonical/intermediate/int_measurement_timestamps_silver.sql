@@ -2,6 +2,7 @@
   materialized='incremental',
   unique_key=['data_source_name', 'source_row_id'],
   incremental_strategy='merge',
+  merge_exclude_columns=['cleanup_eligible_at'],
   on_schema_change='sync_all_columns',
   tags=['measurement_processing_queue'],
   indexes=[
@@ -9,6 +10,7 @@
     {'columns': ['data_source_name', 'extracted_at']},
     {'columns': ['data_source_name', 'measured_at_silver']},
     {'columns': ['cleanup_eligible_at', 'extracted_at']},
+    {'columns': ['data_source_name', 'extracted_at', 'source_row_id']},
     {'columns': ['data_source_name', 'station_code', 'cursor_id']}
   ]
 ) }}

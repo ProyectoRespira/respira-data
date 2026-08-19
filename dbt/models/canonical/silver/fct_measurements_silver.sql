@@ -44,7 +44,7 @@ deduped as (
       *,
       row_number() over (
         partition by stream_id, timestamp
-        order by ingested_at desc
+        order by ingested_at desc, source_row_id desc
       ) as rn
     from joined
   ) x

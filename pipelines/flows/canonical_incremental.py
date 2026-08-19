@@ -29,6 +29,11 @@ from pipelines.tasks.dbt_tasks import (
 )
 from pipelines.tasks.gates import raise_if_failed
 from pipelines.tasks.measurement_queue import cleanup_measurement_timestamp_queue
+from pipelines.tasks.measurement_runtime import (
+    acquire_measurement_publish_lock,
+    release_measurement_publish_lock,
+    validate_incremental_queue_workload,
+)
 from pipelines.tasks.notifications import notify_flow_failure
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -93,6 +98,7 @@ def canonical_incremental() -> None:
     logger = get_run_logger()
     settings = get_settings()
     engine = get_engine(settings)
+    lock_connection = None
 
     ctx = get_flow_context()
     ctx.update(
@@ -106,6 +112,7 @@ def canonical_incremental() -> None:
     )
 
     try:
+        lock_connection = acquire_measurement_publish_lock(engine)
         ensure_ops_audit_tables(engine)
         _validate_stream_state_ready(engine)
 
@@ -137,6 +144,13 @@ def canonical_incremental() -> None:
         core_summary = _summary_from_result(core_result)
         persist_dbt_audit(engine, core_result, core_summary, ctx)
         raise_if_failed(core_result, "canonical core stage failed")
+
+        workloads = validate_incremental_queue_workload(engine, settings)
+        logger.info(
+            "Canonical incremental queue workload: queue_rows=%s expanded_rows=%s",
+            sum(item.queue_rows for item in workloads),
+            sum(item.expanded_rows for item in workloads),
+        )
 
         silver_result = dbt_run_selector(settings, selector=SELECTOR_CANONICAL_SILVER)
         silver_summary = _summary_from_result(silver_result)
@@ -175,6 +189,8 @@ def canonical_incremental() -> None:
         notify_flow_failure(ctx, str(exc))
         raise
     finally:
+        if lock_connection is not None:
+            release_measurement_publish_lock(lock_connection)
         engine.dispose()
 
 

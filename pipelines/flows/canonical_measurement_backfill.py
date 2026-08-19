@@ -30,6 +30,10 @@ from pipelines.tasks.measurement_backfill import (
     validate_measurement_sources,
 )
 from pipelines.tasks.measurement_queue import cleanup_measurement_timestamp_queue
+from pipelines.tasks.measurement_runtime import (
+    acquire_measurement_publish_lock,
+    release_measurement_publish_lock,
+)
 from pipelines.tasks.notifications import notify_flow_failure
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -180,7 +184,7 @@ def canonical_measurement_backfill(
     )
     retention_hours = int(settings.MEASUREMENT_TIMESTAMP_QUEUE_RETENTION_HOURS)
     engine = get_engine(settings)
-    ensure_ops_audit_tables(engine)
+    lock_connection = None
 
     ctx = get_flow_context()
     ctx.update(
@@ -194,6 +198,8 @@ def canonical_measurement_backfill(
     )
 
     try:
+        lock_connection = acquire_measurement_publish_lock(engine)
+        ensure_ops_audit_tables(engine)
         logger.info(
             "canonical_measurement_backfill using process_batch_hours=%s queue_retention_hours=%s",
             effective_process_batch_hours,
@@ -423,6 +429,8 @@ def canonical_measurement_backfill(
         notify_flow_failure(ctx, str(exc))
         raise
     finally:
+        if lock_connection is not None:
+            release_measurement_publish_lock(lock_connection)
         engine.dispose()
 
 

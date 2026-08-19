@@ -38,10 +38,12 @@ def test_queue_cleanup_applies_age_floor_and_preserves_one_checkpoint_row():
     assert mark_params == {"retention_hours": 168}
     assert "q.cleanup_eligible_at is not null" in sql
     assert "now() - make_interval(hours => :retention_hours)" in sql
-    assert "exists (" in sql
+    assert "with source_checkpoints as materialized" in sql
+    assert "using source_checkpoints checkpoint" in sql
     assert "checkpoint.data_source_name = q.data_source_name" in sql
-    assert "checkpoint.extracted_at > q.extracted_at" in sql
-    assert "checkpoint.source_row_id > q.source_row_id" in sql
+    assert "cross join lateral" in sql
+    assert "order by candidate.extracted_at desc" in sql
+    assert "(q.extracted_at, q.source_row_id) <" in sql
     assert "q.measured_at_silver is not null" in sql
     assert delete_params == {"retention_hours": 168}
 
@@ -91,6 +93,9 @@ def test_queue_cleanup_scopes_a_successful_backfill_window():
     assert "q.data_source_name = :data_source_name" in sql
     assert "q.measured_at_silver >= :measured_at_from" in sql
     assert "q.measured_at_silver < :measured_at_to" in sql
+    assert "checkpoint.data_source_name = :data_source_name" in sql
+    assert "order by checkpoint.extracted_at desc" in sql
+    assert "limit 1" in sql
     assert params == {
         "retention_hours": 24,
         "data_source_name": "meteostat_airbyte",

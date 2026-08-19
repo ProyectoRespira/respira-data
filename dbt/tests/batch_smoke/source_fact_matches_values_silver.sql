@@ -25,7 +25,7 @@ expected_candidates as (
         m.variable_code,
         m.data_source_name,
         m.measured_at_silver
-      order by m.extracted_at desc
+      order by m.extracted_at desc, m.source_row_id desc
     ) as rn
   from {{ ref('int_measurements_values_silver') }} m
   where m.measured_at_silver is not null

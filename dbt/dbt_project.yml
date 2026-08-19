@@ -41,6 +41,8 @@ seeds:
         +schema: respira_gold
 vars:
   default_region_code: GRAN_ASUNCION
+  # Historical queue cutover is aggregate-gated; normal runtime remains exact.
+  measurement_cutover_min_long_coverage_ratio: 0.90
   measurements_sources:
     fiuna_airbyte:
       relation: stg_fiuna_measurements

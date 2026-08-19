@@ -116,6 +116,10 @@ def test_production_state_refresh_only_uses_published_advances():
     assert "fact.timestamp = queue.measured_at_silver" in sql
     assert "fact.ingested_at = queue.extracted_at" in sql
     assert "fact.value_parsed as last_value_silver" in sql
+    assert "state.data_source_name = streams.data_source_name" in sql
+    assert "state.station_code = streams.station_code" in sql
+    assert "state.variable_code = streams.variable_code" in sql
+    assert "using (data_source_name, station_code, variable_code)" not in sql
     assert "coalesce(queue.cursor_id, -1)" in sql
     assert ") > (" in sql
     assert "where rn = 1" in sql
