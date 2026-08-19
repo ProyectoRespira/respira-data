@@ -75,27 +75,50 @@ def _cleanup_measurement_timestamp_queue(
         *scope_clauses,
         "q.cleanup_eligible_at is not null",
         "q.extracted_at < now() - make_interval(hours => :retention_hours)",
-        # Keep one deterministic row at the newest extraction edge as the
-        # source's durable incremental checkpoint. Requiring a newer
-        # (extracted_at, source_row_id) row makes every other old row eligible,
-        # including ties from a large Airbyte extraction batch.
-        f"""exists (
-            select 1
-            from {INTERMEDIATE_SCHEMA}.{TIMESTAMP_QUEUE_TABLE} checkpoint
-            where checkpoint.data_source_name = q.data_source_name
-              and (
-                checkpoint.extracted_at > q.extracted_at
-                or (
-                  checkpoint.extracted_at = q.extracted_at
-                  and checkpoint.source_row_id > q.source_row_id
-                )
-              )
-        )""",
+        "checkpoint.data_source_name = q.data_source_name",
+        "(q.extracted_at, q.source_row_id) < "
+        "(checkpoint.extracted_at, checkpoint.source_row_id)",
     ]
+
+    if data_source_name is not None:
+        checkpoint_query = f"""
+            select
+              checkpoint.data_source_name,
+              checkpoint.extracted_at,
+              checkpoint.source_row_id
+            from {INTERMEDIATE_SCHEMA}.{TIMESTAMP_QUEUE_TABLE} checkpoint
+            where checkpoint.data_source_name = :data_source_name
+            order by checkpoint.extracted_at desc, checkpoint.source_row_id desc
+            limit 1
+        """
+    else:
+        checkpoint_query = f"""
+            select
+              source_names.data_source_name,
+              checkpoint.extracted_at,
+              checkpoint.source_row_id
+            from (
+              select distinct data_source_name
+              from {INTERMEDIATE_SCHEMA}.{TIMESTAMP_QUEUE_TABLE}
+            ) source_names
+            cross join lateral (
+              select
+                candidate.extracted_at,
+                candidate.source_row_id
+              from {INTERMEDIATE_SCHEMA}.{TIMESTAMP_QUEUE_TABLE} candidate
+              where candidate.data_source_name = source_names.data_source_name
+              order by candidate.extracted_at desc, candidate.source_row_id desc
+              limit 1
+            ) checkpoint
+        """
 
     delete_query = text(
         f"""
+        with source_checkpoints as materialized (
+          {checkpoint_query}
+        )
         delete from {INTERMEDIATE_SCHEMA}.{TIMESTAMP_QUEUE_TABLE} q
+        using source_checkpoints checkpoint
         where {" and ".join(delete_clauses)}
         """
     )
