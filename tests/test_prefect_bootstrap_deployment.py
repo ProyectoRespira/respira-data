@@ -125,3 +125,27 @@ def test_checked_in_measurement_backfill_deployment_is_manual_only():
     assert "limit: 1" in deployment
     assert "collision_strategy: ENQUEUE" in deployment
     assert "schedules:" not in deployment
+
+
+def test_worker_registers_guarded_measurement_queue_cutover():
+    script = _read("scripts/prefect_worker_start.sh")
+
+    assert (
+        "pipelines/flows/canonical_measurement_queue_cutover.py:"
+        "canonical_measurement_queue_cutover" in script
+    )
+    assert '"canonical-measurement-queue-cutover"' in script
+    assert (
+        '"canonical_measurement_queue_cutover/canonical-measurement-queue-cutover"'
+        in script
+    )
+    _assert_manual_deploy_call(script, "canonical-measurement-queue-cutover")
+
+
+def test_checked_in_queue_cutover_deployment_defaults_to_plan():
+    deployment = _read("pipelines/deployments/canonical_measurement_queue_cutover.yaml")
+
+    assert "name: canonical-measurement-queue-cutover" in deployment
+    assert "mode: plan" in deployment
+    assert "confirm: false" in deployment
+    assert "schedules:" not in deployment

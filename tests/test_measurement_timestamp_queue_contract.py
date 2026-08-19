@@ -60,5 +60,5 @@ def test_fact_smoke_test_is_process_scoped_and_matches_fact_deduplication():
     assert "measurement_process_row_predicate" in sql
     assert "measurement_process_measured_at_predicate('f.timestamp')" in sql
     assert "row_number() over" in sql
-    assert "order by m.extracted_at desc" in sql
+    assert "order by m.extracted_at desc, m.source_row_id desc" in sql
     assert "where rn = 1" in sql
