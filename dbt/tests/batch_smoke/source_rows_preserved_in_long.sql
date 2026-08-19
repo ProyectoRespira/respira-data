@@ -70,7 +70,7 @@ actual as (
   select
     l.source_row_id,
     l.data_source_name,
-    count(*)::bigint as actual_row_count
+    count(distinct l.variable_code)::bigint as actual_row_count
   from {{ ref('int_measurements_long') }} l
   group by l.source_row_id, l.data_source_name
 ),
