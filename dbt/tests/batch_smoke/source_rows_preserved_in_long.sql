@@ -75,6 +75,33 @@ actual as (
   group by l.source_row_id, l.data_source_name
 ),
 
+-- Airbyte may replace a previously queued row when corrected source data
+-- arrives. Normal runtime can only expand rows that are still present in the
+-- current source relation, so keep the exact expansion check scoped to those
+-- rows. A corrected replacement row will be validated under its own source id.
+available_source_rows as (
+
+  {%- for source_name in selected_source_names %}
+  {%- set cfg = sources_cfg[source_name] %}
+  {%- set rel = ref(cfg["relation"]) %}
+  {%- set raw_id_col = cfg.get("raw_id_col", "_airbyte_raw_id") %}
+
+  select distinct
+    e.source_row_id,
+    e.data_source_name
+  from expected e
+  join {{ rel }} m
+    on e.data_source_name = '{{ source_name }}'
+   and e.source_row_id = m.{{ raw_id_col }}::text
+
+  {%- if not loop.last %}
+  union all
+  {%- endif %}
+
+  {%- endfor %}
+
+),
+
 {% endif %}
 
 row_coverage as (
@@ -115,11 +142,14 @@ having count(*) > 0
 {% else %}
 
 select
-  source_row_id,
-  data_source_name,
-  expected_row_count,
-  actual_row_count
-from row_coverage
+  coverage.source_row_id,
+  coverage.data_source_name,
+  coverage.expected_row_count,
+  coverage.actual_row_count
+from row_coverage coverage
+join available_source_rows available
+  on available.source_row_id = coverage.source_row_id
+ and available.data_source_name = coverage.data_source_name
 where not is_complete
 
 {% endif %}
