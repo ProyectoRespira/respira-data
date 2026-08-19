@@ -104,6 +104,15 @@ selectors:
         - method: path
           value: tests/batch_smoke
 
+  - name: canonical_cutover_witness_tests
+    description: Bounded tests that use retained physical runtime intermediates as pre-ephemeral publication witnesses.
+    definition:
+      intersection:
+        - method: resource_type
+          value: test
+        - method: path
+          value: tests/cutover
+
   - name: canonical_shadow_state
     description: Reset or incrementally refresh the isolated shadow stream state.
     definition:

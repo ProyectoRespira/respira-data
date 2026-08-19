@@ -62,7 +62,9 @@ published_candidates as (
    and fact.timestamp = queue.measured_at_silver
    and fact.ingested_at = queue.extracted_at
   left join {{ this }} state
-    using (data_source_name, station_code, variable_code)
+    on state.data_source_name = streams.data_source_name
+   and state.station_code = streams.station_code
+   and state.variable_code = streams.variable_code
   where fact.value_parsed is not null
     and {{ measurement_runtime_queue_row_predicate(
       'queue.data_source_name',
