@@ -171,6 +171,13 @@ main() {
     "" \
     --concurrency-limit 1 \
     --collision-strategy ENQUEUE
+  deploy_flow \
+    "pipelines/flows/canonical_measurement_queue_cutover.py:canonical_measurement_queue_cutover" \
+    "canonical-measurement-queue-cutover" \
+    "${PREFECT_CANONICAL_WORK_POOL}" \
+    "" \
+    --concurrency-limit 1 \
+    --collision-strategy ENQUEUE
 
   verify_deployment "warehouse_bootstrap/warehouse-bootstrap"
   verify_deployment \
@@ -178,6 +185,8 @@ main() {
   verify_deployment "canonical_shadow_publish/canonical-shadow-publish"
   verify_deployment \
     "canonical_measurement_backfill/canonical-measurement-backfill"
+  verify_deployment \
+    "canonical_measurement_queue_cutover/canonical-measurement-queue-cutover"
 
   deploy_flow \
     "pipelines/flows/canonical_incremental.py:canonical_incremental" \
