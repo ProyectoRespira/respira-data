@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from types import SimpleNamespace
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, call
 
 import pytest
 from pipelines.flows.canonical_measurement_backfill import (
@@ -25,6 +25,18 @@ def _settings() -> SimpleNamespace:
 def _call_flow(flow_or_fn, *args, **kwargs):
     fn = getattr(flow_or_fn, "fn", flow_or_fn)
     return fn(*args, **kwargs)
+
+
+@pytest.fixture(autouse=True)
+def _stub_backfill_run_logger(monkeypatch):
+    from pipelines.flows import canonical_measurement_backfill as flow_module
+
+    monkeypatch.setattr(flow_module, "get_run_logger", MagicMock(return_value=MagicMock()))
+    monkeypatch.setattr(
+        flow_module,
+        "build_measured_at_windows",
+        _build_measured_at_windows,
+    )
 
 
 def test_load_measurement_source_registry_reads_registered_sources():
@@ -164,6 +176,82 @@ def test_resume_rejects_requested_scope_outside_retained_queue():
             datetime(2026, 1, 1, tzinfo=UTC),
             datetime(2026, 1, 2, tzinfo=UTC),
         )
+
+
+def test_payload_audit_cannot_run_without_ingest():
+    from pipelines.flows import canonical_measurement_backfill as flow_module
+
+    with pytest.raises(ValueError, match="requires run_ingest=True"):
+        _call_flow(
+            flow_module.canonical_measurement_backfill,
+            run_ingest=False,
+            include_payload_audit=True,
+        )
+
+
+def test_backfill_runs_payload_audit_only_when_explicitly_requested(monkeypatch):
+    from pipelines.flows import canonical_measurement_backfill as flow_module
+
+    engine = MagicMock()
+    result = SimpleNamespace(run_results_path=None)
+    settings = SimpleNamespace(
+        DBT_TARGET="prod",
+        SLACK_WEBHOOK_URL=None,
+        MEASUREMENT_BACKFILL_PROCESS_BATCH_HOURS=24,
+        MEASUREMENT_TIMESTAMP_QUEUE_RETENTION_HOURS=168,
+    )
+    run_selector = MagicMock(return_value=result)
+
+    monkeypatch.setattr(flow_module, "get_settings", lambda: settings)
+    monkeypatch.setattr(flow_module, "get_engine", lambda _settings: engine)
+    monkeypatch.setattr(flow_module, "ensure_ops_audit_tables", lambda _engine: None)
+    monkeypatch.setattr(flow_module, "get_flow_context", lambda: {})
+    monkeypatch.setattr(flow_module, "_git_sha", lambda: "abc123")
+    monkeypatch.setattr(flow_module, "dbt_deps", lambda _settings: result)
+    monkeypatch.setattr(flow_module, "_persist_result", lambda *args: {})
+    monkeypatch.setattr(flow_module, "raise_if_failed", lambda *args: None)
+    monkeypatch.setattr(flow_module, "notify_flow_failure", lambda *args: None)
+    monkeypatch.setattr(flow_module, "load_measurement_source_registry", lambda _: {})
+    monkeypatch.setattr(
+        flow_module,
+        "validate_measurement_sources",
+        lambda *_args, **_kwargs: ["airelibre_airbyte"],
+    )
+    monkeypatch.setattr(
+        flow_module,
+        "get_measurement_process_bounds",
+        lambda *_args: {
+            "min_measured_at": None,
+            "max_measured_at": None,
+            "null_time_row_count": 0,
+            "row_count": 0,
+        },
+    )
+    monkeypatch.setattr(flow_module, "dbt_run_selector", run_selector)
+
+    _call_flow(
+        flow_module.canonical_measurement_backfill,
+        data_sources=["airelibre_airbyte"],
+        run_prep=False,
+        run_ingest=True,
+        run_tests=False,
+        include_payload_audit=True,
+    )
+
+    expected_vars = {"measurement_batch_data_source": "airelibre_airbyte"}
+    assert run_selector.call_args_list == [
+        call(
+            settings,
+            selector=flow_module.SELECTOR_CANONICAL_BATCH_INGEST,
+            vars_payload=expected_vars,
+        ),
+        call(
+            settings,
+            selector=flow_module.SELECTOR_CANONICAL_BATCH_PAYLOAD_AUDIT,
+            vars_payload=expected_vars,
+        ),
+    ]
+    engine.dispose.assert_called_once_with()
 
 
 def test_backfill_resume_stops_before_processing_when_queue_is_empty(monkeypatch):

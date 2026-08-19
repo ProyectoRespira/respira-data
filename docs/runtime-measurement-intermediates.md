@@ -60,6 +60,40 @@ This replaces `intermediate.debug_int_measurement_payloads` on every run.
 Both extracted-time bounds and one registered source are required; unbounded
 payload debugging is rejected.
 
+## Opt-in production payload audit
+
+Normal incremental, core, and full-refresh selectors do not build
+`intermediate.int_measurement_payloads`. A backfill builds it only when
+`include_payload_audit=True` is combined with `run_ingest=True`; the audit uses
+the same source and optional extracted-time bounds as that ingest scope.
+
+After validating both explicit payload paths, quarantine the old historical
+audit table:
+
+```bash
+dbt run-operation manage_measurement_payload_audit \
+  --target prod \
+  --args '{action: quarantine, confirm: true}'
+```
+
+Restore it while the canonical name remains free, or drop only its backup after
+the observation period:
+
+```bash
+dbt run-operation manage_measurement_payload_audit \
+  --target prod \
+  --args '{action: restore, confirm: true}'
+
+dbt run-operation manage_measurement_payload_audit \
+  --target prod \
+  --args '{action: drop, confirm: true}'
+```
+
+The backup is named `int_measurement_payloads_pre_opt_in`. If an explicit
+backfill recreates the canonical audit table during the observation period,
+restore refuses the conflicting state while drop remains limited to the old
+backup.
+
 ## Retiring legacy physical tables
 
 Changing a dbt model to ephemeral does not remove a relation created by an
