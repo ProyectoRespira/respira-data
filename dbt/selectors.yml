@@ -92,8 +92,17 @@ selectors:
   - name: canonical_debug_intermediate
     description: Explicit bounded materialization of long and value intermediates for manual investigation.
     definition:
+      union:
+        - method: path
+          value: models/canonical/debug/debug_int_measurements_long.sql
+        - method: path
+          value: models/canonical/debug/debug_int_measurements_values_silver.sql
+
+  - name: canonical_debug_payload_audit
+    description: Explicit bounded raw payload materialization for manual investigation.
+    definition:
       method: path
-      value: models/canonical/debug
+      value: models/canonical/debug/debug_int_measurement_payloads.sql
 
   - name: canonical_batch_smoke_tests
     description: Source-scoped smoke tests for measurement backfills.

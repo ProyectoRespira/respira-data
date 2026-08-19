@@ -45,6 +45,21 @@ For the dedicated null-time pass, provide the source and
 `measurement_batch_include_null_time_rows: true` without measured-time bounds.
 Unbounded execution is rejected.
 
+Raw payload inspection uses a separate selector and fixed table so it does not
+depend on the production payload audit relation:
+
+```bash
+dbt run --target prod --selector canonical_debug_payload_audit --vars '{
+  "measurement_batch_data_source": "airelibre_airbyte",
+  "measurement_batch_extracted_at_from": "2026-01-01T19:00:00Z",
+  "measurement_batch_extracted_at_to": "2026-01-01T20:00:00Z"
+}'
+```
+
+This replaces `intermediate.debug_int_measurement_payloads` on every run.
+Both extracted-time bounds and one registered source are required; unbounded
+payload debugging is rejected.
+
 ## Retiring legacy physical tables
 
 Changing a dbt model to ephemeral does not remove a relation created by an

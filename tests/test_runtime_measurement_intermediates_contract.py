@@ -55,16 +55,26 @@ def test_debug_models_are_explicit_bounded_tables_in_intermediate_schema():
     debug_values = _read(
         "dbt/models/canonical/debug/debug_int_measurements_values_silver.sql"
     )
+    debug_payloads = _read(
+        "dbt/models/canonical/debug/debug_int_measurement_payloads.sql"
+    )
 
     assert "debug:\n        +schema: intermediate" in project
     assert "- name: canonical_debug_intermediate" in selectors
-    assert "value: models/canonical/debug" in selectors
+    assert "models/canonical/debug/debug_int_measurements_long.sql" in selectors
+    assert "models/canonical/debug/debug_int_measurements_values_silver.sql" in selectors
+    assert "- name: canonical_debug_payload_audit" in selectors
+    assert "models/canonical/debug/debug_int_measurement_payloads.sql" in selectors
     assert "measurement_batch_data_source" in debug_macro
     assert "requires both measured-time bounds" in debug_macro
+    assert "requires both extracted-time bounds" in debug_macro
     assert "materialized='table'" in debug_long
     assert "materialized='table'" in debug_values
+    assert "materialized='table'" in debug_payloads
     assert "alias='debug_int_measurements_long'" in debug_long
     assert "alias='debug_int_measurements_values_silver'" in debug_values
+    assert "alias='debug_int_measurement_payloads'" in debug_payloads
+    assert "measurement_payloads_from_source" in debug_payloads
 
 
 def test_retirement_operation_is_confirmed_paired_and_reversible():
