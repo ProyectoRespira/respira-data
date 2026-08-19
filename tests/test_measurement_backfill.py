@@ -254,6 +254,132 @@ def test_backfill_runs_payload_audit_only_when_explicitly_requested(monkeypatch)
     engine.dispose.assert_called_once_with()
 
 
+def _configure_windowed_backfill(
+    monkeypatch,
+    execution_order: list[str],
+    *,
+    fail_process: bool = False,
+):
+    from pipelines.flows import canonical_measurement_backfill as flow_module
+
+    queue_from = datetime(2026, 1, 1, tzinfo=UTC)
+    queue_max = queue_from + timedelta(hours=1)
+    engine = MagicMock()
+    result = SimpleNamespace(run_results_path=None)
+    settings = SimpleNamespace(
+        DBT_TARGET="prod",
+        SLACK_WEBHOOK_URL=None,
+        MEASUREMENT_BACKFILL_PROCESS_BATCH_HOURS=6,
+        MEASUREMENT_TIMESTAMP_QUEUE_RETENTION_HOURS=168,
+    )
+
+    monkeypatch.setattr(flow_module, "get_settings", lambda: settings)
+    monkeypatch.setattr(flow_module, "get_engine", lambda _settings: engine)
+    monkeypatch.setattr(flow_module, "ensure_ops_audit_tables", lambda _engine: None)
+    monkeypatch.setattr(flow_module, "get_flow_context", lambda: {})
+    monkeypatch.setattr(flow_module, "_git_sha", lambda: "abc123")
+    monkeypatch.setattr(flow_module, "dbt_deps", lambda _settings: result)
+    monkeypatch.setattr(flow_module, "_persist_result", lambda *args: {})
+    monkeypatch.setattr(flow_module, "notify_flow_failure", lambda *args: None)
+    monkeypatch.setattr(flow_module, "load_measurement_source_registry", lambda _: {})
+    monkeypatch.setattr(
+        flow_module,
+        "validate_measurement_sources",
+        lambda *_args, **_kwargs: ["meteostat_airbyte"],
+    )
+    monkeypatch.setattr(
+        flow_module,
+        "get_measurement_process_bounds",
+        lambda *_args: {
+            "min_measured_at": queue_from,
+            "max_measured_at": queue_max,
+            "null_time_row_count": 0,
+            "row_count": 2,
+        },
+    )
+    monkeypatch.setattr(
+        flow_module,
+        "dbt_run_selector",
+        lambda *_args, **_kwargs: execution_order.append("process") or result,
+    )
+    monkeypatch.setattr(
+        flow_module,
+        "dbt_test_selector",
+        lambda *_args, **_kwargs: execution_order.append("smoke") or result,
+    )
+    monkeypatch.setattr(
+        flow_module,
+        "cleanup_measurement_timestamp_queue",
+        lambda *_args, **_kwargs: execution_order.append("cleanup") or 2,
+    )
+
+    def _raise_if_failed(_result, message):
+        if fail_process and message.startswith("canonical batch process failed"):
+            raise RuntimeError(message)
+
+    monkeypatch.setattr(flow_module, "raise_if_failed", _raise_if_failed)
+    return flow_module, engine
+
+
+def test_backfill_processes_then_tests_then_cleans_each_window(monkeypatch):
+    execution_order: list[str] = []
+    flow_module, engine = _configure_windowed_backfill(
+        monkeypatch,
+        execution_order,
+    )
+
+    _call_flow(
+        flow_module.canonical_measurement_backfill,
+        data_sources=["meteostat_airbyte"],
+        run_prep=False,
+        run_ingest=False,
+        run_tests=True,
+    )
+
+    assert execution_order == ["process", "smoke", "cleanup"]
+    engine.dispose.assert_called_once_with()
+
+
+def test_backfill_process_failure_preserves_window(monkeypatch):
+    execution_order: list[str] = []
+    flow_module, engine = _configure_windowed_backfill(
+        monkeypatch,
+        execution_order,
+        fail_process=True,
+    )
+
+    with pytest.raises(RuntimeError, match="canonical batch process failed"):
+        _call_flow(
+            flow_module.canonical_measurement_backfill,
+            data_sources=["meteostat_airbyte"],
+            run_prep=False,
+            run_ingest=False,
+            run_tests=True,
+        )
+
+    assert execution_order == ["process"]
+    engine.dispose.assert_called_once_with()
+
+
+def test_backfill_without_tests_preserves_processed_window(monkeypatch):
+    execution_order: list[str] = []
+    flow_module, engine = _configure_windowed_backfill(
+        monkeypatch,
+        execution_order,
+    )
+
+    _call_flow(
+        flow_module.canonical_measurement_backfill,
+        data_sources=["meteostat_airbyte"],
+        run_prep=False,
+        run_ingest=False,
+        run_tests=False,
+    )
+
+    assert execution_order == ["process"]
+    engine.dispose.assert_called_once_with()
+
+
 def test_backfill_resume_stops_before_processing_when_queue_is_empty(monkeypatch):
     from pipelines.flows import canonical_measurement_backfill as flow_module
 
