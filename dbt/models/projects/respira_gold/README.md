@@ -14,6 +14,7 @@ Table respira_gold.regions {
 
 Table respira_gold.stations {
   id integer [primary key]
+  station_code varchar [unique]
   name varchar
   latitude float
   longitude float
