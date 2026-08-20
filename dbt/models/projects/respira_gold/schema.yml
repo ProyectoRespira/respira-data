@@ -44,6 +44,9 @@ models:
     columns:
       - name: id
         tests: [not_null, unique]
+      - name: station_code
+        description: "Stable natural key inherited from dim_stations.code."
+        tests: [not_null, unique]
       - name: region_id
         tests:
           - relationships:
