@@ -52,17 +52,20 @@ jobs:
     steps:
       # Checkout the repository code
       - name: Checkout
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd #v6.0.2
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
 
       # Initialize CodeQL with the configured languages and query settings
       # Latest stable: v4 (releases: https://github.com/github/codeql-action/releases)
       - name: Initialize CodeQL
-        uses: github/codeql-action/init@95e58e9a2cdfd71adc6e0353d5c52f41a045d225 #v4.35.2
+        uses: github/codeql-action/init@7188fc363630916deb702c7fdcf4e481b751f97a # v4.37.1
         with:
           languages: ${{ matrix.language }}
           # Use custom configuration for extended security queries and path exclusions
           config-file: ./.github/codeql/codeql-config.yml
+          # Enable incremental analysis for faster subsequent scans
+          # Reference: https://docs.github.com/en/code-security/code-scanning/codeql-cli/using-the-codeql-cli
+          db-location: ${{ runner.temp }}/codeql_databases
 
       # Perform the actual CodeQL analysis on the initialized database
       - name: Perform CodeQL analysis
-        uses: github/codeql-action/analyze@95e58e9a2cdfd71adc6e0353d5c52f41a045d225 #v4.35.2
+        uses: github/codeql-action/analyze@7188fc363630916deb702c7fdcf4e481b751f97a # v4.37.1

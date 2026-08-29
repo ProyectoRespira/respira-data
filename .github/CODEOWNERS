@@ -6,6 +6,7 @@
 # Ownership metadata and repository governance.
 /.github/CODEOWNERS @ProyectoRespira/platform-admins
 /.github/workflows/ @ProyectoRespira/platform-admins @ProyectoRespira/release-managers
+/.github/actions/ @ProyectoRespira/platform-admins @ProyectoRespira/release-managers
 /.github/dependabot.yml @ProyectoRespira/platform-admins
 /.github/codeql/ @ProyectoRespira/platform-admins
 /.github/pull_request_template.md @ProyectoRespira/platform-admins

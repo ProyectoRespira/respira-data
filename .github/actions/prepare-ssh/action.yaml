@@ -1,0 +1,132 @@
+name: "Prepare SSH"
+description: "Validate deploy SSH secrets and prepare key and known_hosts for strict host checking."
+
+inputs:
+  deploy_host:
+    description: Deployment host
+    required: true
+  deploy_user:
+    description: Deployment user
+    required: true
+  deploy_ssh_key:
+    description: Private SSH key used for deployment
+    required: true
+  deploy_host_key:
+    description: Host key entry for ~/.ssh/known_hosts
+    required: true
+  environment_label:
+    description: Environment label used in validation messages
+    required: false
+    default: target
+
+outputs:
+  key_path:
+    description: Path to the prepared private SSH key file
+    value: ${{ steps.prepare.outputs.key_path }}
+
+runs:
+  using: composite
+  steps:
+    - name: Prepare SSH files
+      id: prepare
+      shell: bash
+      env:
+        DEPLOY_HOST_VALUE: ${{ inputs.deploy_host }}
+        DEPLOY_USER_VALUE: ${{ inputs.deploy_user }}
+        DEPLOY_SSH_KEY_VALUE: ${{ inputs.deploy_ssh_key }}
+        DEPLOY_HOST_KEY_VALUE: ${{ inputs.deploy_host_key }}
+        ENVIRONMENT_LABEL: ${{ inputs.environment_label }}
+      run: |
+        set -euo pipefail
+
+        echo "::add-mask::$DEPLOY_HOST_VALUE"
+        echo "::add-mask::$DEPLOY_USER_VALUE"
+        echo "::add-mask::$DEPLOY_SSH_KEY_VALUE"
+        echo "::add-mask::$DEPLOY_HOST_KEY_VALUE"
+
+        if [ -z "$DEPLOY_HOST_VALUE" ]; then
+          echo "Missing DEPLOY_HOST secret for ${ENVIRONMENT_LABEL} environment."
+          exit 1
+        fi
+
+        if [ -z "$DEPLOY_USER_VALUE" ]; then
+          echo "Missing DEPLOY_USER secret for ${ENVIRONMENT_LABEL} environment."
+          exit 1
+        fi
+
+        if [ -z "$DEPLOY_SSH_KEY_VALUE" ]; then
+          echo "Missing DEPLOY_SSH_KEY secret for ${ENVIRONMENT_LABEL} environment."
+          exit 1
+        fi
+
+        if [ -z "$DEPLOY_HOST_KEY_VALUE" ]; then
+          echo "Missing DEPLOY_HOST_KEY secret for ${ENVIRONMENT_LABEL} environment."
+          exit 1
+        fi
+
+        mkdir -p ~/.ssh
+        chmod 700 ~/.ssh
+
+        tmp_key="$RUNNER_TEMP/deploy_ssh_key"
+        if printf '%s' "$DEPLOY_SSH_KEY_VALUE" | grep -q '\\n'; then
+          printf '%b' "$DEPLOY_SSH_KEY_VALUE" > "$tmp_key"
+        else
+          printf '%s\n' "$DEPLOY_SSH_KEY_VALUE" > "$tmp_key"
+        fi
+        chmod 600 "$tmp_key"
+
+        if ! grep -q 'BEGIN .*PRIVATE KEY' "$tmp_key"; then
+          echo "DEPLOY_SSH_KEY does not look like a valid private key for ${ENVIRONMENT_LABEL} environment."
+          exit 1
+        fi
+
+        if ! ssh-keygen -y -f "$tmp_key" >/dev/null 2>&1; then
+          echo "DEPLOY_SSH_KEY could not be parsed for ${ENVIRONMENT_LABEL} environment."
+          echo "It may be malformed, for a different key type, or encrypted with a passphrase."
+          exit 1
+        fi
+
+        printf '%s\n' "$DEPLOY_HOST_KEY_VALUE" > ~/.ssh/known_hosts
+        chmod 600 ~/.ssh/known_hosts
+
+        if ! ssh-keygen -l -f ~/.ssh/known_hosts >/dev/null 2>&1; then
+          echo "DEPLOY_HOST_KEY is not a valid known_hosts entry."
+          exit 1
+        fi
+
+        host_match_found=false
+        host_candidates=()
+        normalized_deploy_host="$DEPLOY_HOST_VALUE"
+
+        normalized_deploy_host="$(printf '%s' "$normalized_deploy_host" | tr -d '\r' | xargs)"
+        normalized_deploy_host="${normalized_deploy_host#ssh://}"
+        normalized_deploy_host="${normalized_deploy_host%%/*}"
+        if [[ "$normalized_deploy_host" == *@* ]]; then
+          normalized_deploy_host="${normalized_deploy_host#*@}"
+        fi
+
+        if [[ "$normalized_deploy_host" =~ ^\[([^]]+)\]:([0-9]+)$ ]]; then
+          host_candidates+=("$normalized_deploy_host")
+          host_candidates+=("${BASH_REMATCH[1]}")
+        elif [[ "$normalized_deploy_host" =~ ^([^:]+):([0-9]+)$ ]]; then
+          host_candidates+=("[${BASH_REMATCH[1]}]:${BASH_REMATCH[2]}")
+          host_candidates+=("${BASH_REMATCH[1]}")
+        else
+          host_candidates+=("$normalized_deploy_host")
+        fi
+
+        for candidate in "${host_candidates[@]}"; do
+          if ssh-keygen -F "$candidate" -f ~/.ssh/known_hosts >/dev/null 2>&1; then
+            host_match_found=true
+            break
+          fi
+        done
+
+        if [ "$host_match_found" != true ]; then
+          echo "DEPLOY_HOST_KEY does not contain an entry for deploy host '$DEPLOY_HOST_VALUE'."
+          echo "Provide a known_hosts line for that host (or host:port) in DEPLOY_HOST_KEY."
+          exit 1
+        fi
+
+        echo "SSH key and host verification material prepared successfully."
+        echo "key_path=$tmp_key" >> "$GITHUB_OUTPUT"
