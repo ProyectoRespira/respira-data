@@ -8,9 +8,12 @@ import signal
 import subprocess
 import threading
 import time
+import uuid
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
+
+from sqlalchemy import create_engine, text
 
 from pipelines.compat import get_run_logger, task
 
@@ -40,13 +43,15 @@ def _timeout_for_command(settings, command: str, selector: str | None) -> int | 
         return _normalize_timeout(settings.DBT_TIMEOUT_TESTS_S)
     if selector in {"canonical_core", "canonical_incremental_core"}:
         return _normalize_timeout(settings.DBT_TIMEOUT_CANONICAL_CORE_S)
-    if selector == "canonical_silver":
+    if selector in {"canonical_silver", "canonical_incremental_state"}:
         return _normalize_timeout(settings.DBT_TIMEOUT_CANONICAL_SILVER_S)
     if selector == "canonical_batch_prep":
         return _normalize_timeout(settings.DBT_TIMEOUT_CANONICAL_CORE_S)
     if selector in {"canonical_batch_ingest", "canonical_batch_payload_audit"}:
         return _normalize_timeout(settings.DBT_TIMEOUT_CANONICAL_BATCH_INGEST_S)
     if selector == "canonical_batch_process":
+        return _normalize_timeout(settings.DBT_TIMEOUT_CANONICAL_SILVER_S)
+    if selector in {"canonical_shadow_state", "canonical_shadow_publish"}:
         return _normalize_timeout(settings.DBT_TIMEOUT_CANONICAL_SILVER_S)
     if selector == "canonical_batch_smoke_tests":
         return _normalize_timeout(settings.DBT_TIMEOUT_TESTS_S)
@@ -134,6 +139,84 @@ def _terminate_process_group(process: subprocess.Popen, grace_s: float = 10.0) -
             return
 
 
+def _dbt_application_name(command: str, selector: str | None) -> str:
+    scope = selector or shlex.split(command)[0] or "command"
+    safe_scope = "".join(char if char.isalnum() else "_" for char in scope)
+    return f"respira_{safe_scope}_{uuid.uuid4().hex[:12]}"[:63]
+
+
+def _cancel_tagged_backends(
+    settings, application_name: str, logger, grace_s: float = 10.0
+) -> tuple[int, int]:
+    """Cancel only sessions created by one timed-out dbt subprocess."""
+    engine = create_engine(settings.database_dsn(), pool_pre_ping=True)
+    cancelled = 0
+    terminated = 0
+    try:
+        with engine.begin() as connection:
+            pids = list(
+                connection.execute(
+                    text(
+                        """
+                        select pid
+                        from pg_stat_activity
+                        where application_name = :application_name
+                          and pid <> pg_backend_pid()
+                        """
+                    ),
+                    {"application_name": application_name},
+                ).scalars()
+            )
+            for pid in pids:
+                if connection.execute(
+                    text("select pg_cancel_backend(:pid)"), {"pid": int(pid)}
+                ).scalar_one():
+                    cancelled += 1
+
+        deadline = time.monotonic() + grace_s
+        remaining: list[int] = []
+        while time.monotonic() < deadline:
+            with engine.connect() as connection:
+                remaining = list(
+                    connection.execute(
+                        text(
+                            """
+                            select pid
+                            from pg_stat_activity
+                            where application_name = :application_name
+                              and pid <> pg_backend_pid()
+                            """
+                        ),
+                        {"application_name": application_name},
+                    ).scalars()
+                )
+            if not remaining:
+                break
+            time.sleep(0.25)
+
+        if remaining:
+            with engine.begin() as connection:
+                for pid in remaining:
+                    if connection.execute(
+                        text("select pg_terminate_backend(:pid)"),
+                        {"pid": int(pid)},
+                    ).scalar_one():
+                        terminated += 1
+    except Exception as exc:  # noqa: BLE001
+        logger.warning(
+            "Unable to cancel dbt database sessions tagged %s: %s",
+            application_name,
+            exc,
+        )
+    finally:
+        engine.dispose()
+    return cancelled, terminated
+
+
+def _clear_stale_run_results(run_results_path: str) -> None:
+    Path(run_results_path).unlink(missing_ok=True)
+
+
 def _stream_subprocess_output(
     logger_method,
     prefix: str,
@@ -171,7 +254,10 @@ def _run_subprocess(
         vars_payload=vars_payload,
     )
     timeout_s = _timeout_for_command(settings, command, selector)
+    application_name = _dbt_application_name(command, selector)
     started_at = datetime.now(UTC)
+
+    _clear_stale_run_results(run_results_path)
 
     logger.info("Running dbt command: %s", shlex.join(cmd))
     if timeout_s is None:
@@ -193,6 +279,7 @@ def _run_subprocess(
             text=True,
             bufsize=1,
             start_new_session=True,
+            env={**os.environ, "DBT_APPLICATION_NAME": application_name},
         )
         stdout_thread = threading.Thread(
             target=_stream_subprocess_output,
@@ -214,8 +301,14 @@ def _run_subprocess(
     except subprocess.TimeoutExpired:
         if process is not None:
             _terminate_process_group(process)
+        cancelled, terminated = _cancel_tagged_backends(
+            settings, application_name, logger
+        )
         status = "failed"
-        stderr_chunks.append(f"Command timed out after {timeout_s}s\n")
+        stderr_chunks.append(
+            f"Command timed out after {timeout_s}s; cancelled {cancelled} and "
+            f"terminated {terminated} tagged database backends\n"
+        )
     except KeyboardInterrupt:
         if process is not None:
             _terminate_process_group(process)
@@ -293,6 +386,10 @@ def _run_with_prefect_dbt_if_available(
         vars_payload=vars_payload,
     )
     cmd_with_binary = shlex.join(cmd)
+    artifact_dir = str(Path(settings.DBT_PROJECT_DIR) / "target")
+    run_results_path = str(Path(artifact_dir) / "run_results.json")
+    application_name = _dbt_application_name(command, selector)
+    _clear_stale_run_results(run_results_path)
     started_at = datetime.now(UTC)
 
     try:
@@ -303,6 +400,7 @@ def _run_with_prefect_dbt_if_available(
             profiles_dir=settings.DBT_PROFILES_DIR,
             overwrite_profiles=False,
             stream_output=True,
+            env={**os.environ, "DBT_APPLICATION_NAME": application_name},
         )
         operation.run()
         status = "success"
@@ -313,9 +411,6 @@ def _run_with_prefect_dbt_if_available(
         return None
 
     ended_at = datetime.now(UTC)
-    artifact_dir = str(Path(settings.DBT_PROJECT_DIR) / "target")
-    run_results_path = str(Path(artifact_dir) / "run_results.json")
-
     duration_s = int((ended_at - started_at).total_seconds())
     if timeout_s is not None and duration_s > timeout_s:
         status = "failed"
@@ -348,15 +443,20 @@ def _run_dbt(
     full_refresh: bool,
     vars_payload: dict[str, object] | None = None,
 ) -> DbtTaskResult:
-    pref_result = _run_with_prefect_dbt_if_available(
-        settings,
-        command,
-        selector,
-        full_refresh,
-        vars_payload=vars_payload,
-    )
-    if pref_result is not None:
-        return pref_result
+    # DbtCoreOperation.run() does not provide a cancellable timeout boundary.
+    # Use it only when timeouts are explicitly disabled; guarded runtime commands
+    # use the subprocess path so timeout cleanup can identify and cancel the exact
+    # PostgreSQL sessions opened by that invocation.
+    if _timeout_for_command(settings, command, selector) is None:
+        pref_result = _run_with_prefect_dbt_if_available(
+            settings,
+            command,
+            selector,
+            full_refresh,
+            vars_payload=vars_payload,
+        )
+        if pref_result is not None:
+            return pref_result
     return _run_subprocess(
         settings,
         command,

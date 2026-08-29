@@ -3,12 +3,25 @@ version: 2
 models:
   - name: int_measurement_timestamps_silver
     description: >
-      Row-grain time cleaning/imputation output. Computes the final canonical measurement timestamp once per
-      source record before the wide-to-long explosion.
+      Recent row-grain processing queue for canonical timestamps. It supplies per-source incremental
+      checkpoints, measured-time process bounds, and resumable backfill input; it is not a historical
+      analytical contract. Prepared sources provide their canonical time fields and simple sources use
+      parsed-time pass-through before the wide-to-long explosion. Rows may be removed only after their
+      process scope has published successfully, stream state has refreshed, and smoke tests have passed.
+      Backfill continuation with run_ingest=False is supported only while all required source rows remain
+      in this queue. Automatic cleanup uses the configurable extraction-age retention floor and always
+      preserves one row at each source's newest extraction checkpoint edge.
+    config:
+      meta:
+        operational_role: processing_queue
+        grain: data_source_name, source_row_id
+        historical_contract: false
     columns:
       - name: source_row_id
+        description: "Source-local row identity; unique together with data_source_name and stable across retries."
         tests: [not_null]
       - name: extracted_at
+        description: "Source extraction timestamp used as the per-source incremental ingest checkpoint."
         tests: [not_null]
       - name: data_source_name
         tests:
@@ -25,12 +38,14 @@ models:
         description: "Raw parsed timestamp (UTC) from source."
       - name: is_measured_at_valid
       - name: measured_at_silver
-        description: "Final canonical timestamp after time cleaning. May be null when no valid timestamp exists and no imputation is possible."
+        description: "Final canonical timestamp after time cleaning and the basis for half-open process windows. May be null when no valid timestamp exists and no imputation is possible."
       - name: is_time_imputed
         tests: [not_null]
         description: "True when measured_at_silver was imputed from prior valid continuity."
       - name: time_impute_method
         description: "Method used to repair time or the reason it could not be repaired."
+      - name: cleanup_eligible_at
+        description: "Set only after this row's silver publish, stream-state refresh, and smoke tests succeed; null means retention must not delete it."
     tests:
       - dbt_utils.unique_combination_of_columns:
           arguments:
@@ -40,8 +55,9 @@ models:
 
   - name: int_measurement_payloads
     description: >
-      One-row-per-source-record payload store for audit/debug.
-      Keeps raw JSON exactly once per ingested source row.
+      Explicit backfill-only one-row-per-source-record payload audit store.
+      Normal production selectors skip this model; bounded manual inspection
+      uses the separate debug_int_measurement_payloads table.
     columns:
       - name: source_row_id
         tests: [not_null]
@@ -63,8 +79,13 @@ models:
 
   - name: int_measurements_long
     description: >
-      Canonical long-form measurements union across sources defined in vars.measurements_sources.
-      Selects eligible source rows from int_measurement_timestamps_silver first, then explodes each row by configured variable.
+      Ephemeral runtime transformation that selects unprocessed or explicitly scoped queue rows and
+      explodes each source row by configured variable. It is inlined into production consumers and
+      does not retain historical rows.
+    config:
+      meta:
+        operational_role: inline_runtime_transformation
+        historical_contract: false
     columns:
       - name: station_code
         tests: [not_null]
@@ -107,8 +128,8 @@ models:
 
   - name: int_measurements_time_silver
     description: >
-      Compatibility view that preserves the historical long-grain time-silver interface while delegating
-      canonical time computation to int_measurement_timestamps_silver upstream of int_measurements_long.
+      Temporary compatibility view over the current recent or explicitly scoped runtime transformation.
+      It is not historical and broad ad hoc queries may be expensive because long SQL is inlined.
     columns:
       - name: data_source_name
         tests: [not_null]
@@ -129,10 +150,13 @@ models:
 
   - name: int_measurements_values_silver
     description: >
-      Silver value validation/cleaning output. Applies variable-specific validation and
-      forward-fills missing values from the last valid observation in the same source/station/variable stream to produce value_silver.
-      Materialized incrementally with per-stream anchor rows so downstream silver facts do not need to recompute the full value window on every run.
-      The fact model should only consume rows where measured_at_silver is not null and value_silver is not null.
+      Ephemeral value validation/cleaning transformation. It forward-fills from stream state during
+      normal runtime and from prior published silver during bounded historical processing, then inlines
+      into production consumers without retaining intermediate history.
+    config:
+      meta:
+        operational_role: inline_runtime_transformation
+        historical_contract: false
     columns:
       - name: source_row_id
         tests: [not_null]

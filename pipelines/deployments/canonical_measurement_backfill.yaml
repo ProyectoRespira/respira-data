@@ -1,0 +1,13 @@
+name: canonical-measurement-backfill
+entrypoint: pipelines/flows/canonical_measurement_backfill.py:canonical_measurement_backfill
+work_pool:
+  name: canonical
+parameters: {}
+concurrency_limit:
+  limit: 1
+  collision_strategy: ENQUEUE
+tags:
+  - dbt
+  - canonical
+  - backfill
+  - manual

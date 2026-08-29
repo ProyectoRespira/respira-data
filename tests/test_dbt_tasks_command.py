@@ -86,3 +86,37 @@ def test_timeout_for_command_disables_zero_timeout():
     assert (
         _timeout_for_command(settings, command="run", selector="canonical_core") is None
     )
+
+
+def test_shadow_publish_uses_silver_timeout():
+    settings = SimpleNamespace(
+        DBT_TIMEOUT_TESTS_S=1200,
+        DBT_TIMEOUT_CANONICAL_CORE_S=0,
+        DBT_TIMEOUT_CANONICAL_BATCH_INGEST_S=3600,
+        DBT_TIMEOUT_CANONICAL_SILVER_S=1800,
+        DBT_TIMEOUT_PROJECT_S=1200,
+    )
+
+    assert (
+        _timeout_for_command(
+            settings, command="run", selector="canonical_shadow_publish"
+        )
+        == 1800
+    )
+
+
+def test_incremental_state_refresh_uses_silver_timeout():
+    settings = SimpleNamespace(
+        DBT_TIMEOUT_TESTS_S=1200,
+        DBT_TIMEOUT_CANONICAL_CORE_S=0,
+        DBT_TIMEOUT_CANONICAL_BATCH_INGEST_S=3600,
+        DBT_TIMEOUT_CANONICAL_SILVER_S=1800,
+        DBT_TIMEOUT_PROJECT_S=1200,
+    )
+
+    assert (
+        _timeout_for_command(
+            settings, command="run", selector="canonical_incremental_state"
+        )
+        == 1800
+    )

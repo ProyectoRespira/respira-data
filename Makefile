@@ -58,6 +58,7 @@ help:
 	@echo "  run-canonical-incremental Run canonical_incremental flow"
 	@echo "  run-canonical-full-refresh Run canonical_full_refresh flow (manual)"
 	@echo "  run-canonical-measurement-backfill Run canonical_measurement_backfill flow (manual)"
+	@echo "  run-canonical-measurement-queue-cutover-plan Plan guarded queue cutover recovery (manual)"
 	@echo "  run-project-pipeline Run project_pipeline for respira_gold"
 	@echo "  run-project-inference Run project_inference for respira_gold"
 	@echo "  run-social-broadcast Run social_broadcast flow for respira_gold"
@@ -216,6 +217,10 @@ run-canonical-full-refresh:
 .PHONY: run-canonical-measurement-backfill
 run-canonical-measurement-backfill:
 	$(PREFECT_RUN) "python3 scripts/wait_for_prefect.py && python3 pipelines/flows/canonical_measurement_backfill.py"
+
+.PHONY: run-canonical-measurement-queue-cutover-plan
+run-canonical-measurement-queue-cutover-plan:
+	$(PREFECT_RUN) "python3 scripts/wait_for_prefect.py && python3 pipelines/flows/canonical_measurement_queue_cutover.py"
 
 .PHONY: run-project-inference
 run-project-inference:

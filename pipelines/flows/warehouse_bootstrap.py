@@ -18,7 +18,7 @@ def warehouse_bootstrap() -> None:
 
     try:
         logger.info("Ensuring ops audit tables")
-        ensure_ops_audit_tables(engine)
+        ensure_ops_audit_tables(engine, strict=True)
 
         for project in list_project_configs():
             logger.info(

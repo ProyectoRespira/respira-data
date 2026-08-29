@@ -26,6 +26,7 @@ class MeasurementProcessBounds(TypedDict):
     min_measured_at: datetime | None
     max_measured_at: datetime | None
     null_time_row_count: int
+    row_count: int
 
 
 def _read_csv_column(path: Path, column_name: str) -> set[str]:
@@ -124,7 +125,8 @@ def _get_measurement_process_bounds(
         select
             min(measured_at_silver) as min_measured_at,
             max(measured_at_silver) as max_measured_at,
-            sum(case when measured_at_silver is null then 1 else 0 end) as null_time_row_count
+            sum(case when measured_at_silver is null then 1 else 0 end) as null_time_row_count,
+            count(*) as row_count
         from {INTERMEDIATE_SCHEMA}.{TIMESTAMPS_TABLE}
         where data_source_name = :data_source_name
         """
@@ -139,6 +141,7 @@ def _get_measurement_process_bounds(
         "min_measured_at": row["min_measured_at"],
         "max_measured_at": row["max_measured_at"],
         "null_time_row_count": int(row["null_time_row_count"] or 0),
+        "row_count": int(row["row_count"] or 0),
     }
 
 
