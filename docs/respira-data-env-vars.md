@@ -53,6 +53,7 @@ These variables are required for dbt and runtime DB access unless you use DB_DSN
 | PREFECT_UI_SERVE_BASE | No | / | docker-compose.yml | UI base path. |
 | PREFECT_SERVER_API_HOST | No | 0.0.0.0 | docker-compose.yml | API bind host. |
 | PREFECT_SERVER_API_PORT | No | 4200 | docker-compose.yml | API bind port. |
+| PREFECT_SERVER_API_BASE_PATH | No | /api | docker-compose.yml | Base URL path the API is served/mounted under; must match PREFECT_UI_API_URL and reverse-proxy routing when serving under a subpath. |
 
 ## Deployment Schedules
 
