@@ -3,7 +3,12 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from types import SimpleNamespace
 
-from pipelines.tasks.dbt_tasks import _build_dbt_command, _timeout_for_command
+from pipelines.tasks.dbt_tasks import (
+    _build_dbt_command,
+    _command_has_run_results,
+    _command_supports_target_path,
+    _timeout_for_command,
+)
 
 
 def _settings() -> SimpleNamespace:
@@ -23,6 +28,21 @@ def test_build_dbt_command_starts_with_command_token():
     assert "--project-dir" in cmd
     assert "--profiles-dir" in cmd
     assert "--threads" not in cmd
+    assert "--target-path" not in cmd
+
+
+def test_deps_does_not_support_target_path_or_produce_run_results():
+    assert not _command_supports_target_path("deps")
+    assert not _command_has_run_results("deps")
+
+
+def test_execution_commands_support_isolated_target_path():
+    for command in ("run", "test", "build", "seed", "source freshness"):
+        assert _command_supports_target_path(command)
+
+
+def test_seed_produces_run_results():
+    assert _command_has_run_results("seed")
 
 
 def test_build_dbt_command_supports_multiword_command():

@@ -119,7 +119,23 @@ def _serialize_dbt_vars(vars_payload: dict[str, object]) -> str:
 
 
 def _command_has_run_results(command: str) -> bool:
-    return command in {"run", "test", "build"}
+    command_tokens = shlex.split(command)
+    root_command = command_tokens[0] if command_tokens else ""
+    return root_command in {"run", "test", "build", "seed", "snapshot", "clone"}
+
+
+def _command_supports_target_path(command: str) -> bool:
+    command_tokens = shlex.split(command)
+    root_command = command_tokens[0] if command_tokens else ""
+    return root_command in {
+        "run",
+        "test",
+        "build",
+        "seed",
+        "snapshot",
+        "clone",
+        "source",
+    }
 
 
 def _terminate_process_group(process: subprocess.Popen, grace_s: float = 10.0) -> None:
@@ -153,6 +169,20 @@ def _dbt_application_name(command: str, selector: str | None) -> str:
 def _dbt_artifact_paths(settings, application_name: str) -> tuple[str, str]:
     artifact_dir = Path(settings.DBT_PROJECT_DIR) / "target" / application_name
     return str(artifact_dir), str(artifact_dir / "run_results.json")
+
+
+def _dbt_artifact_config(
+    settings, command: str, application_name: str
+) -> tuple[str, str, str | None]:
+    if _command_supports_target_path(command):
+        artifact_dir, run_results_path = _dbt_artifact_paths(
+            settings, application_name
+        )
+        return artifact_dir, run_results_path, artifact_dir
+
+    artifact_dir = str(Path(settings.DBT_PROJECT_DIR) / "target")
+    run_results_path = str(Path(artifact_dir) / "run_results.json")
+    return artifact_dir, run_results_path, None
 
 
 def _cancel_tagged_backends(
@@ -255,19 +285,22 @@ def _run_subprocess(
 ) -> DbtTaskResult:
     logger = get_run_logger()
     application_name = _dbt_application_name(command, selector)
-    artifact_dir, run_results_path = _dbt_artifact_paths(settings, application_name)
+    artifact_dir, run_results_path, target_path = _dbt_artifact_config(
+        settings, command, application_name
+    )
     cmd = _build_dbt_command(
         settings,
         command,
         selector,
         full_refresh,
         vars_payload=vars_payload,
-        target_path=artifact_dir,
+        target_path=target_path,
     )
     timeout_s = _timeout_for_command(settings, command, selector)
     started_at = datetime.now(UTC)
 
-    _clear_stale_run_results(run_results_path)
+    if _command_has_run_results(command):
+        _clear_stale_run_results(run_results_path)
 
     logger.info("Running dbt command: %s", shlex.join(cmd))
     if timeout_s is None:
@@ -389,17 +422,20 @@ def _run_with_prefect_dbt_if_available(
 
     timeout_s = _timeout_for_command(settings, command, selector)
     application_name = _dbt_application_name(command, selector)
-    artifact_dir, run_results_path = _dbt_artifact_paths(settings, application_name)
+    artifact_dir, run_results_path, target_path = _dbt_artifact_config(
+        settings, command, application_name
+    )
     cmd = _build_dbt_command(
         settings,
         command,
         selector,
         full_refresh,
         vars_payload=vars_payload,
-        target_path=artifact_dir,
+        target_path=target_path,
     )
     cmd_with_binary = shlex.join(cmd)
-    _clear_stale_run_results(run_results_path)
+    if _command_has_run_results(command):
+        _clear_stale_run_results(run_results_path)
     started_at = datetime.now(UTC)
 
     try:

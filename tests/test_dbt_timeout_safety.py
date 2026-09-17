@@ -43,6 +43,30 @@ def test_dbt_artifacts_are_isolated_by_application_name():
     assert first_results != second_results
 
 
+def test_dbt_deps_uses_default_artifact_dir_without_target_path():
+    settings = SimpleNamespace(DBT_PROJECT_DIR="/app/dbt")
+
+    artifact_dir, run_results_path, target_path = dbt_tasks._dbt_artifact_config(
+        settings, "deps", "respira_deps_abc123"
+    )
+
+    assert artifact_dir == "/app/dbt/target"
+    assert run_results_path == "/app/dbt/target/run_results.json"
+    assert target_path is None
+
+
+def test_dbt_run_uses_isolated_artifact_dir_as_target_path():
+    settings = SimpleNamespace(DBT_PROJECT_DIR="/app/dbt")
+
+    artifact_dir, run_results_path, target_path = dbt_tasks._dbt_artifact_config(
+        settings, "run", "respira_canonical_core_abc123"
+    )
+
+    assert artifact_dir == "/app/dbt/target/respira_canonical_core_abc123"
+    assert run_results_path == f"{artifact_dir}/run_results.json"
+    assert target_path == artifact_dir
+
+
 def test_clear_stale_run_results_removes_previous_artifact(tmp_path):
     artifact = tmp_path / "run_results.json"
     artifact.write_text("{}", encoding="utf-8")
