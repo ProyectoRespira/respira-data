@@ -74,6 +74,7 @@ def _build_dbt_command(
     selector: str | None,
     full_refresh: bool,
     vars_payload: dict[str, object] | None = None,
+    target_path: str | None = None,
 ) -> list[str]:
     command_tokens = shlex.split(command)
     root_command = command_tokens[0] if command_tokens else ""
@@ -103,6 +104,8 @@ def _build_dbt_command(
         cmd.append("--full-refresh")
     if vars_payload:
         cmd.extend(["--vars", _serialize_dbt_vars(vars_payload)])
+    if target_path:
+        cmd.extend(["--target-path", target_path])
     return cmd
 
 
@@ -142,7 +145,14 @@ def _terminate_process_group(process: subprocess.Popen, grace_s: float = 10.0) -
 def _dbt_application_name(command: str, selector: str | None) -> str:
     scope = selector or shlex.split(command)[0] or "command"
     safe_scope = "".join(char if char.isalnum() else "_" for char in scope)
-    return f"respira_{safe_scope}_{uuid.uuid4().hex[:12]}"[:63]
+    unique_suffix = uuid.uuid4().hex[:12]
+    max_scope_length = 63 - len("respira__") - len(unique_suffix)
+    return f"respira_{safe_scope[:max_scope_length]}_{unique_suffix}"
+
+
+def _dbt_artifact_paths(settings, application_name: str) -> tuple[str, str]:
+    artifact_dir = Path(settings.DBT_PROJECT_DIR) / "target" / application_name
+    return str(artifact_dir), str(artifact_dir / "run_results.json")
 
 
 def _cancel_tagged_backends(
@@ -244,17 +254,17 @@ def _run_subprocess(
     vars_payload: dict[str, object] | None = None,
 ) -> DbtTaskResult:
     logger = get_run_logger()
-    artifact_dir = str(Path(settings.DBT_PROJECT_DIR) / "target")
-    run_results_path = str(Path(artifact_dir) / "run_results.json")
+    application_name = _dbt_application_name(command, selector)
+    artifact_dir, run_results_path = _dbt_artifact_paths(settings, application_name)
     cmd = _build_dbt_command(
         settings,
         command,
         selector,
         full_refresh,
         vars_payload=vars_payload,
+        target_path=artifact_dir,
     )
     timeout_s = _timeout_for_command(settings, command, selector)
-    application_name = _dbt_application_name(command, selector)
     started_at = datetime.now(UTC)
 
     _clear_stale_run_results(run_results_path)
@@ -378,17 +388,17 @@ def _run_with_prefect_dbt_if_available(
         return None
 
     timeout_s = _timeout_for_command(settings, command, selector)
+    application_name = _dbt_application_name(command, selector)
+    artifact_dir, run_results_path = _dbt_artifact_paths(settings, application_name)
     cmd = _build_dbt_command(
         settings,
         command,
         selector,
         full_refresh,
         vars_payload=vars_payload,
+        target_path=artifact_dir,
     )
     cmd_with_binary = shlex.join(cmd)
-    artifact_dir = str(Path(settings.DBT_PROJECT_DIR) / "target")
-    run_results_path = str(Path(artifact_dir) / "run_results.json")
-    application_name = _dbt_application_name(command, selector)
     _clear_stale_run_results(run_results_path)
     started_at = datetime.now(UTC)
 

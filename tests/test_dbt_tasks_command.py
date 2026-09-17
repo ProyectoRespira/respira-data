@@ -39,6 +39,21 @@ def test_build_dbt_command_adds_threads_for_run_like_commands():
     assert "--threads" in cmd
 
 
+def test_build_dbt_command_uses_invocation_target_path():
+    target_path = "/app/dbt/target/respira_canonical_core_abc123"
+
+    cmd = _build_dbt_command(
+        _settings(),
+        command="run",
+        selector="canonical_core",
+        full_refresh=False,
+        target_path=target_path,
+    )
+
+    target_path_index = cmd.index("--target-path")
+    assert cmd[target_path_index + 1] == target_path
+
+
 def test_build_dbt_command_supports_seed_with_selector():
     cmd = _build_dbt_command(
         _settings(),

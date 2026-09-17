@@ -15,6 +15,34 @@ def test_dbt_application_name_is_unique_scoped_and_postgres_safe():
     assert len(first) <= 63
 
 
+def test_dbt_application_name_preserves_unique_suffix_for_long_selector():
+    selector = "canonical_" + ("very_long_scope_" * 10)
+
+    first = dbt_tasks._dbt_application_name("run", selector)
+    second = dbt_tasks._dbt_application_name("run", selector)
+
+    assert first != second
+    assert len(first) == 63
+    assert first.rsplit("_", 1)[1] != second.rsplit("_", 1)[1]
+
+
+def test_dbt_artifacts_are_isolated_by_application_name():
+    settings = SimpleNamespace(DBT_PROJECT_DIR="/app/dbt")
+
+    first_dir, first_results = dbt_tasks._dbt_artifact_paths(
+        settings, "respira_canonical_core_first"
+    )
+    second_dir, second_results = dbt_tasks._dbt_artifact_paths(
+        settings, "respira_canonical_core_second"
+    )
+
+    assert first_dir == "/app/dbt/target/respira_canonical_core_first"
+    assert first_results == f"{first_dir}/run_results.json"
+    assert second_dir == "/app/dbt/target/respira_canonical_core_second"
+    assert second_results == f"{second_dir}/run_results.json"
+    assert first_results != second_results
+
+
 def test_clear_stale_run_results_removes_previous_artifact(tmp_path):
     artifact = tmp_path / "run_results.json"
     artifact.write_text("{}", encoding="utf-8")
