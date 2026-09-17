@@ -11,12 +11,13 @@ services:
       PREFECT_UI_SERVE_BASE: ${PREFECT_UI_SERVE_BASE:-/}
       PREFECT_SERVER_API_HOST: ${PREFECT_SERVER_API_HOST:-0.0.0.0}
       PREFECT_SERVER_API_PORT: ${PREFECT_SERVER_API_PORT:-4200}
+      PREFECT_SERVER_API_BASE_PATH: ${PREFECT_SERVER_API_BASE_PATH:-/api}
     command: ["prefect", "server", "start", "--host", "${PREFECT_SERVER_API_HOST:-0.0.0.0}", "--port", "${PREFECT_SERVER_API_PORT:-4200}"]
     ports:
       - "${PREFECT_SERVER_API_PORT:-4200}:${PREFECT_SERVER_API_PORT:-4200}"
     # Health check using Python (works in Prefect image without curl)
     healthcheck:
-      test: ["CMD-SHELL", "python -c \"import os, urllib.request; port=os.getenv('PREFECT_SERVER_API_PORT','4200'); urllib.request.urlopen(f'http://127.0.0.1:{port}/api/health', timeout=5)\""]
+      test: ["CMD-SHELL", "python -c \"import os, urllib.request; port=os.getenv('PREFECT_SERVER_API_PORT','4200'); base=os.getenv('PREFECT_SERVER_API_BASE_PATH','/api'); urllib.request.urlopen(f'http://127.0.0.1:{port}{base}/health', timeout=5)\""]
       interval: 10s
       timeout: 5s
       retries: 20
