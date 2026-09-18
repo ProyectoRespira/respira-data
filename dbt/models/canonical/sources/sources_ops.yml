@@ -1,0 +1,27 @@
+version: 2
+
+sources:
+  - name: ops
+    schema: ops
+    tables:
+      - name: measurement_stream_state
+        description: "{{ doc('measurement_stream_state_contract') }}"
+        columns:
+          - name: data_source_name
+            description: "Canonical data source name."
+          - name: station_code
+            description: "Canonical station code."
+          - name: variable_code
+            description: "Canonical variable code."
+          - name: last_measured_at_silver
+            description: "Latest published canonical measurement timestamp for the stream."
+          - name: last_cursor_id
+            description: "Latest published source cursor for cursor-aware sources; null otherwise."
+          - name: last_extracted_at
+            description: "Latest published extraction timestamp included in the stream watermark."
+          - name: last_source_row_id
+            description: "Latest published source-row identifier included in the stream watermark."
+          - name: last_value_silver
+            description: "Latest published canonical value after validation and imputation."
+          - name: updated_at
+            description: "Warehouse timestamp for the last state change."

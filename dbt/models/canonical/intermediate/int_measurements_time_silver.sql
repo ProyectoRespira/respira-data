@@ -1,7 +1,15 @@
-{{ config(materialized='view') }}
+{{ config(
+  materialized='view',
+  meta={
+    'compatibility_contract': true,
+    'runtime_scope': 'recent_or_explicit_batch',
+    'ad_hoc_cost': 'potentially_expensive'
+  }
+) }}
 
 -- Compatibility view kept temporarily for external or ad hoc consumers.
--- TODO: Remove this model after all consumers migrate to int_measurements_long.
+-- It exposes only the current runtime scope and inlines the long transformation;
+-- broad ad hoc queries may therefore be expensive.
 
 select
   source_row_id,

@@ -3,7 +3,12 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from types import SimpleNamespace
 
-from pipelines.tasks.dbt_tasks import _build_dbt_command, _timeout_for_command
+from pipelines.tasks.dbt_tasks import (
+    _build_dbt_command,
+    _command_has_run_results,
+    _command_supports_target_path,
+    _timeout_for_command,
+)
 
 
 def _settings() -> SimpleNamespace:
@@ -23,6 +28,21 @@ def test_build_dbt_command_starts_with_command_token():
     assert "--project-dir" in cmd
     assert "--profiles-dir" in cmd
     assert "--threads" not in cmd
+    assert "--target-path" not in cmd
+
+
+def test_deps_does_not_support_target_path_or_produce_run_results():
+    assert not _command_supports_target_path("deps")
+    assert not _command_has_run_results("deps")
+
+
+def test_execution_commands_support_isolated_target_path():
+    for command in ("run", "test", "build", "seed", "source freshness"):
+        assert _command_supports_target_path(command)
+
+
+def test_seed_produces_run_results():
+    assert _command_has_run_results("seed")
 
 
 def test_build_dbt_command_supports_multiword_command():
@@ -37,6 +57,21 @@ def test_build_dbt_command_adds_threads_for_run_like_commands():
         _settings(), command="run", selector="canonical_core", full_refresh=False
     )
     assert "--threads" in cmd
+
+
+def test_build_dbt_command_uses_invocation_target_path():
+    target_path = "/app/dbt/target/respira_canonical_core_abc123"
+
+    cmd = _build_dbt_command(
+        _settings(),
+        command="run",
+        selector="canonical_core",
+        full_refresh=False,
+        target_path=target_path,
+    )
+
+    target_path_index = cmd.index("--target-path")
+    assert cmd[target_path_index + 1] == target_path
 
 
 def test_build_dbt_command_supports_seed_with_selector():
@@ -85,4 +120,38 @@ def test_timeout_for_command_disables_zero_timeout():
 
     assert (
         _timeout_for_command(settings, command="run", selector="canonical_core") is None
+    )
+
+
+def test_shadow_publish_uses_silver_timeout():
+    settings = SimpleNamespace(
+        DBT_TIMEOUT_TESTS_S=1200,
+        DBT_TIMEOUT_CANONICAL_CORE_S=0,
+        DBT_TIMEOUT_CANONICAL_BATCH_INGEST_S=3600,
+        DBT_TIMEOUT_CANONICAL_SILVER_S=1800,
+        DBT_TIMEOUT_PROJECT_S=1200,
+    )
+
+    assert (
+        _timeout_for_command(
+            settings, command="run", selector="canonical_shadow_publish"
+        )
+        == 1800
+    )
+
+
+def test_incremental_state_refresh_uses_silver_timeout():
+    settings = SimpleNamespace(
+        DBT_TIMEOUT_TESTS_S=1200,
+        DBT_TIMEOUT_CANONICAL_CORE_S=0,
+        DBT_TIMEOUT_CANONICAL_BATCH_INGEST_S=3600,
+        DBT_TIMEOUT_CANONICAL_SILVER_S=1800,
+        DBT_TIMEOUT_PROJECT_S=1200,
+    )
+
+    assert (
+        _timeout_for_command(
+            settings, command="run", selector="canonical_incremental_state"
+        )
+        == 1800
     )

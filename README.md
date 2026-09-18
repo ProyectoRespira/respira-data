@@ -90,7 +90,7 @@ docker compose exec app bash -lc "cd /app/dbt && dbt run --target prod --selecto
 docker compose exec app bash -lc "cd /app/dbt && dbt test --target prod --selector project_respira_gold_tests"
 ```
 
-8. Run inference or the full project pipeline.
+8. Run inference or the full project pipeline
 
 ```bash
 docker compose exec prefect_worker bash -lc "cd /app && python3 pipelines/flows/project_inference.py"
@@ -102,6 +102,7 @@ running the flow files directly.
 
 ```bash
 docker compose exec prefect_server prefect deployment ls
+docker compose exec prefect_server prefect deployment run 'warehouse_bootstrap/warehouse-bootstrap'
 docker compose exec prefect_server prefect deployment run 'canonical_incremental/canonical-incremental'
 docker compose exec prefect_server prefect deployment run 'project_pipeline/project-pipeline-respira_gold'
 ```
@@ -192,7 +193,7 @@ The warehouse is organized into logical schemas:
 - `core`: canonical dimensions and metadata models
 - `silver`: canonical reusable fact layer
 - `respira_gold`: project-specific marts, features, and inference tables
-- `ops`: operational audit and inference status tables
+- `ops`: operational audit, measurement stream state, and inference status tables
 
 Current architectural rules:
 
@@ -243,6 +244,9 @@ dbt runtime settings:
 - `DBT_TIMEOUT_CANONICAL_SILVER_S`
 - `DBT_TIMEOUT_PROJECT_S`
 - `DBT_TIMEOUT_TESTS_S`
+- `MEASUREMENT_INCREMENTAL_MAX_EXPANDED_ROWS`: defaults to `2000000`
+- `MEASUREMENT_QUEUE_CUTOVER_BATCH_HOURS`: defaults to `168`
+- `MEASUREMENT_QUEUE_CUTOVER_MAX_QUEUE_ROWS`: defaults to `250000`
 
 Inference settings:
 
@@ -288,6 +292,9 @@ What happens automatically when `prefect_worker` starts:
 
 - waits for the Prefect API health check
 - creates or updates the `canonical` and `respira_gold` work pools
+- deploys `warehouse_bootstrap`
+- deploys `canonical_measurement_backfill` without a schedule
+- deploys `canonical_measurement_queue_cutover` in unscheduled plan mode
 - deploys `canonical_incremental`
 - deploys `canonical_full_refresh`
 - deploys `project_pipeline(project_code=respira_gold)`
@@ -353,9 +360,15 @@ The local scheduling model is controlled by
 
 Current behavior:
 
+- `warehouse_bootstrap` is deployed without a schedule and is intended to be
+  triggered after deploys or when runtime tables must be re-ensured
 - `canonical_incremental` is deployed on a cron schedule
 - `canonical_full_refresh` is deployed without a schedule and is intended to be
   manual
+- `canonical_measurement_backfill` is deployed without a schedule for bounded,
+  parameterized backfills and queue-resume validation from the Prefect UI
+- `canonical_measurement_queue_cutover` is deployed without a schedule and
+  defaults to read-only `plan` mode
 - `project_pipeline(project_code=respira_gold)` is deployed on a cron schedule
   only when both model paths are configured
 - the worker re-registers these deployments every time it restarts
@@ -379,6 +392,7 @@ This repository uses warehouse tables for runtime auditability.
 Created by `make prefect-bootstrap`:
 
 - `ops.dbt_run_audit`
+- `ops.measurement_stream_state`
 - `ops.inference_station_status`
 - `respira_gold.inference_runs`
 - `respira_gold.inference_results`
@@ -486,6 +500,11 @@ through the canonical layer and into one or more projects.
    Add `cursor_id` when the source has a reliable sequential identifier, and
    keep any extra columns needed later for station enrichment.
 
+   Sources that need stateful timestamp cleanup should use the FIUNA-style
+   three-layer pattern: a raw normalization view, a persisted repaired table,
+   and a thin public `stg_*` view. Keep source-specific continuity out of the
+   shared intermediate models.
+
 4. Add tests and documentation for the new staging model.
 
    Register the model in `dbt/models/canonical/staging/schema.yml` with:
@@ -502,6 +521,8 @@ through the canonical layer and into one or more projects.
    - `raw_payload_col`
    - `is_measured_at_valid_col`
    - `cursor_id_col` when available
+   - the complete optional prepared-time trio: `measured_at_silver_col`,
+     `is_time_imputed_col`, and `time_impute_method_col`
    - the `variables` mapping from canonical variable code to staging column
 
    `int_measurements_long` uses this registry to union all measurement sources,
@@ -535,10 +556,10 @@ through the canonical layer and into one or more projects.
 
 9. Add timestamp repair logic if the source needs custom handling.
 
-   `dbt/models/canonical/intermediate/int_measurements_time_silver.sql`
-   currently contains source-specific logic for `fiuna_airbyte`. If the new
-   source has broken timestamps, delayed cursors, or custom imputation rules,
-   add that logic there explicitly.
+   Implement source-specific repair in a persisted prepared staging model and
+   expose the three canonical time fields through the public staging view.
+   Register all three prepared-time columns together; sources without custom
+   repair retain the generic parsed-time pass-through behavior.
 
 10. Validate the full path from canonical to project.
 

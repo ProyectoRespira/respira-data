@@ -29,6 +29,11 @@ from pipelines.tasks.measurement_backfill import (
     load_measurement_source_registry,
     validate_measurement_sources,
 )
+from pipelines.tasks.measurement_queue import cleanup_measurement_timestamp_queue
+from pipelines.tasks.measurement_runtime import (
+    acquire_measurement_publish_lock,
+    release_measurement_publish_lock,
+)
 from pipelines.tasks.notifications import notify_flow_failure
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -125,6 +130,39 @@ def _effective_process_bounds(
     return effective_from, effective_to
 
 
+def _validate_resume_queue_available(
+    data_source_name: str,
+    source_bounds: MeasurementProcessBounds,
+    effective_from: datetime | None,
+    effective_to: datetime | None,
+    process_measured_at_from: datetime | None,
+    process_measured_at_to: datetime | None,
+) -> None:
+    """Fail a resume that cannot be satisfied from the retained queue."""
+    row_count = int(source_bounds.get("row_count", 0))
+    null_time_row_count = int(source_bounds.get("null_time_row_count", 0))
+
+    if row_count == 0:
+        raise RuntimeError(
+            "Cannot resume backfill with run_ingest=False: no rows for "
+            f"data_source_name={data_source_name} remain in "
+            "intermediate.int_measurement_timestamps_silver. Re-run with "
+            "run_ingest=True to land the required source rows again."
+        )
+
+    requested_timed_scope = (
+        process_measured_at_from is not None or process_measured_at_to is not None
+    )
+    timed_scope_available = effective_from is not None and effective_to is not None
+    if requested_timed_scope and not timed_scope_available and null_time_row_count == 0:
+        raise RuntimeError(
+            "Cannot resume backfill with run_ingest=False: the requested measured-time "
+            f"scope for data_source_name={data_source_name} is not present in "
+            "intermediate.int_measurement_timestamps_silver. The queue may have been "
+            "cleaned; re-run with run_ingest=True to land the required source rows again."
+        )
+
+
 @flow(name="canonical_measurement_backfill")
 def canonical_measurement_backfill(
     data_sources: list[str] | None = None,
@@ -139,13 +177,20 @@ def canonical_measurement_backfill(
     run_project_models_after: bool = False,
     include_payload_audit: bool = False,
 ) -> None:
+    if include_payload_audit and not run_ingest:
+        raise ValueError(
+            "include_payload_audit=True requires run_ingest=True because payload "
+            "audit rows are built from the explicit ingest scope."
+        )
+
     logger = get_run_logger()
     settings = get_settings()
     effective_process_batch_hours = int(
         process_batch_hours or settings.MEASUREMENT_BACKFILL_PROCESS_BATCH_HOURS
     )
+    retention_hours = int(settings.MEASUREMENT_TIMESTAMP_QUEUE_RETENTION_HOURS)
     engine = get_engine(settings)
-    ensure_ops_audit_tables(engine)
+    lock_connection = None
 
     ctx = get_flow_context()
     ctx.update(
@@ -159,9 +204,12 @@ def canonical_measurement_backfill(
     )
 
     try:
+        lock_connection = acquire_measurement_publish_lock(engine)
+        ensure_ops_audit_tables(engine)
         logger.info(
-            "canonical_measurement_backfill using process_batch_hours=%s",
+            "canonical_measurement_backfill using process_batch_hours=%s queue_retention_hours=%s",
             effective_process_batch_hours,
+            retention_hours,
         )
 
         deps_result = dbt_deps(settings)
@@ -224,7 +272,7 @@ def canonical_measurement_backfill(
                     )
             else:
                 logger.info(
-                    "Skipping canonical batch ingest; assuming source-row timestamps and streams already exist for data_source_name=%s.",
+                    "Skipping canonical batch ingest; validating that source-row timestamps remain in the processing queue and streams already exist for data_source_name=%s.",
                     data_source_name,
                 )
 
@@ -234,6 +282,21 @@ def canonical_measurement_backfill(
                 process_measured_at_from,
                 process_measured_at_to,
             )
+
+            if not run_ingest:
+                _validate_resume_queue_available(
+                    data_source_name,
+                    source_bounds,
+                    effective_from,
+                    effective_to,
+                    process_measured_at_from,
+                    process_measured_at_to,
+                )
+                logger.info(
+                    "Resuming from retained timestamp queue rows for data_source_name=%s; "
+                    "resume is supported only while the required queue rows remain.",
+                    data_source_name,
+                )
 
             process_windows = build_measured_at_windows(
                 effective_from,
@@ -264,8 +327,50 @@ def canonical_measurement_backfill(
                     f"canonical batch process failed for {data_source_name}",
                 )
 
+                if run_tests:
+                    test_result = dbt_test_selector(
+                        settings,
+                        selector=SELECTOR_CANONICAL_BATCH_SMOKE_TESTS,
+                        vars_payload=process_vars,
+                    )
+                    _persist_result(engine, test_result, ctx)
+                    raise_if_failed(
+                        test_result,
+                        "canonical batch smoke tests failed for "
+                        f"{data_source_name} window "
+                        f"[{window['measured_at_from']}, {window['measured_at_to']})",
+                    )
+                    deleted_rows = cleanup_measurement_timestamp_queue(
+                        engine,
+                        retention_hours=retention_hours,
+                        data_source_name=data_source_name,
+                        measured_at_from=window["measured_at_from"],
+                        measured_at_to=window["measured_at_to"],
+                    )
+                    logger.info(
+                        "Cleaned %s eligible timestamp queue rows for source=%s "
+                        "window=[%s, %s); rows inside the %s-hour retention floor remain.",
+                        deleted_rows,
+                        data_source_name,
+                        window["measured_at_from"],
+                        window["measured_at_to"],
+                        retention_hours,
+                    )
+                else:
+                    logger.info(
+                        "Skipping timestamp queue cleanup for source=%s window=[%s, %s) "
+                        "because smoke tests were disabled.",
+                        data_source_name,
+                        window["measured_at_from"],
+                        window["measured_at_to"],
+                    )
+
             null_time_row_count = int(source_bounds.get("null_time_row_count", 0))
             if null_time_row_count > 0:
+                null_process_vars = _build_process_vars(
+                    data_source_name,
+                    include_null_time_rows=True,
+                )
                 logger.info(
                     "Processing null-time rows for source=%s count=%s",
                     data_source_name,
@@ -274,30 +379,43 @@ def canonical_measurement_backfill(
                 null_process_result = dbt_run_selector(
                     settings,
                     selector=SELECTOR_CANONICAL_BATCH_PROCESS,
-                    vars_payload=_build_process_vars(
-                        data_source_name,
-                        include_null_time_rows=True,
-                    ),
+                    vars_payload=null_process_vars,
                 )
                 _persist_result(engine, null_process_result, ctx)
                 raise_if_failed(
                     null_process_result,
                     f"canonical null-time process failed for {data_source_name}",
                 )
-
-            if run_tests:
-                test_result = dbt_test_selector(
-                    settings,
-                    selector=SELECTOR_CANONICAL_BATCH_SMOKE_TESTS,
-                    vars_payload={
-                        "measurement_batch_data_source": data_source_name,
-                    },
-                )
-                _persist_result(engine, test_result, ctx)
-                raise_if_failed(
-                    test_result,
-                    f"canonical batch smoke tests failed for {data_source_name}",
-                )
+                if run_tests:
+                    null_test_result = dbt_test_selector(
+                        settings,
+                        selector=SELECTOR_CANONICAL_BATCH_SMOKE_TESTS,
+                        vars_payload=null_process_vars,
+                    )
+                    _persist_result(engine, null_test_result, ctx)
+                    raise_if_failed(
+                        null_test_result,
+                        f"canonical null-time smoke tests failed for {data_source_name}",
+                    )
+                    deleted_null_rows = cleanup_measurement_timestamp_queue(
+                        engine,
+                        retention_hours=retention_hours,
+                        data_source_name=data_source_name,
+                        include_null_time_rows=True,
+                    )
+                    logger.info(
+                        "Cleaned %s eligible null-time timestamp queue rows for "
+                        "source=%s; rows inside the %s-hour retention floor remain.",
+                        deleted_null_rows,
+                        data_source_name,
+                        retention_hours,
+                    )
+                else:
+                    logger.info(
+                        "Preserving null-time timestamp queue rows for source=%s "
+                        "because smoke tests were disabled.",
+                        data_source_name,
+                    )
 
             logger.info("Finished backfill for data_source_name=%s", data_source_name)
 
@@ -317,6 +435,8 @@ def canonical_measurement_backfill(
         notify_flow_failure(ctx, str(exc))
         raise
     finally:
+        if lock_connection is not None:
+            release_measurement_publish_lock(lock_connection)
         engine.dispose()
 
 

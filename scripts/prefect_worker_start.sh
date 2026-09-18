@@ -74,6 +74,13 @@ deploy_flow() {
   "${cmd[@]}"
 }
 
+verify_deployment() {
+  local deployment_ref="$1"
+
+  log "Verifying Prefect deployment '${deployment_ref}' exists..."
+  prefect --no-prompt deployment inspect "${deployment_ref}" >/dev/null
+}
+
 ensure_work_pool() {
   local pool_name="$1"
 
@@ -136,6 +143,51 @@ main() {
   done
 
   log "Deploying canonical flows..."
+  deploy_flow \
+    "pipelines/flows/warehouse_bootstrap.py:warehouse_bootstrap" \
+    "warehouse-bootstrap" \
+    "${PREFECT_CANONICAL_WORK_POOL}" \
+    "" \
+    --concurrency-limit 1 \
+    --collision-strategy ENQUEUE
+  deploy_flow \
+    "pipelines/flows/measurement_stream_state_bootstrap.py:measurement_stream_state_bootstrap" \
+    "measurement-stream-state-bootstrap" \
+    "${PREFECT_CANONICAL_WORK_POOL}" \
+    "" \
+    --concurrency-limit 1 \
+    --collision-strategy ENQUEUE
+  deploy_flow \
+    "pipelines/flows/canonical_shadow_publish.py:canonical_shadow_publish" \
+    "canonical-shadow-publish" \
+    "${PREFECT_CANONICAL_WORK_POOL}" \
+    "" \
+    --concurrency-limit 1 \
+    --collision-strategy ENQUEUE
+  deploy_flow \
+    "pipelines/flows/canonical_measurement_backfill.py:canonical_measurement_backfill" \
+    "canonical-measurement-backfill" \
+    "${PREFECT_CANONICAL_WORK_POOL}" \
+    "" \
+    --concurrency-limit 1 \
+    --collision-strategy ENQUEUE
+  deploy_flow \
+    "pipelines/flows/canonical_measurement_queue_cutover.py:canonical_measurement_queue_cutover" \
+    "canonical-measurement-queue-cutover" \
+    "${PREFECT_CANONICAL_WORK_POOL}" \
+    "" \
+    --concurrency-limit 1 \
+    --collision-strategy ENQUEUE
+
+  verify_deployment "warehouse_bootstrap/warehouse-bootstrap"
+  verify_deployment \
+    "measurement_stream_state_bootstrap/measurement-stream-state-bootstrap"
+  verify_deployment "canonical_shadow_publish/canonical-shadow-publish"
+  verify_deployment \
+    "canonical_measurement_backfill/canonical-measurement-backfill"
+  verify_deployment \
+    "canonical_measurement_queue_cutover/canonical-measurement-queue-cutover"
+
   deploy_flow \
     "pipelines/flows/canonical_incremental.py:canonical_incremental" \
     "canonical-incremental" \

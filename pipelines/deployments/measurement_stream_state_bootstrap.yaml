@@ -1,0 +1,13 @@
+name: measurement-stream-state-bootstrap
+entrypoint: pipelines/flows/measurement_stream_state_bootstrap.py:measurement_stream_state_bootstrap
+work_pool:
+  name: canonical
+parameters: {}
+concurrency_limit:
+  limit: 1
+  collision_strategy: ENQUEUE
+tags:
+  - ops
+  - bootstrap
+  - maintenance
+  - stream-state

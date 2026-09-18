@@ -27,6 +27,11 @@
   {{ return(raw in [true, 1, '1', 'true', 'True', 'TRUE']) }}
 {%- endmacro %}
 
+{% macro measurement_batch_unmarked_only() -%}
+  {%- set raw = var('measurement_batch_unmarked_only', false) -%}
+  {{ return(raw in [true, 1, '1', 'true', 'True', 'TRUE']) }}
+{%- endmacro %}
+
 {% macro measurement_source_selected(source_name) -%}
   {%- set selected_source = measurement_batch_data_source() -%}
   {{ return(selected_source is none or selected_source == source_name) }}
@@ -142,6 +147,26 @@
     ~ " and "
     ~ measurement_process_measured_at_predicate(measured_at_column_name)
   ) }}
+{%- endmacro %}
+
+{% macro measurement_runtime_queue_row_predicate(source_column_name, measured_at_column_name, cleanup_eligible_column_name) -%}
+  {%- if flags.FULL_REFRESH -%}
+    {{ return("1=1") }}
+  {%- elif measurement_has_process_batch_scope() -%}
+    {%- set process_scope = measurement_process_row_predicate(
+      source_column_name,
+      measured_at_column_name
+    ) -%}
+    {%- if measurement_batch_unmarked_only() -%}
+      {{ return(
+        process_scope ~ " and " ~ cleanup_eligible_column_name ~ " is null"
+      ) }}
+    {%- else -%}
+      {{ return(process_scope) }}
+    {%- endif -%}
+  {%- else -%}
+    {{ return(cleanup_eligible_column_name ~ " is null") }}
+  {%- endif -%}
 {%- endmacro %}
 
 {% macro measurement_source_incremental_predicate(source_name, extracted_at_col) -%}

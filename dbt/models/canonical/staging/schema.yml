@@ -1,18 +1,19 @@
 version: 2
 
 models:
-  - name: stg_fiuna_measurements
-    description: "Staging view for FIUNA Airbyte tables. Adds station_code, cursor_id (ID), parsed timestamp, and validity flags."
+  - name: stg_fiuna_measurements_raw
+    description: "Raw FIUNA parse/normalize view over the ten Airbyte station tables. Timestamp repair is intentionally deferred to stg_fiuna_measurements_repaired."
     columns:
       - name: _airbyte_raw_id
-        tests: [not_null]
+        tests: [not_null, unique]
       - name: extracted_at
         tests: [not_null]
       - name: data_source_name
         tests:
           - not_null
           - accepted_values:
-              values: ["fiuna_airbyte"]
+              arguments:
+                values: ["fiuna_airbyte"]
       - name: station_code
         tests: [not_null]
       - name: cursor_id
@@ -26,10 +27,100 @@ models:
         tests: [not_null]
       - name: raw_payload
         tests: [not_null]
+      - name: pm1
+      - name: pm25
+      - name: pm10
+      - name: battery
+      - name: hum
+      - name: pres
+      - name: temperature_c
 
     tests:
       - dbt_utils.unique_combination_of_columns:
-          combination_of_columns: ["station_code", "cursor_id"]
+          arguments:
+            combination_of_columns: ["station_code", "cursor_id"]
+
+  - name: stg_fiuna_measurements_repaired
+    description: "Persisted FIUNA staging state. Repairs invalid timestamps by station and cursor_id and supplies continuity anchors to later extraction batches."
+    columns:
+      - name: _airbyte_raw_id
+        tests: [not_null, unique]
+      - name: extracted_at
+        tests: [not_null]
+      - name: data_source_name
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ["fiuna_airbyte"]
+      - name: station_code
+        tests: [not_null]
+      - name: cursor_id
+        description: "FIUNA continuity cursor (source-of-truth ID)."
+        tests: [not_null]
+      - name: measured_at_parsed
+        description: "Parsed timestamp before continuity repair."
+      - name: is_measured_at_valid
+        tests: [not_null]
+      - name: measured_at_silver
+        description: "Canonical FIUNA timestamp after cursor-based repair."
+      - name: is_time_imputed
+        tests: [not_null]
+      - name: time_impute_method
+        tests:
+          - accepted_values:
+              arguments:
+                values: ["fiuna_id_5min", "unfixable_no_anchor"]
+      - name: raw_payload
+        tests: [not_null]
+      - name: pm1
+      - name: pm25
+      - name: pm10
+      - name: battery
+      - name: hum
+      - name: pres
+      - name: temperature_c
+
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns: ["station_code", "cursor_id"]
+
+  - name: stg_fiuna_measurements
+    description: "Public FIUNA staging view over the persisted repaired table. Preserves raw row identity and wide measurements while exposing prepared canonical time fields."
+    columns:
+      - name: _airbyte_raw_id
+        tests: [not_null, unique]
+      - name: extracted_at
+        tests: [not_null]
+      - name: data_source_name
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ["fiuna_airbyte"]
+      - name: station_code
+        tests: [not_null]
+      - name: cursor_id
+        tests: [not_null]
+      - name: measured_at_silver
+      - name: is_time_imputed
+        tests: [not_null]
+      - name: time_impute_method
+      - name: raw_payload
+        tests: [not_null]
+      - name: pm1
+      - name: pm25
+      - name: pm10
+      - name: battery
+      - name: hum
+      - name: pres
+      - name: temperature_c
+
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns: ["station_code", "cursor_id"]
 
   - name: stg_airelibre_measurements
     description: "Staging view for AireLibre Airbyte table. Uses recorded as timestamp, no reliable cursor_id."

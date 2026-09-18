@@ -1,0 +1,26 @@
+version: 2
+
+models:
+  - name: measurement_stream_state
+    description: "Incrementally refreshed production carry-forward state derived only from successfully published silver rows."
+    columns:
+      - name: data_source_name
+        tests: [not_null]
+      - name: station_code
+        tests: [not_null]
+      - name: variable_code
+        tests: [not_null]
+      - name: last_measured_at_silver
+        tests: [not_null]
+      - name: last_extracted_at
+        tests: [not_null]
+      - name: last_source_row_id
+        tests: [not_null]
+      - name: last_value_silver
+        tests: [not_null]
+      - name: updated_at
+        tests: [not_null]
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [data_source_name, station_code, variable_code]

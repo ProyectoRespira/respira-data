@@ -184,7 +184,7 @@ jobs:
             -o UserKnownHostsFile=~/.ssh/known_hosts \
             -o ConnectTimeout=30 \
             "$DEPLOY_USER@$DEPLOY_HOST" \
-            "export COMPOSE_PATH='$COMPOSE_PATH'; bash -se" <<'REMOTE_SCRIPT'
+            "export COMPOSE_PATH='$COMPOSE_PATH' ENV_FILE='.env.prod'; bash -se" <<'REMOTE_SCRIPT'
           set -euo pipefail
 
           if [ -z "$COMPOSE_PATH" ] || [ ! -d "$COMPOSE_PATH" ]; then
@@ -197,7 +197,7 @@ jobs:
           docker compose \
             -f docker-compose.yml \
             -f docker-compose.remote.yml \
-            --env-file .env.prod \
+            --env-file "$ENV_FILE" \
             up -d --pull always --remove-orphans
 
           timeout_seconds=600
@@ -256,7 +256,7 @@ jobs:
           docker compose \
             -f docker-compose.yml \
             -f docker-compose.remote.yml \
-            --env-file .env.prod \
+            --env-file "$ENV_FILE" \
             run --rm --no-deps app bash -lc '
               set -euo pipefail
               cd /app/dbt

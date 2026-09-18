@@ -1,6 +1,6 @@
 selectors:
   - name: canonical_core
-    description: Canonical staging, intermediate, and core models.
+    description: Canonical staging, executable runtime intermediate, and core models without opt-in audits or standalone ephemeral nodes.
     definition:
       union:
         - method: path
@@ -9,6 +9,13 @@ selectors:
           value: models/canonical/intermediate
         - method: path
           value: models/canonical/core
+        - exclude:
+            - method: path
+              value: models/canonical/intermediate/int_measurement_payloads.sql
+            - method: path
+              value: models/canonical/intermediate/int_measurements_long.sql
+            - method: path
+              value: models/canonical/intermediate/int_measurements_values_silver.sql
 
   - name: canonical_silver
     description: Canonical silver models.
@@ -16,8 +23,14 @@ selectors:
       method: path
       value: models/canonical/silver
 
+  - name: canonical_incremental_state
+    description: Refresh production measurement stream state after a successful incremental silver publish.
+    definition:
+      method: path
+      value: models/canonical/ops/measurement_stream_state.sql
+
   - name: canonical_incremental_core
-    description: Canonical runtime core path for normal incrementals. Skips recreating pure staging views.
+    description: Canonical executable runtime core path for normal incrementals. Ephemeral measurement transformations are pulled inline only by consumers.
     definition:
       union:
         - method: path
@@ -25,12 +38,21 @@ selectors:
         - method: path
           value: models/canonical/staging/stg_respira_stations_cache.sql
         - method: path
+          value: models/canonical/staging/stg_fiuna_measurements_repaired.sql
+        - method: path
           value: models/canonical/intermediate
         - method: path
           value: models/canonical/core
+        - exclude:
+            - method: path
+              value: models/canonical/intermediate/int_measurement_payloads.sql
+            - method: path
+              value: models/canonical/intermediate/int_measurements_long.sql
+            - method: path
+              value: models/canonical/intermediate/int_measurements_values_silver.sql
 
   - name: canonical_batch_prep
-    description: Staging and prerequisite canonical dimensions for measurement backfills.
+    description: Stateless staging and prerequisite canonical dimensions for measurement backfills. FIUNA repaired/public staging runs in scoped batch ingest.
     definition:
       union:
         - method: path
@@ -45,11 +67,20 @@ selectors:
           value: models/canonical/core/dim_variables.sql
         - method: path
           value: models/canonical/core/dim_stations.sql
+        - exclude:
+            - method: path
+              value: models/canonical/staging/stg_fiuna_measurements_repaired.sql
+            - method: path
+              value: models/canonical/staging/stg_fiuna_measurements.sql
 
   - name: canonical_batch_ingest
-    description: Source-row ingest path for batched measurement backfills.
+    description: Source-row ingest path for batched measurement backfills, including scoped FIUNA repair and its public staging view.
     definition:
       union:
+        - method: path
+          value: models/canonical/staging/stg_fiuna_measurements_repaired.sql
+        - method: path
+          value: models/canonical/staging/stg_fiuna_measurements.sql
         - method: path
           value: models/canonical/intermediate/int_measurement_timestamps_silver.sql
         - method: path
@@ -58,21 +89,34 @@ selectors:
           value: models/canonical/core/dim_streams.sql
 
   - name: canonical_batch_payload_audit
-    description: Optional raw payload audit path for batched measurement backfills.
+    description: Explicit raw payload audit path for requested batched measurement backfills.
     definition:
       method: path
       value: models/canonical/intermediate/int_measurement_payloads.sql
 
   - name: canonical_batch_process
-    description: Post-validation measured-time processing path for batched measurement backfills.
+    description: Post-validation measured-time publish and stream-state refresh path for batched measurement backfills.
     definition:
       union:
         - method: path
-          value: models/canonical/intermediate/int_measurements_long.sql
-        - method: path
-          value: models/canonical/intermediate/int_measurements_values_silver.sql
-        - method: path
           value: models/canonical/silver/fct_measurements_silver.sql
+        - method: path
+          value: models/canonical/ops/measurement_stream_state.sql
+
+  - name: canonical_debug_intermediate
+    description: Explicit bounded materialization of long and value intermediates for manual investigation.
+    definition:
+      union:
+        - method: path
+          value: models/canonical/debug/debug_int_measurements_long.sql
+        - method: path
+          value: models/canonical/debug/debug_int_measurements_values_silver.sql
+
+  - name: canonical_debug_payload_audit
+    description: Explicit bounded raw payload materialization for manual investigation.
+    definition:
+      method: path
+      value: models/canonical/debug/debug_int_measurement_payloads.sql
 
   - name: canonical_batch_smoke_tests
     description: Source-scoped smoke tests for measurement backfills.
@@ -82,6 +126,39 @@ selectors:
           value: test
         - method: path
           value: tests/batch_smoke
+
+  - name: canonical_cutover_witness_tests
+    description: Bounded tests that use retained physical runtime intermediates as pre-ephemeral publication witnesses.
+    definition:
+      intersection:
+        - method: resource_type
+          value: test
+        - method: path
+          value: tests/cutover
+
+  - name: canonical_shadow_state
+    description: Reset or incrementally refresh the isolated shadow stream state.
+    definition:
+      method: path
+      value: models/canonical/shadow/measurement_stream_state_shadow.sql
+
+  - name: canonical_shadow_publish
+    description: Publish validation rows to isolated shadow silver; ephemeral long/value dependencies compile inline.
+    definition:
+      method: path
+      value: models/canonical/shadow/fct_measurements_silver_shadow.sql
+
+  - name: canonical_shadow_tests
+    description: Contract tests for the persisted shadow silver and stream-state outputs.
+    definition:
+      union:
+        - intersection:
+            - method: resource_type
+              value: test
+            - method: path
+              value: models/canonical/shadow
+        - method: path
+          value: tests/shadow
 
   - name: project_respira_gold
     description: respira_gold project models.
@@ -205,7 +282,7 @@ selectors:
               value: tests/respira_gold
 
   - name: canonical_full_refresh
-    description: Safe full-refresh scope for canonical models.
+    description: Safe full-refresh scope without opt-in payload audit or standalone ephemeral runtime nodes.
     definition:
       union:
         - method: path
@@ -216,3 +293,10 @@ selectors:
           value: models/canonical/core
         - method: path
           value: models/canonical/silver
+        - exclude:
+            - method: path
+              value: models/canonical/intermediate/int_measurement_payloads.sql
+            - method: path
+              value: models/canonical/intermediate/int_measurements_long.sql
+            - method: path
+              value: models/canonical/intermediate/int_measurements_values_silver.sql
