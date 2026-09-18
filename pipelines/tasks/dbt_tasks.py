@@ -175,9 +175,7 @@ def _dbt_artifact_config(
     settings, command: str, application_name: str
 ) -> tuple[str, str, str | None]:
     if _command_supports_target_path(command):
-        artifact_dir, run_results_path = _dbt_artifact_paths(
-            settings, application_name
-        )
+        artifact_dir, run_results_path = _dbt_artifact_paths(settings, application_name)
         return artifact_dir, run_results_path, artifact_dir
 
     artifact_dir = str(Path(settings.DBT_PROJECT_DIR) / "target")
