@@ -33,9 +33,7 @@ def warehouse_bootstrap() -> None:
         # rather than warns, so the flow cannot report success while leaving
         # the pipeline pointed at a missing relation.
         logger.info("Ensuring respira_gold.station_overrides")
-        ensure_station_overrides_table(
-            engine, backend_role=settings.BACKEND_DB_ROLE
-        )
+        ensure_station_overrides_table(engine, backend_role=settings.BACKEND_DB_ROLE)
     finally:
         engine.dispose()
 

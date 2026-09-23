@@ -192,9 +192,7 @@ def test_warehouse_bootstrap_provisions_station_overrides(monkeypatch):
     monkeypatch.setattr(
         warehouse_bootstrap_flow, "get_engine", lambda _settings: _Engine()
     )
-    monkeypatch.setattr(
-        warehouse_bootstrap_flow, "list_project_configs", lambda: []
-    )
+    monkeypatch.setattr(warehouse_bootstrap_flow, "list_project_configs", lambda: [])
     monkeypatch.setattr(
         warehouse_bootstrap_flow,
         "ensure_ops_audit_tables",
@@ -233,9 +231,7 @@ def test_warehouse_bootstrap_fails_when_station_overrides_cannot_be_provisioned(
     monkeypatch.setattr(
         warehouse_bootstrap_flow, "get_engine", lambda _settings: _Engine()
     )
-    monkeypatch.setattr(
-        warehouse_bootstrap_flow, "list_project_configs", lambda: []
-    )
+    monkeypatch.setattr(warehouse_bootstrap_flow, "list_project_configs", lambda: [])
     monkeypatch.setattr(
         warehouse_bootstrap_flow,
         "ensure_ops_audit_tables",

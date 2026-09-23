@@ -220,8 +220,7 @@ def _validate_backend_role(backend_role: str) -> str:
     """
     if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_$]*", backend_role):
         raise ValueError(
-            "BACKEND_DB_ROLE must be a bare SQL identifier, got "
-            f"{backend_role!r}."
+            f"BACKEND_DB_ROLE must be a bare SQL identifier, got {backend_role!r}."
         )
     return backend_role
 
