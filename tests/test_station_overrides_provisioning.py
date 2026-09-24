@@ -79,6 +79,45 @@ def test_station_overrides_sql_is_idempotent_and_fully_qualified():
     assert "create table if not exists station_overrides" not in sql
 
 
+def test_station_overrides_sql_contains_no_percent_sign_anywhere():
+    """Not one percent sign in the file -- comments included.
+
+    Statements reach PostgreSQL through psycopg, which scans the text it is
+    handed for its own placeholders and rejects the statement before the
+    server ever sees it. PL/pgSQL's substitution marker in a `raise notice`
+    and a LIKE pattern both trip it, and so does a percent sign sitting in a
+    comment: the scan does not skip those. That is what broke the first
+    bootstrap run against Demo, twice -- first from a `raise notice`, then
+    from the comment written to explain why the notice had been removed.
+
+    psql has no such parsing step, so applying the file by hand does not
+    reproduce it; only the driver path does. Escaping would satisfy psycopg
+    but leave stray characters under psql, so the file carries none at all:
+    the raise notice interpolates the role into its message text rather than
+    passing it as an argument, which is what the percent-sign form requires.
+    """
+    raw = (REPO_ROOT / "pipelines/sql/04_station_overrides_table.sql").read_text(
+        encoding="utf-8"
+    )
+    assert "%" not in raw
+    assert "%" not in _rendered_sql()
+
+
+def test_station_overrides_sql_reports_a_missing_backend_role():
+    """The skip is announced, not silent.
+
+    A database without the backend role still bootstraps, but an operator
+    reading the flow logs should be able to tell that grants were skipped and
+    for which role -- otherwise a typo in BACKEND_DB_ROLE looks identical to a
+    successful run.
+    """
+    sql = _rendered_sql(backend_role="someotherrole")
+
+    assert "raise notice" in sql
+    assert "Role someotherrole not found" in sql
+    assert "skipping station_overrides grants" in sql
+
+
 def test_station_overrides_sql_grants_crud_but_never_schema_create():
     sql = _rendered_sql()
 
