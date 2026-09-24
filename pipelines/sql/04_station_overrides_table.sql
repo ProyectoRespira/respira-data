@@ -94,7 +94,18 @@ comment on column respira_gold.station_overrides.processed is
 --
 -- The role name is not hardcoded: BACKEND_DB_ROLE is passed in by
 -- ensure_station_overrides_table(). Granting is skipped when the role does not
--- exist so a local or CI database without the backend role still bootstraps.
+-- exist, so a local or CI database without the backend role still bootstraps,
+-- and the notice says so rather than leaving the skip silent.
+--
+-- The role name is interpolated into the notice text instead of being passed
+-- as a raise argument, which is what the percent-sign form would need. This
+-- whole file deliberately contains no percent sign anywhere -- not in a raise
+-- notice, not in a LIKE pattern, not even in a comment. Statements reach
+-- PostgreSQL through psycopg, which scans the text it is handed for its own
+-- placeholders and rejects the statement before the server ever sees it, and
+-- that scan does not skip comments. psql has no such step, so applying this
+-- file by hand does not reproduce the failure -- only the driver path does.
+-- See the regression test in tests/test_station_overrides_provisioning.py.
 do $$
 begin
     if exists (select 1 from pg_roles where rolname = '{backend_role}') then
@@ -103,8 +114,7 @@ begin
             on respira_gold.station_overrides to {backend_role};
     else
         raise notice
-            'Role % not found; skipping station_overrides grants.',
-            '{backend_role}';
+            'Role {backend_role} not found; skipping station_overrides grants.';
     end if;
 end
 $$;
