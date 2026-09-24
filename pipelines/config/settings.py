@@ -15,6 +15,12 @@ class RuntimeSettings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
     DB_DSN: str | None = None
+
+    # Role the respira-webapp backend connects as. warehouse_bootstrap grants it
+    # CRUD on the tables this pipeline provisions for the backoffice — never
+    # CREATE on the schema, which is what the failed deployment tried to rely on.
+    BACKEND_DB_ROLE: str = "backenduser"
+
     DBT_PROJECT_DIR: str = str(REPO_ROOT / "dbt")
     DBT_PROFILES_DIR: str = str(REPO_ROOT / "dbt")
     DBT_TARGET: str = "prod"

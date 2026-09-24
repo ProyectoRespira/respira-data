@@ -43,8 +43,9 @@ PROJECTS: dict[str, ProjectConfig] = {
         inference_source_table="respira_gold.station_inference_features",
         inference_runs_table="respira_gold.inference_runs",
         inference_results_table="respira_gold.inference_results",
-        dbt_seed_selector="project_respira_gold_seed",
-        dbt_seed_tests_selector="project_respira_gold_seed_tests",
+        # No project-scoped seeds: station_status_seed.csv was the only one, and
+        # the backoffice's respira_webapp.station_overrides table replaced it.
+        # project_pipeline skips the seed stage while these are None.
     )
 }
 
