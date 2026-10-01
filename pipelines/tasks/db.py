@@ -14,6 +14,7 @@ PIPELINES_ROOT = Path(__file__).resolve().parents[1]
 SQL_DIR = PIPELINES_ROOT / "sql"
 OPS_AUDIT_SQL = SQL_DIR / "02_ops_audit.sql"
 INFERENCE_TABLES_SQL = SQL_DIR / "03_inference_tables.sql"
+STATION_OVERRIDES_SQL = SQL_DIR / "04_station_overrides_table.sql"
 logger = logging.getLogger(__name__)
 _DOLLAR_QUOTE_RE = re.compile(r"\$(?:[A-Za-z_][A-Za-z0-9_]*)?\$")
 
@@ -208,3 +209,44 @@ def ensure_project_inference_tables(engine: Engine, project: ProjectConfig) -> N
             project.project_code,
             exc,
         )
+
+
+def _validate_backend_role(backend_role: str) -> str:
+    """Reject anything that is not a bare SQL identifier.
+
+    The role name is interpolated into the GRANT statements rather than bound as
+    a parameter — PostgreSQL does not accept a placeholder for a role — so it is
+    checked here instead of trusting the setting.
+    """
+    if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_$]*", backend_role):
+        raise ValueError(
+            f"BACKEND_DB_ROLE must be a bare SQL identifier, got {backend_role!r}."
+        )
+    return backend_role
+
+
+def ensure_station_overrides_table(engine: Engine, *, backend_role: str) -> None:
+    """Provision respira_gold.station_overrides and grant the backend CRUD on it.
+
+    Unlike the two functions above, a failure here is never swallowed: the
+    pipeline reads this table through the ``respira_webapp`` dbt source, so a
+    bootstrap that could not establish it has not done its job. Logging a
+    warning and letting the Prefect flow finish green is exactly the deployment
+    gap this provisioning exists to close — the pipeline would be deployed
+    against a relation that does not exist.
+    """
+    _validate_backend_role(backend_role)
+
+    sql = STATION_OVERRIDES_SQL.read_text(encoding="utf-8")
+    # Rendered with str.format, then split by the dollar-quote-aware splitter:
+    # the file contains `do $$ ... $$` blocks, which a naive split on ";" would
+    # tear apart mid-body.
+    statements = _split_sql_statements(sql.format(backend_role=backend_role))
+
+    try:
+        execute_statements(engine, statements)
+    except SQLAlchemyError as exc:
+        raise RuntimeError(
+            "Unable to ensure respira_gold.station_overrides; the pipeline "
+            "depends on this table through the respira_webapp dbt source."
+        ) from exc
