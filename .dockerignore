@@ -1,11 +1,12 @@
 # Git
+.git
 .gitignore
 .gitattributes
 
-# Environment
+# Environment (local env files hold secrets)
 .env
-.env.*.local
-.env.*.example
+.env.*
+envsdata/
 
 # Python
 __pycache__
@@ -25,7 +26,12 @@ coverage.xml
 *.cover
 .hypothesis/
 .pytest_cache/
+.ruff_cache/
+.mypy_cache/
 *.prof
+
+# Tests (dbt/tests is still included)
+tests/
 
 # Virtual environments
 venv/
@@ -33,6 +39,7 @@ env/
 ENV/
 
 # IDE
+.devcontainer
 .vscode
 .idea
 *.swp
