@@ -1,5 +1,4 @@
-# Git
-.git
+# Git (.git is kept: flows record `git rev-parse HEAD` in run artifacts)
 .gitignore
 .gitattributes
 

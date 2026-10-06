@@ -36,8 +36,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY --from=builder /usr/local/lib/python3.12/site-packages /usr/local/lib/python3.12/site-packages
 COPY --from=builder /usr/local/bin /usr/local/bin
 
-# Replaces the editable root install: makes the `pipelines` and `inference`
-# packages importable from the copied source tree.
-ENV PYTHONPATH=/app:/app/src
+# Replaces the editable root install: like Poetry's .pth, appends /app/src and
+# /app to sys.path so `pipelines` and `inference` are importable without
+# shadowing installed packages.
+RUN printf '/app/src\n/app\n' > /usr/local/lib/python3.12/site-packages/respira_data.pth
 
 COPY . /app
