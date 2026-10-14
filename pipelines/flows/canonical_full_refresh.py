@@ -23,6 +23,10 @@ from pipelines.tasks.dbt_tasks import (
     dbt_test_selector,
 )
 from pipelines.tasks.gates import raise_if_failed
+from pipelines.tasks.measurement_runtime import (
+    acquire_measurement_publish_lock,
+    release_measurement_publish_lock,
+)
 from pipelines.tasks.notifications import notify_flow_failure
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -56,7 +60,7 @@ def canonical_full_refresh() -> None:
     logger = get_run_logger()
     settings = get_settings()
     engine = get_engine(settings)
-    ensure_ops_audit_tables(engine)
+    lock_connection = None
 
     ctx = get_flow_context()
     ctx.update(
@@ -70,6 +74,8 @@ def canonical_full_refresh() -> None:
     )
 
     try:
+        lock_connection = acquire_measurement_publish_lock(engine)
+        ensure_ops_audit_tables(engine)
         deps_result = dbt_deps(settings)
         deps_summary = _summary_from_result(deps_result)
         persist_dbt_audit(engine, deps_result, deps_summary, ctx)
@@ -113,6 +119,8 @@ def canonical_full_refresh() -> None:
         notify_flow_failure(ctx, str(exc))
         raise
     finally:
+        if lock_connection is not None:
+            release_measurement_publish_lock(lock_connection)
         engine.dispose()
 
 

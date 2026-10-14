@@ -2,14 +2,26 @@
   materialized='incremental',
   unique_key=['data_source_name', 'source_row_id'],
   incremental_strategy='merge',
+  merge_exclude_columns=['cleanup_eligible_at'],
+  on_schema_change='sync_all_columns',
+  tags=['measurement_processing_queue'],
   indexes=[
     {'columns': ['data_source_name', 'source_row_id'], 'unique': true},
-    {'columns': ['extracted_at']},
+    {'columns': ['data_source_name', 'extracted_at']},
+    {'columns': ['data_source_name', 'measured_at_silver']},
+    {'columns': ['cleanup_eligible_at', 'extracted_at']},
+    {'columns': ['data_source_name', 'extracted_at', 'source_row_id']},
     {'columns': ['data_source_name', 'station_code', 'cursor_id']}
   ]
 ) }}
 
-{%- set sources_cfg = var('measurements_sources') -%}
+-- Operational queue contract:
+-- * one row per (data_source_name, source_row_id)
+-- * extracted_at is the incremental ingest checkpoint
+-- * measured_at_silver coordinates half-open process windows
+-- * cleanup_eligible_at is set only by post-publish orchestration gates
+-- * rows remain resumable until a separate, post-success cleanup removes them
+{% set sources_cfg = var('measurements_sources') -%}
 {%- set selected_source_names = get_selected_measurement_sources(sources_cfg) -%}
 
 with source_rows as (
@@ -25,7 +37,16 @@ with source_rows as (
 
   {%- endfor %}
 
+),
+
+queue_rows as (
+
+  select
+    source_rows.*,
+    null::timestamptz as cleanup_eligible_at
+  from source_rows
+
 )
 
 select *
-from source_rows
+from queue_rows

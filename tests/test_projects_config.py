@@ -10,8 +10,10 @@ def test_get_project_config_respira_gold():
     assert project.project_code == "respira_gold"
     assert project.dbt_selector == "project_respira_gold"
     assert project.dbt_tests_selector == "project_respira_gold_tests"
-    assert project.dbt_seed_selector == "project_respira_gold_seed"
-    assert project.dbt_seed_tests_selector == "project_respira_gold_seed_tests"
+    # The project has no seeds since station_status_seed.csv was replaced by the
+    # backoffice's station_overrides table, so the seed stage is skipped.
+    assert project.dbt_seed_selector is None
+    assert project.dbt_seed_tests_selector is None
     assert project.schema_name == "respira_gold"
 
 

@@ -26,6 +26,11 @@ regions as (
 
 select
   sm.project_station_id as id,
+  -- The pipeline's stable natural key, exposed to the backend so the Backoffice
+  -- can address a station in `station_overrides`. `id` cannot serve for that:
+  -- it comes from a row_number() in int_station_id_map and shifts whenever a
+  -- station is added.
+  s.code as station_code,
   case
     when lower(coalesce(s.properties->>'source', '')) = 'fiuna' then 'FIUNA: ' || s.name
     when lower(coalesce(s.properties->>'source', '')) = 'airelibre' then 'AireLibre: ' || s.name

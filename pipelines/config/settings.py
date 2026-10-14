@@ -5,6 +5,7 @@ from functools import lru_cache
 from pathlib import Path
 from urllib.parse import quote_plus
 
+from pydantic import PositiveInt
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -14,6 +15,12 @@ class RuntimeSettings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
     DB_DSN: str | None = None
+
+    # Role the respira-webapp backend connects as. warehouse_bootstrap grants it
+    # CRUD on the tables this pipeline provisions for the backoffice — never
+    # CREATE on the schema, which is what the failed deployment tried to rely on.
+    BACKEND_DB_ROLE: str = "backenduser"
+
     DBT_PROJECT_DIR: str = str(REPO_ROOT / "dbt")
     DBT_PROFILES_DIR: str = str(REPO_ROOT / "dbt")
     DBT_TARGET: str = "prod"
@@ -27,6 +34,10 @@ class RuntimeSettings(BaseSettings):
     DBT_TIMEOUT_TESTS_S: int = 1200
 
     MEASUREMENT_BACKFILL_PROCESS_BATCH_HOURS: int = 720
+    MEASUREMENT_TIMESTAMP_QUEUE_RETENTION_HOURS: PositiveInt = 168
+    MEASUREMENT_INCREMENTAL_MAX_EXPANDED_ROWS: PositiveInt = 2_000_000
+    MEASUREMENT_QUEUE_CUTOVER_BATCH_HOURS: PositiveInt = 168
+    MEASUREMENT_QUEUE_CUTOVER_MAX_QUEUE_ROWS: PositiveInt = 250_000
     MEASUREMENT_STREAM_STATE_BOOTSTRAP_TIMEOUT_S: int = 1800
     DEFAULT_WINDOW_HOURS: int = 24
     INFERENCE_MIN_POINTS: int = 18

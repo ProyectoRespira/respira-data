@@ -53,6 +53,7 @@ These variables are required for dbt and runtime DB access unless you use DB_DSN
 | PREFECT_UI_SERVE_BASE | No | / | docker-compose.yml | UI base path. |
 | PREFECT_SERVER_API_HOST | No | 0.0.0.0 | docker-compose.yml | API bind host. |
 | PREFECT_SERVER_API_PORT | No | 4200 | docker-compose.yml | API bind port. |
+| PREFECT_SERVER_API_BASE_PATH | No | /api | docker-compose.yml | Base URL path the API is served/mounted under; must match PREFECT_UI_API_URL and reverse-proxy routing when serving under a subpath. |
 
 ## Deployment Schedules
 
@@ -88,6 +89,7 @@ These variables are required for dbt and runtime DB access unless you use DB_DSN
 | DEFAULT_WINDOW_HOURS | No | 24 | pipelines/config/settings.py | Inference feature window size. |
 | INFERENCE_MIN_POINTS | No | 18 | pipelines/config/settings.py | Minimum points required for inference. |
 | MEASUREMENT_BACKFILL_PROCESS_BATCH_HOURS | No | 720 | pipelines/config/settings.py | Batch size (hours) for measurement backfill process step. |
+| MEASUREMENT_TIMESTAMP_QUEUE_RETENTION_HOURS | No | 168 | pipelines/config/settings.py, pipelines/tasks/measurement_queue.py | Positive age floor for processed timestamp queue rows. Recent rows and one row at each source's newest extraction checkpoint are retained. |
 
 ## Alerts and Social Integrations
 

@@ -1,0 +1,15 @@
+name: canonical-measurement-queue-cutover
+entrypoint: pipelines/flows/canonical_measurement_queue_cutover.py:canonical_measurement_queue_cutover
+work_pool:
+  name: canonical
+parameters:
+  mode: plan
+  confirm: false
+concurrency_limit:
+  limit: 1
+  collision_strategy: ENQUEUE
+tags:
+  - dbt
+  - canonical
+  - cutover
+  - manual

@@ -4,19 +4,20 @@ services:
     image: prefecthq/prefect:3.6.20-python3.12
     container_name: prefect_server
     env_file:
-      - .env
+      - ${ENV_FILE:-.env}
     environment:
       PREFECT_UI_URL: ${PREFECT_UI_URL:-http://localhost:4200}
       PREFECT_UI_API_URL: ${PREFECT_UI_API_URL:-http://localhost:4200/api}
       PREFECT_UI_SERVE_BASE: ${PREFECT_UI_SERVE_BASE:-/}
       PREFECT_SERVER_API_HOST: ${PREFECT_SERVER_API_HOST:-0.0.0.0}
       PREFECT_SERVER_API_PORT: ${PREFECT_SERVER_API_PORT:-4200}
+      PREFECT_SERVER_API_BASE_PATH: ${PREFECT_SERVER_API_BASE_PATH:-/api}
     command: ["prefect", "server", "start", "--host", "${PREFECT_SERVER_API_HOST:-0.0.0.0}", "--port", "${PREFECT_SERVER_API_PORT:-4200}"]
     ports:
       - "${PREFECT_SERVER_API_PORT:-4200}:${PREFECT_SERVER_API_PORT:-4200}"
     # Health check using Python (works in Prefect image without curl)
     healthcheck:
-      test: ["CMD-SHELL", "python -c \"import os, urllib.request; port=os.getenv('PREFECT_SERVER_API_PORT','4200'); urllib.request.urlopen(f'http://127.0.0.1:{port}/api/health', timeout=5)\""]
+      test: ["CMD-SHELL", "python -c \"import os, urllib.request; port=os.getenv('PREFECT_SERVER_API_PORT','4200'); base=os.getenv('PREFECT_SERVER_API_BASE_PATH','/api'); urllib.request.urlopen(f'http://127.0.0.1:{port}{base}/health', timeout=5)\""]
       interval: 10s
       timeout: 5s
       retries: 20
@@ -32,7 +33,7 @@ services:
       - DBT_PROFILES_DIR=${DBT_PROFILES_DIR:-/app/dbt}
       - PREFECT_API_URL=${PREFECT_API_URL:-http://prefect_server:${PREFECT_SERVER_API_PORT:-4200}/api}
     env_file:
-      - .env
+      - ${ENV_FILE:-.env}
     ports:
       - "8000:8000"
     depends_on:
@@ -54,7 +55,7 @@ services:
       - PREFECT_PROJECT_RESPIRA_GOLD_WORK_POOL=${PREFECT_PROJECT_RESPIRA_GOLD_WORK_POOL:-respira_gold}
       - PREFECT_SCHEDULE_TIMEZONE=${PREFECT_SCHEDULE_TIMEZONE:-UTC}
     env_file:
-      - .env
+      - ${ENV_FILE:-.env}
     # Health check to verify Prefect worker is operational
     healthcheck:
       test: ["CMD-SHELL", "pgrep -f 'prefect worker start' > /dev/null || exit 1"]

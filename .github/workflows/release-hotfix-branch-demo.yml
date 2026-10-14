@@ -270,7 +270,7 @@ jobs:
             -o UserKnownHostsFile=~/.ssh/known_hosts \
             -o ConnectTimeout=30 \
             "$DEPLOY_USER@$DEPLOY_HOST" \
-            "export COMPOSE_PATH='$COMPOSE_PATH' APP_IMAGE_TAG='$IMAGE_TAG' WORKER_IMAGE_TAG='$IMAGE_TAG'; bash -se" <<'REMOTE_SCRIPT'
+            "export COMPOSE_PATH='$COMPOSE_PATH' APP_IMAGE_TAG='$IMAGE_TAG' WORKER_IMAGE_TAG='$IMAGE_TAG' ENV_FILE='.env.demo'; bash -se" <<'REMOTE_SCRIPT'
           set -euo pipefail
 
           compose_files="-f docker-compose.yml -f docker-compose.remote.yml"

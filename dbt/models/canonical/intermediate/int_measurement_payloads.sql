@@ -1,5 +1,6 @@
 {{ config(
   materialized='incremental',
+  tags=['payload_audit'],
   unique_key=['data_source_name', 'source_row_id'],
   incremental_strategy='merge',
   on_schema_change='sync_all_columns',
@@ -8,6 +9,8 @@
     {'columns': ['extracted_at']}
   ]
 ) }}
+
+{{ validate_measurement_payload_audit_scope() }}
 
 {%- set sources_cfg = var('measurements_sources') -%}
 {%- set selected_source_names = get_selected_measurement_sources(sources_cfg) -%}

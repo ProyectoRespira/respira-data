@@ -1,0 +1,9 @@
+version: 2
+
+sources:
+  - name: legacy_runtime_intermediate
+    schema: intermediate
+    description: "Physical pre-ephemeral runtime tables retained only as guarded cutover witnesses."
+    tables:
+      - name: int_measurements_long
+      - name: int_measurements_values_silver

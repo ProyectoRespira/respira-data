@@ -1,0 +1,9 @@
+version: 2
+
+sources:
+  - name: silver_runtime
+    schema: silver
+    description: "Physical silver relations read as carry-in state without creating dbt graph cycles."
+    tables:
+      - name: fct_measurements_silver
+        description: "Published canonical measurement history used as the bounded-backfill carry-in authority."

@@ -25,6 +25,12 @@ dbt:
 - `DBT_TIMEOUT_PROJECT_S` default `1200`
 - `DBT_TIMEOUT_TESTS_S` default `1200`
 - `MEASUREMENT_BACKFILL_PROCESS_BATCH_HOURS` default `720`
+- `MEASUREMENT_TIMESTAMP_QUEUE_RETENTION_HOURS` default `168`; debe ser mayor
+  que cero
+- `MEASUREMENT_INCREMENTAL_MAX_EXPANDED_ROWS` default `2000000`; un incremental
+  que excede este limite falla antes de publicar silver
+- `MEASUREMENT_QUEUE_CUTOVER_BATCH_HOURS` default `168`
+- `MEASUREMENT_QUEUE_CUTOVER_MAX_QUEUE_ROWS` default `250000`
 - `MEASUREMENT_STREAM_STATE_BOOTSTRAP_TIMEOUT_S` default `1800`
 
 Inferencia:
@@ -48,6 +54,7 @@ Alertas:
 - `pipelines/flows/canonical_incremental.py:canonical_incremental`
 - `pipelines/flows/canonical_full_refresh.py:canonical_full_refresh`
 - `pipelines/flows/canonical_measurement_backfill.py:canonical_measurement_backfill`
+- `pipelines/flows/canonical_measurement_queue_cutover.py:canonical_measurement_queue_cutover`
 - `pipelines/flows/project_inference.py:project_inference`
 - `pipelines/flows/project_pipeline.py:project_pipeline`
 
@@ -59,11 +66,12 @@ Desde raíz del repositorio:
 - `make run-canonical-incremental`
 - `make run-canonical-full-refresh`
 - `make run-canonical-measurement-backfill`
+- `make run-canonical-measurement-queue-cutover-plan`
 - `make run-project-pipeline`
 - `make run-project-inference`
 
-`canonical_measurement_backfill` no reconstruye `int_measurement_payloads` por defecto. Ese modelo queda como auditoria opcional de payloads crudos y se puede activar con `include_payload_audit=True` cuando haga falta.
-Tambien admite `run_prep=False` y `run_ingest=False` para retomar una corrida pesada ya materializada sin rehacer staging global ni el aterrizaje row-grain.
+`canonical_measurement_backfill` no reconstruye `int_measurement_payloads` por defecto, y los selectores normales tampoco lo ejecutan. La auditoria persistente se activa solamente con `include_payload_audit=True` junto con `run_ingest=True`. Para inspeccion manual acotada, `canonical_debug_payload_audit` reemplaza una tabla `debug_int_measurement_payloads` usando una fuente y ambos limites de `extracted_at`.
+Tambien admite `run_prep=False` y `run_ingest=False` para retomar una corrida pesada ya materializada sin rehacer staging global ni el aterrizaje row-grain. `run_ingest=False` solo esta soportado mientras todas las filas necesarias sigan retenidas en la cola `intermediate.int_measurement_timestamps_silver`; si ya fueron limpiadas, el flujo falla y se debe repetir con `run_ingest=True`. El contrato completo de granularidad, bounds y elegibilidad de limpieza esta en `docs/measurement-timestamp-queue.md`.
 
 ## Deployments automáticos
 
@@ -72,10 +80,11 @@ Al iniciar `prefect_worker`, el script de bootstrap:
 1. espera a que Prefect API esté lista
 2. crea o actualiza los work pools `canonical` y `respira_gold`
 3. despliega `warehouse_bootstrap`, `measurement_stream_state_bootstrap`,
-   `canonical_shadow_publish`, `canonical_incremental` y
-   `canonical_full_refresh` en `canonical`
-4. verifica que los deployments manuales de bootstrap y shadow publish existan
-   en Prefect;
+   `canonical_shadow_publish`, `canonical_measurement_backfill`,
+   `canonical_measurement_queue_cutover`,
+   `canonical_incremental` y `canonical_full_refresh` en `canonical`
+4. verifica que los deployments manuales de bootstrap, shadow publish y
+   measurement backfill y queue cutover existan en Prefect;
    si falta uno, el worker falla antes de iniciar
 5. despliega `project_pipeline(project_code=respira_gold)` en `respira_gold`
 6. inicia un worker por cada work pool configurado
@@ -110,9 +119,30 @@ un reset inicial desde el estado productivo y luego permite validar continuidad
 entre lotes sin reset. Ver `docs/canonical-shadow-publish.md` para parámetros,
 replay histórico, validación y rollback.
 
+`canonical-measurement-backfill` es manual, no tiene schedule y tiene
+concurrencia `1` con estrategia `ENQUEUE`. Se puede ejecutar desde Prefect UI
+con bounds acotados y luego repetir con `run_ingest=False` mientras las filas
+requeridas sigan en la cola de timestamps.
+
+La limpieza de la cola ocurre automaticamente despues de publish silver,
+refresh de `ops.measurement_stream_state` y smoke tests exitosos. En backfills
+se ejecuta por ventana; con `run_tests=False` no se elimina nada. La limpieza
+incremental normal excluye filas null-time, y el borde `max(extracted_at)` de
+cada fuente siempre conserva una fila como checkpoint aunque sea mas antiguo
+que la retencion configurada.
+
+`int_measurements_long` e `int_measurements_values_silver` son transformaciones
+ephemeral en runtime: los selectores productivos las excluyen como nodos
+independientes y dbt las inserta como CTEs solamente cuando un consumidor las
+referencia. Para inspeccion manual, `canonical_debug_intermediate` materializa
+tablas `debug_*` solamente con source y ventana acotados. El retiro reversible
+de las tablas legacy esta documentado en
+`docs/runtime-measurement-intermediates.md`.
+
 ## Política actual
 
-- `canonical_incremental` falla si falla `dbt deps`, `canonical_core` o `canonical_silver`
+- `canonical_incremental` falla si falla `dbt deps`, los seeds/tests compartidos, `canonical_incremental_core`, `canonical_silver` o `canonical_incremental_state`
+- `canonical_incremental` usa `ops.measurement_stream_state` para carry-forward y solo lo refresca despues de publicar silver correctamente; repetir entradas estables no avanza state ni cambia `updated_at`
 - `canonical_incremental` usa `canonical_incremental_core`, que omite la recreacion de staging views puras para evitar esperas largas por locks, pero si actualiza `stg_fiuna_measurements_repaired` y los station caches incrementales. Si cambias SQL de staging o bootstrappeas un entorno nuevo, corre `canonical_full_refresh`; el backfill construye las capas FIUNA preparadas durante `canonical_batch_ingest`.
 - `project_pipeline` corre `dbt deps`, luego `dbt seed` y `dbt test` bloqueante para project seeds, y despues `dbt run` del proyecto
 - `project_pipeline` falla si falla el seed del proyecto, sus seed tests bloqueantes, o el run dbt del proyecto

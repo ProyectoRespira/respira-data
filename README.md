@@ -90,7 +90,7 @@ docker compose exec app bash -lc "cd /app/dbt && dbt run --target prod --selecto
 docker compose exec app bash -lc "cd /app/dbt && dbt test --target prod --selector project_respira_gold_tests"
 ```
 
-8. Run inference or the full project pipeline.
+8. Run inference or the full project pipeline
 
 ```bash
 docker compose exec prefect_worker bash -lc "cd /app && python3 pipelines/flows/project_inference.py"
@@ -244,6 +244,9 @@ dbt runtime settings:
 - `DBT_TIMEOUT_CANONICAL_SILVER_S`
 - `DBT_TIMEOUT_PROJECT_S`
 - `DBT_TIMEOUT_TESTS_S`
+- `MEASUREMENT_INCREMENTAL_MAX_EXPANDED_ROWS`: defaults to `2000000`
+- `MEASUREMENT_QUEUE_CUTOVER_BATCH_HOURS`: defaults to `168`
+- `MEASUREMENT_QUEUE_CUTOVER_MAX_QUEUE_ROWS`: defaults to `250000`
 
 Inference settings:
 
@@ -290,6 +293,8 @@ What happens automatically when `prefect_worker` starts:
 - waits for the Prefect API health check
 - creates or updates the `canonical` and `respira_gold` work pools
 - deploys `warehouse_bootstrap`
+- deploys `canonical_measurement_backfill` without a schedule
+- deploys `canonical_measurement_queue_cutover` in unscheduled plan mode
 - deploys `canonical_incremental`
 - deploys `canonical_full_refresh`
 - deploys `project_pipeline(project_code=respira_gold)`
@@ -360,6 +365,10 @@ Current behavior:
 - `canonical_incremental` is deployed on a cron schedule
 - `canonical_full_refresh` is deployed without a schedule and is intended to be
   manual
+- `canonical_measurement_backfill` is deployed without a schedule for bounded,
+  parameterized backfills and queue-resume validation from the Prefect UI
+- `canonical_measurement_queue_cutover` is deployed without a schedule and
+  defaults to read-only `plan` mode
 - `project_pipeline(project_code=respira_gold)` is deployed on a cron schedule
   only when both model paths are configured
 - the worker re-registers these deployments every time it restarts

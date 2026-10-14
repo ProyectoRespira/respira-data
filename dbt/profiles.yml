@@ -11,6 +11,7 @@ respira_data:
       schema: core
       threads: 4
       sslmode: "{{ env_var('REMOTE_PG_SSLMODE', 'prefer') }}"
+      application_name: "{{ env_var('DBT_APPLICATION_NAME', 'dbt') }}"
 
     prod:
       type: postgres
@@ -22,3 +23,4 @@ respira_data:
       schema: core
       threads: 4
       sslmode: "{{ env_var('REMOTE_PG_SSLMODE', 'prefer') }}"
+      application_name: "{{ env_var('DBT_APPLICATION_NAME', 'dbt') }}"
