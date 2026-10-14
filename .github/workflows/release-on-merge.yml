@@ -7,16 +7,14 @@ name: Create Release on Merge
       - main
 
 permissions:
-  contents: write
-  packages: write
-  attestations: write
-  artifact-metadata: write
-  id-token: write
+  contents: read
 
 jobs:
   create-release:
     name: Create GitHub Release
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     if: github.event.pull_request.merged == true
     outputs:
       skip: ${{ steps.extract_tag.outputs.skip }}
@@ -208,6 +206,12 @@ jobs:
     needs: create-release
     if: needs.create-release.outputs.skip != 'true'
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+      attestations: write
+      artifact-metadata: write
+      id-token: write
     env:
       REGISTRY: ghcr.io
       IMAGE_OWNER: ${{ github.repository_owner }}

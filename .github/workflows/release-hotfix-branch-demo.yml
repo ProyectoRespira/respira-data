@@ -219,7 +219,8 @@ jobs:
       - name: Copy compose and env files to server
         id: copy_files
         env:
-          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_HOST: ${{ steps.setup_ssh.outputs.deploy_host }}
+          DEPLOY_PORT: ${{ steps.setup_ssh.outputs.deploy_port }}
           DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
           COMPOSE_PATH: ${{ secrets.DEPLOY_COMPOSE_PATH_DATA }}
           KEY_PATH: ${{ steps.setup_ssh.outputs.key_path }}
@@ -228,7 +229,7 @@ jobs:
           set -euo pipefail
 
           echo "::group::Copy compose files to remote"
-          scp -i "$KEY_PATH" \
+          scp -i "$KEY_PATH" -P "$DEPLOY_PORT" \
             -o StrictHostKeyChecking=yes \
             -o UserKnownHostsFile=~/.ssh/known_hosts \
             docker-compose.yml \
@@ -237,7 +238,7 @@ jobs:
           echo "::endgroup::"
 
           echo "::group::Copy immutable demo env file to remote"
-          scp -i "$KEY_PATH" \
+          scp -i "$KEY_PATH" -P "$DEPLOY_PORT" \
             -o StrictHostKeyChecking=yes \
             -o UserKnownHostsFile=~/.ssh/known_hosts \
             "$ENV_FILE" \
@@ -245,7 +246,7 @@ jobs:
           echo "::endgroup::"
 
           echo "::group::Harden env file permissions on remote"
-          ssh -i "$KEY_PATH" \
+          ssh -i "$KEY_PATH" -p "$DEPLOY_PORT" \
             -o StrictHostKeyChecking=yes \
             -o UserKnownHostsFile=~/.ssh/known_hosts \
             -o ConnectTimeout=30 \
@@ -256,7 +257,8 @@ jobs:
       - name: Deploy over SSH
         shell: bash
         env:
-          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_HOST: ${{ steps.setup_ssh.outputs.deploy_host }}
+          DEPLOY_PORT: ${{ steps.setup_ssh.outputs.deploy_port }}
           DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
           COMPOSE_PATH: ${{ secrets.DEPLOY_COMPOSE_PATH_DATA }}
           KEY_PATH: ${{ steps.setup_ssh.outputs.key_path }}
@@ -265,7 +267,7 @@ jobs:
           set -euo pipefail
 
           echo "::group::Execute remote docker compose deploy"
-          ssh -i "$KEY_PATH" \
+          ssh -i "$KEY_PATH" -p "$DEPLOY_PORT" \
             -o StrictHostKeyChecking=yes \
             -o UserKnownHostsFile=~/.ssh/known_hosts \
             -o ConnectTimeout=30 \
@@ -368,10 +370,10 @@ jobs:
           APP_IMAGE_TAG="$APP_IMAGE_TAG" WORKER_IMAGE_TAG="$WORKER_IMAGE_TAG" docker compose \
             $compose_files \
             --env-file .env.demo \
-            pull app worker
+            pull app prefect_worker
 
           app_expected_image_id="$(capture_pulled_image_id app)"
-          worker_expected_image_id="$(capture_pulled_image_id worker)"
+          worker_expected_image_id="$(capture_pulled_image_id prefect_worker)"
 
           deploy_phase="[2/3] Recreate the stack from the pulled images"
           echo "$deploy_phase"
@@ -383,7 +385,7 @@ jobs:
           deploy_phase="[3/3] Validate the running containers use the pulled images"
           echo "$deploy_phase"
           validate_running_image app "$app_expected_image_id"
-          validate_running_image worker "$worker_expected_image_id"
+          validate_running_image prefect_worker "$worker_expected_image_id"
 
           echo "Deployment image validation completed successfully."
 
