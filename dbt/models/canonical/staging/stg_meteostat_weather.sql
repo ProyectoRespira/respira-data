@@ -19,6 +19,13 @@ with src as (
     *
   from {{ source('airbyte', 'meteostat_pss_airport') }}
 
+  union all
+
+  select
+    'mariscal_airport' as station_code,
+    *
+  from {{ source('airbyte', 'meteostat_esg_airport') }}
+
 ),
 
 typed as (
