@@ -4,7 +4,8 @@ with expected as (
     values
       ('asu_airport', 'GRAN_ASUNCION'),
       ('cde_airport', 'CIUDAD_DEL_ESTE'),
-      ('posadas_airport', 'ENCARNACION')
+      ('posadas_airport', 'ENCARNACION'),
+      ('mariscal_airport', 'CHACO')
   ) as t(station_code, region_code)
 ),
 
@@ -17,7 +18,7 @@ actual as (
     on project_weather.id = weather.id
   left join {{ ref('regions') }} regions
     on regions.id = project_weather.region_id
-  where weather.code in ('asu_airport', 'cde_airport', 'posadas_airport')
+  where weather.code in ('asu_airport', 'cde_airport', 'posadas_airport', 'mariscal_airport')
 )
 
 select
