@@ -132,46 +132,6 @@ jobs:
 
           echo "Release notes prepared from PR description"
 
-      - name: Delete previous hotfix/release images from GHCR
-        if: steps.extract_tag.outputs.skip != 'true' && steps.ensure_tag.outputs.ready == 'true'
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          set +e
-          PACKAGE_API_PREFIX="/orgs/${{ github.repository_owner }}/packages/container"
-
-          RELEASE_TAG="${{ steps.extract_tag.outputs.tag }}"
-          BRANCH_TYPE="${{ steps.extract_tag.outputs.branch_type }}"
-          PREFIXED_TAG="$BRANCH_TYPE-$RELEASE_TAG"
-
-          echo "Deleting previous images from GHCR..."
-
-          delete_tag_from_image() {
-            local image_name=$1
-            local tag=$2
-            echo "Deleting $image_name:$tag..."
-
-            gh api \
-              -X GET \
-              "$PACKAGE_API_PREFIX/$image_name/versions" \
-              --paginate \
-              --jq ".[] | select(.tags[]? == \"$tag\") | .id" | \
-              while read version_id; do
-                if [ -n "$version_id" ]; then
-                  echo "  Deleting version $version_id"
-                  gh api -X DELETE "$PACKAGE_API_PREFIX/$image_name/versions/$version_id" || true
-                fi
-              done
-          }
-
-          for image_name in respira-data-app respira-data-worker; do
-            delete_tag_from_image "$image_name" "$RELEASE_TAG"
-            delete_tag_from_image "$image_name" "$PREFIXED_TAG"
-          done
-
-          echo "Previous images deletion completed"
-          set -e
-
       - name: Create GitHub Release
         if: steps.extract_tag.outputs.skip != 'true' && steps.ensure_tag.outputs.ready == 'true'
         uses: softprops/action-gh-release@3d0d9888cb7fd7b750713d6e236d1fcb99157228 # v3.0.2
@@ -196,10 +156,6 @@ jobs:
           echo "  Tag Created: ${{ steps.ensure_tag.outputs.created }}"
           echo "  Merge Commit: ${{ github.event.pull_request.merge_commit_sha }}"
           echo "  PR: #${{ github.event.pull_request.number }}"
-          echo ""
-          echo "Intermediate images deleted"
-          echo "  Deleted: ${{ steps.extract_tag.outputs.branch_type }}-${{ steps.extract_tag.outputs.tag }}"
-          echo "  From: respira-data-app, respira-data-worker"
 
   publish-release-images:
     name: Publish Release Images to GHCR
@@ -216,6 +172,7 @@ jobs:
       REGISTRY: ghcr.io
       IMAGE_OWNER: ${{ github.repository_owner }}
       RELEASE_TAG: ${{ needs.create-release.outputs.release_tag }}
+      BRANCH_TYPE: ${{ needs.create-release.outputs.branch_type }}
 
     steps:
       - name: Validate release tag format
@@ -227,6 +184,41 @@ jobs:
             echo "Release tag must match strict semver format: vX.Y.Z"
             exit 1
           fi
+
+      - name: Delete previous hotfix/release images from GHCR
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          PACKAGE_API_PREFIX="/orgs/${{ github.repository_owner }}/packages/container"
+          PREFIXED_TAG="$BRANCH_TYPE-$RELEASE_TAG"
+
+          echo "Deleting previous images from GHCR..."
+
+          delete_tag_from_image() {
+            local image_name=$1
+            local tag=$2
+            echo "Deleting $image_name:$tag..."
+
+            gh api \
+              -X GET \
+              "$PACKAGE_API_PREFIX/$image_name/versions" \
+              --paginate \
+              --jq ".[] | select(.tags[]? == \"$tag\") | .id" | \
+              while read version_id; do
+                if [ -n "$version_id" ]; then
+                  echo "  Deleting version $version_id"
+                  gh api -X DELETE "$PACKAGE_API_PREFIX/$image_name/versions/$version_id"
+                fi
+              done
+          }
+
+          for image_name in respira-data-app respira-data-worker; do
+            delete_tag_from_image "$image_name" "$RELEASE_TAG"
+            delete_tag_from_image "$image_name" "$PREFIXED_TAG"
+          done
+
+          echo "Previous images deletion completed"
 
       - name: Normalize image owner
         id: normalize_owner

@@ -39,7 +39,7 @@ jobs:
             printf 'WORKER_IMAGE_TAG=%s\n' 'dev-latest'
           } > "$temp_env_file"
 
-          docker compose \
+          ENV_FILE="$temp_env_file" docker compose \
             -f docker-compose.yml \
             -f docker-compose.remote.yml \
             --env-file "$temp_env_file" \

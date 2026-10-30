@@ -195,6 +195,14 @@ jobs:
 
           echo "image_tag=$tag" >> "$GITHUB_OUTPUT"
 
+  deploy-demo:
+    name: Deploy to Demo Server
+    needs: [publish, prepare-demo]
+    if: ${{ always() && github.ref == 'refs/heads/dev' && (needs.publish.result == 'success' || needs.publish.result == 'skipped') && needs.prepare-demo.result == 'success' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    environment: Demo
+    steps:
       - name: Check authorization
         if: ${{ github.event_name == 'workflow_dispatch' }}
         env:
@@ -208,21 +216,13 @@ jobs:
             exit 1
           fi
 
-          if echo "$ALLOWED_USERS_DEMO" | grep -Eq '(^|[[:space:],])'"$CURRENT_USER"'([[:space:],]|$)'; then
+          if printf '%s\n' "$ALLOWED_USERS_DEMO" | tr ',[:space:]' '\n' | grep -Fx -- "$CURRENT_USER" >/dev/null; then
             echo "User $CURRENT_USER is authorized to deploy to Demo"
           else
             echo "User $CURRENT_USER is NOT authorized to deploy to Demo"
             exit 1
           fi
 
-  deploy-demo:
-    name: Deploy to Demo Server
-    needs: [publish, prepare-demo]
-    if: ${{ always() && github.ref == 'refs/heads/dev' && (needs.publish.result == 'success' || needs.publish.result == 'skipped') && needs.prepare-demo.result == 'success' }}
-    runs-on: ubuntu-latest
-    timeout-minutes: 45
-    environment: Demo
-    steps:
       - name: Checkout
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
 
@@ -259,6 +259,7 @@ jobs:
         id: copy_files
         env:
           DEPLOY_HOST: ${{ steps.setup_ssh.outputs.deploy_host }}
+          DEPLOY_SCP_HOST: ${{ steps.setup_ssh.outputs.deploy_scp_host }}
           DEPLOY_PORT: ${{ steps.setup_ssh.outputs.deploy_port }}
           DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
           COMPOSE_PATH: ${{ secrets.DEPLOY_COMPOSE_PATH_DATA }}
@@ -273,7 +274,7 @@ jobs:
             -o UserKnownHostsFile=~/.ssh/known_hosts \
             docker-compose.yml \
             docker-compose.remote.yml \
-            "$DEPLOY_USER@$DEPLOY_HOST:$COMPOSE_PATH/"
+            "$DEPLOY_USER@$DEPLOY_SCP_HOST:$COMPOSE_PATH/"
           echo "::endgroup::"
 
           echo "::group::Copy immutable demo env file to remote"
@@ -281,7 +282,7 @@ jobs:
             -o StrictHostKeyChecking=yes \
             -o UserKnownHostsFile=~/.ssh/known_hosts \
             "$ENV_FILE" \
-            "$DEPLOY_USER@$DEPLOY_HOST:$COMPOSE_PATH/.env.demo"
+            "$DEPLOY_USER@$DEPLOY_SCP_HOST:$COMPOSE_PATH/.env.demo"
           echo "::endgroup::"
 
           echo "::group::Harden env file permissions on remote"
@@ -430,7 +431,7 @@ jobs:
           docker compose \
             $compose_files \
             --env-file .env.demo \
-            up --force-recreate --remove-orphans --wait --wait-timeout 600
+            up --pull never --remove-orphans --wait --wait-timeout 600
 
           deploy_phase="[3/3] Validate the running containers use the pulled images"
           echo "$deploy_phase"
@@ -443,7 +444,7 @@ jobs:
           docker compose \
             $compose_files \
             --env-file .env.demo \
-            run --rm --no-deps app bash -lc '
+            run --pull never --rm --no-deps app bash -lc '
               set -euo pipefail
               cd /app/dbt
               target="${DBT_TARGET:-prod}"

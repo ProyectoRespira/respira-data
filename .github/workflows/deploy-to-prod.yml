@@ -43,7 +43,7 @@ jobs:
             exit 1
           fi
 
-          if echo "$ALLOWED_USERS_PROD" | grep -Eq '(^|[[:space:],])'"$CURRENT_USER"'([[:space:],]|$)'; then
+          if printf '%s\n' "$ALLOWED_USERS_PROD" | tr ',[:space:]' '\n' | grep -Fx -- "$CURRENT_USER" >/dev/null; then
             echo "User $CURRENT_USER is authorized to deploy to production"
           else
             echo "User $CURRENT_USER is NOT authorized to deploy to production"
@@ -87,6 +87,7 @@ jobs:
         shell: bash
         env:
           DEPLOY_HOST: ${{ steps.setup_ssh.outputs.deploy_host }}
+          DEPLOY_SCP_HOST: ${{ steps.setup_ssh.outputs.deploy_scp_host }}
           DEPLOY_PORT: ${{ steps.setup_ssh.outputs.deploy_port }}
           DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
           COMPOSE_PATH: ${{ secrets.DEPLOY_COMPOSE_PATH_DATA }}
@@ -101,7 +102,7 @@ jobs:
             -o UserKnownHostsFile=~/.ssh/known_hosts \
             docker-compose.yml \
             docker-compose.remote.yml \
-            "$DEPLOY_USER@$DEPLOY_HOST:$COMPOSE_PATH/"
+            "$DEPLOY_USER@$DEPLOY_SCP_HOST:$COMPOSE_PATH/"
           echo "::endgroup::"
 
           echo "::group::Copy immutable prod env file to remote"
@@ -109,7 +110,7 @@ jobs:
             -o StrictHostKeyChecking=yes \
             -o UserKnownHostsFile=~/.ssh/known_hosts \
             "$ENV_FILE" \
-            "$DEPLOY_USER@$DEPLOY_HOST:$COMPOSE_PATH/.env.prod"
+            "$DEPLOY_USER@$DEPLOY_SCP_HOST:$COMPOSE_PATH/.env.prod"
           echo "::endgroup::"
 
           echo "::group::Harden env file permissions on remote"
@@ -258,7 +259,7 @@ jobs:
           docker compose \
             $compose_files \
             --env-file .env.prod \
-            up --force-recreate --remove-orphans --wait --wait-timeout 600
+            up --pull never --remove-orphans --wait --wait-timeout 600
 
           deploy_phase="[3/3] Validate the running containers use the pulled images"
           echo "$deploy_phase"
@@ -271,7 +272,7 @@ jobs:
           docker compose \
             $compose_files \
             --env-file .env.prod \
-            run --rm --no-deps app bash -lc '
+            run --pull never --rm --no-deps app bash -lc '
               set -euo pipefail
               cd /app/dbt
               target="${DBT_TARGET:-prod}"
