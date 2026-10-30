@@ -12,6 +12,7 @@ sources:
       - name: meteostat_asu_airport
       - name: meteostat_cde_airport
       - name: meteostat_pss_airport
+      - name: meteostat_esg_airport
       - name: MADES_Open_stations
       - name: MADES_Open_pm10_data
       - name: MADES_Open_pm25_data

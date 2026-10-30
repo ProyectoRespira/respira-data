@@ -1,0 +1,83 @@
+name: "Prepare Env"
+description: "Decode a base64 env file and validate required key presence."
+
+inputs:
+  env_file_b64:
+    description: Base64-encoded env file content
+    required: true
+  required_keys:
+    description: Multiline list of required env variable keys
+    required: false
+    default: ""
+  environment_label:
+    description: Environment label used in validation messages
+    required: false
+    default: target
+  env_secret_name:
+    description: Secret name used in validation messages
+    required: false
+    default: ENV_FILE
+  env_file_suffix:
+    description: Output filename suffix under RUNNER_TEMP
+    required: false
+    default: env
+
+outputs:
+  env_file:
+    description: Path to decoded env file
+    value: ${{ steps.prepare.outputs.env_file }}
+
+runs:
+  using: composite
+  steps:
+    - name: Decode and validate env file
+      id: prepare
+      shell: bash
+      env:
+        ENV_FILE_B64: ${{ inputs.env_file_b64 }}
+        REQUIRED_KEYS: ${{ inputs.required_keys }}
+        ENVIRONMENT_LABEL: ${{ inputs.environment_label }}
+        ENV_SECRET_NAME: ${{ inputs.env_secret_name }}
+        ENV_FILE_SUFFIX: ${{ inputs.env_file_suffix }}
+      run: |
+        set -euo pipefail
+
+        if [ -z "$ENV_FILE_B64" ]; then
+          echo "Missing ${ENV_SECRET_NAME} secret for ${ENVIRONMENT_LABEL} environment."
+          exit 1
+        fi
+
+        env_file="$RUNNER_TEMP/$ENV_FILE_SUFFIX"
+        if ! printf '%s' "$ENV_FILE_B64" | base64 --decode > "$env_file"; then
+          echo "${ENV_SECRET_NAME} is not valid base64 or could not be decoded."
+          exit 1
+        fi
+        chmod 600 "$env_file"
+
+        missing=()
+        while IFS= read -r raw_key; do
+          key="$(printf '%s' "$raw_key" | sed 's/^[[:space:]]*//' | sed 's/[[:space:]]*$//')"
+          if [ -z "$key" ]; then
+            continue
+          fi
+
+          line="$(grep -E "^${key}=" "$env_file" | head -n 1 || true)"
+          val="${line#*=}"
+          val="$(printf '%s' "$val" | sed 's/^[[:space:]]*//' | sed 's/[[:space:]]*$//')"
+          if [ -z "$val" ]; then
+            missing+=("$key")
+          fi
+        done <<REQUIRED_KEYS_EOF
+        $REQUIRED_KEYS
+        REQUIRED_KEYS_EOF
+
+        if [ "${#missing[@]}" -gt 0 ]; then
+          echo "Missing or empty required env vars in ${ENV_SECRET_NAME}:"
+          for key in "${missing[@]}"; do
+            echo "  - $key"
+          done
+          exit 1
+        fi
+
+        echo "${ENV_SECRET_NAME} decoded and required keys validated for ${ENVIRONMENT_LABEL} environment."
+        echo "env_file=$env_file" >> "$GITHUB_OUTPUT"

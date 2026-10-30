@@ -7,7 +7,8 @@ with expected as (
       ('ENCARNACION', 'posadas_airport'),
       ('CAAGUAZU', 'asu_airport'),
       ('CONCEPCION', 'asu_airport'),
-      ('SAN_PEDRO', 'asu_airport')
+      ('SAN_PEDRO', 'asu_airport'),
+      ('CHACO', 'mariscal_airport')
   ) as t(region_code, station_code)
 ),
 

@@ -9,6 +9,9 @@ macro-paths: ["macros"]
 test-paths: ["tests"]
 seed-paths: ["seeds"]
 
+on-run-start:
+  - "{{ assert_required_staging_sources(force=false) }}"
+
 models:
   respira_data:
     canonical:
