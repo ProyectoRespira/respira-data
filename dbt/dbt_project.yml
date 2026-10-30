@@ -41,7 +41,6 @@ seeds:
     +schema: core
 vars:
   default_region_code: GRAN_ASUNCION
-  required_staging_source_names: [airbyte]
   # Historical queue cutover is aggregate-gated; normal runtime remains exact.
   measurement_cutover_min_long_coverage_ratio: 0.90
   measurements_sources:

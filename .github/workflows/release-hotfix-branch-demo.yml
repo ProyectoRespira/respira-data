@@ -226,8 +226,12 @@ jobs:
           COMPOSE_PATH: ${{ secrets.DEPLOY_COMPOSE_PATH_DATA }}
           KEY_PATH: ${{ steps.setup_ssh.outputs.key_path }}
           ENV_FILE: ${{ steps.write_env.outputs.env_file }}
+          IMAGE_TAG: ${{ needs.validate.outputs.prefixed_tag }}
         run: |
           set -euo pipefail
+
+          sed -i '/^APP_IMAGE_TAG=/d; /^WORKER_IMAGE_TAG=/d' "$ENV_FILE"
+          printf '\nAPP_IMAGE_TAG=%s\nWORKER_IMAGE_TAG=%s\n' "$IMAGE_TAG" "$IMAGE_TAG" >> "$ENV_FILE"
 
           echo "::group::Copy compose files to remote"
           scp -i "$KEY_PATH" -P "$DEPLOY_PORT" \
@@ -402,7 +406,16 @@ jobs:
               set -euo pipefail
               cd /app/dbt
               target="${DBT_TARGET:-prod}"
-              dbt run-operation assert_required_staging_sources --target "$target"
+              if [ ! -f dbt_packages/dbt_utils/dbt_project.yml ]; then
+                echo "Installed dbt packages not found; resolving them for this legacy image."
+                dbt deps
+              fi
+              if [ -f macros/assert_required_staging_sources.sql ]; then
+                dbt run-operation assert_required_staging_sources --target "$target"
+              else
+                echo "Legacy image has no source preflight macro; validating project compilation only."
+                dbt compile --target "$target" --selector canonical_core
+              fi
             '
 
           deploy_phase="[3/4] Recreate the stack from the pulled images"

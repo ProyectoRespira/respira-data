@@ -263,7 +263,16 @@ jobs:
               set -euo pipefail
               cd /app/dbt
               target="${DBT_TARGET:-prod}"
-              dbt run-operation assert_required_staging_sources --target "$target"
+              if [ ! -f dbt_packages/dbt_utils/dbt_project.yml ]; then
+                echo "Installed dbt packages not found; resolving them for this legacy image."
+                dbt deps
+              fi
+              if [ -f macros/assert_required_staging_sources.sql ]; then
+                dbt run-operation assert_required_staging_sources --target "$target"
+              else
+                echo "Legacy image has no source preflight macro; validating project compilation only."
+                dbt compile --target "$target" --selector canonical_core
+              fi
             '
 
           deploy_phase="[3/4] Recreate the stack from the pulled images"
