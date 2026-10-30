@@ -9,6 +9,9 @@ macro-paths: ["macros"]
 test-paths: ["tests"]
 seed-paths: ["seeds"]
 
+on-run-start:
+  - "{{ assert_required_staging_sources(force=false) }}"
+
 models:
   respira_data:
     canonical:
@@ -38,6 +41,7 @@ seeds:
     +schema: core
 vars:
   default_region_code: GRAN_ASUNCION
+  required_staging_source_names: [airbyte]
   # Historical queue cutover is aggregate-gated; normal runtime remains exact.
   measurement_cutover_min_long_coverage_ratio: 0.90
   measurements_sources:

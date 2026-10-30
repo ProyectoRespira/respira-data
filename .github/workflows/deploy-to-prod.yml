@@ -249,19 +249,31 @@ jobs:
           docker compose \
             $compose_files \
             --env-file .env.prod \
-            pull app prefect_worker
+            pull app prefect_worker prefect_server
 
           app_expected_image_id="$(capture_pulled_image_id app)"
           worker_expected_image_id="$(capture_pulled_image_id prefect_worker)"
 
-          deploy_phase="[2/3] Recreate the stack from the pulled images"
+          deploy_phase="[2/4] Validate required staging sources"
+          echo "$deploy_phase"
+          docker compose \
+            $compose_files \
+            --env-file .env.prod \
+            run --pull never --rm --no-deps app bash -lc '
+              set -euo pipefail
+              cd /app/dbt
+              target="${DBT_TARGET:-prod}"
+              dbt run-operation assert_required_staging_sources --target "$target"
+            '
+
+          deploy_phase="[3/4] Recreate the stack from the pulled images"
           echo "$deploy_phase"
           docker compose \
             $compose_files \
             --env-file .env.prod \
             up --pull never --remove-orphans --wait --wait-timeout 600
 
-          deploy_phase="[3/3] Validate the running containers use the pulled images"
+          deploy_phase="[4/4] Validate the running containers use the pulled images"
           echo "$deploy_phase"
           validate_running_image app "$app_expected_image_id"
           validate_running_image prefect_worker "$worker_expected_image_id"
