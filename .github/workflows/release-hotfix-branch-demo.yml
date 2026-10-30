@@ -383,7 +383,7 @@ jobs:
 
           cd "$COMPOSE_PATH"
 
-          deploy_phase="[1/3] Pull app and worker images"
+          deploy_phase="[1/4] Pull app and worker images"
           echo "$deploy_phase"
           APP_IMAGE_TAG="$APP_IMAGE_TAG" WORKER_IMAGE_TAG="$WORKER_IMAGE_TAG" docker compose \
             $compose_files \

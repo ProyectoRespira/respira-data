@@ -22,6 +22,11 @@ COPY pyproject.toml poetry.lock /build/
 RUN /opt/poetry/bin/poetry export --only main --format requirements.txt --output requirements.txt \
     && pip install --no-compile -r requirements.txt
 
+# Resolve locked dbt packages during the image build so the deployment
+# preflight can parse the project before the later runtime dependency sync.
+COPY dbt /build/dbt
+RUN dbt deps --project-dir /build/dbt
+
 
 # Stage 2: Runtime
 FROM python:3.12-slim
@@ -42,3 +47,4 @@ COPY --from=builder /usr/local/bin /usr/local/bin
 RUN printf '/app/src\n/app\n' > /usr/local/lib/python3.12/site-packages/respira_data.pth
 
 COPY . /app
+COPY --from=builder /build/dbt/dbt_packages /app/dbt/dbt_packages
