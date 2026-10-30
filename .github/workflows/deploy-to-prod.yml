@@ -168,10 +168,27 @@ jobs:
           capture_pulled_image_id() {
             service_name="$1"
             image_refs="$(docker compose $compose_files --env-file .env.prod config --images "$service_name")"
-            IFS=$'\n' read -r image_ref _ <<< "$image_refs"
+
+            case "$service_name" in
+              app)
+                image_marker="/respira-data-app:"
+                ;;
+              prefect_worker)
+                image_marker="/respira-data-worker:"
+                ;;
+              *)
+                fail_deploy_step "Resolve image reference" "Unsupported service: $service_name"
+                ;;
+            esac
+
+            image_ref="$(printf '%s\n' "$image_refs" | grep -F "$image_marker" || true)"
 
             if [ -z "$image_ref" ]; then
               fail_deploy_step "Resolve image reference for $service_name" "Failed to resolve the image reference for service $service_name."
+            fi
+
+            if [ "$(printf '%s\n' "$image_ref" | grep -c .)" -ne 1 ]; then
+              fail_deploy_step "Resolve image reference for $service_name" "Resolved multiple image references for service $service_name: $image_ref"
             fi
 
             image_id="$(docker image inspect --format '{{.Id}}' "$image_ref")"
