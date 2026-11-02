@@ -20,7 +20,7 @@ pydantic = "^2.12.5"
 pydantic-settings = "^2.12.0"
 python-dotenv = "^1.2.2"
 pandas = "^2.3.3"
-prefect = "3.6.20"
+prefect = "3.9.0"
 prefect-dbt = "^0.7.19"
 urllib3 = "^2.6.3"
 deepdiff = "^8.6.2"
@@ -36,13 +36,13 @@ pygments = "^2.20.0"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^9.0.3"
-ruff = "^0.15.12"
+ruff = ">=0.15.12,<0.18.0"
 mypy = "^1.10.0"
 pre-commit = "^4.0.0"
 
 
 [tool.poetry.group.inference.dependencies]
-u8darts = "0.30.0"
+u8darts = "0.41.0"
 lightgbm = "^4.6.0"
 
 [build-system]
