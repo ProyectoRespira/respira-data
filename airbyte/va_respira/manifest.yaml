@@ -1,0 +1,170 @@
+# Airbyte Connector Builder manifest for the Vigilancia del Aire (VA)
+# AirGradient sensor (O-1PST, locationId 209581).
+#
+# VA keeps the sensor in its own AirGradient organization and did not share an
+# API token. Instead it exposes its measures/past history through a proxy that
+# takes HTTP Basic credentials. The records have the same shape as AirGradient's
+# /locations/{id}/measures/past, so they land next to Respira_measures_past and
+# stg_respira_measurements unions both tables.
+#
+# Endpoint behaviour this manifest relies on (probed 2026-11-11):
+#   - from/to accept ISO-8601 UTC and are inclusive at both ends.
+#   - a window longer than 10 days is rejected with 422.
+#   - history starts in early October 2026.
+#   - bad credentials answer 401.
+#
+# See README.md in this folder for the connection settings.
+version: 6.44.0
+type: DeclarativeSource
+
+description: >-
+  Vigilancia del Aire AirGradient sensor history (measures/past shape) served
+  through VA's Basic-auth proxy.
+
+check:
+  type: CheckStream
+  stream_names:
+    - measures_past
+
+definitions:
+  requester:
+    type: HttpRequester
+    url_base: https://pr.pachamamita.eu
+    path: /
+    http_method: GET
+    authenticator:
+      type: BasicHttpAuthenticator
+      username: "{{ config['username'] }}"
+      password: "{{ config['password'] }}"
+    error_handler:
+      type: DefaultErrorHandler
+      max_retries: 5
+      backoff_strategies:
+        - type: ExponentialBackoffStrategy
+          factor: 5
+      response_filters:
+        - type: HttpResponseFilter
+          http_codes: [401, 403]
+          action: FAIL
+          failure_type: config_error
+          error_message: >-
+            VA rejected the credentials. The password is provisional and VA
+            rotates it; update the connection's password.
+        - type: HttpResponseFilter
+          http_codes: [422]
+          action: FAIL
+          failure_type: system_error
+          error_message: >-
+            VA rejected the requested window. It allows at most 10 days per
+            request; keep incremental_sync.step below that.
+
+streams:
+  - type: DeclarativeStream
+    name: measures_past
+    primary_key:
+      - locationId
+      - timestamp
+    retriever:
+      type: SimpleRetriever
+      requester:
+        $ref: "#/definitions/requester"
+      record_selector:
+        type: RecordSelector
+        extractor:
+          type: DpathExtractor
+          field_path: []
+      paginator:
+        type: NoPagination
+    incremental_sync:
+      type: DatetimeBasedCursor
+      cursor_field: timestamp
+      # Request parameters and stored state use this format.
+      datetime_format: "%Y-%m-%dT%H:%M:%SZ"
+      # Records carry milliseconds: 2026-11-04T02:10:00.000Z
+      cursor_datetime_formats:
+        - "%Y-%m-%dT%H:%M:%S.%fZ"
+        - "%Y-%m-%dT%H:%M:%SZ"
+      start_datetime:
+        type: MinMaxDatetime
+        datetime: "{{ config['start_date'] }}"
+        datetime_format: "%Y-%m-%dT%H:%M:%SZ"
+      end_datetime:
+        type: MinMaxDatetime
+        datetime: "{{ now_utc().strftime('%Y-%m-%dT%H:%M:%SZ') }}"
+        datetime_format: "%Y-%m-%dT%H:%M:%SZ"
+      # VA caps a request at 10 days; 7 keeps a margin.
+      step: P7D
+      # from/to are inclusive, so the next slice starts one second after the
+      # previous one ends and no record is fetched twice.
+      cursor_granularity: PT1S
+      start_time_option:
+        type: RequestOption
+        inject_into: request_parameter
+        field_name: from
+      end_time_option:
+        type: RequestOption
+        inject_into: request_parameter
+        field_name: to
+    schema_loader:
+      type: InlineSchemaLoader
+      schema:
+        $schema: http://json-schema.org/draft-07/schema#
+        type: object
+        additionalProperties: true
+        properties:
+          locationId: { type: integer }
+          locationName: { type: [string, "null"] }
+          # Plain string, not date-time: stg_respira_measurements casts it.
+          timestamp: { type: string }
+          pm01: { type: [number, "null"] }
+          pm02: { type: [number, "null"] }
+          pm10: { type: [number, "null"] }
+          pm01_corrected: { type: [number, "null"] }
+          pm02_corrected: { type: [number, "null"] }
+          pm10_corrected: { type: [number, "null"] }
+          pm003Count: { type: [number, "null"] }
+          atmp: { type: [number, "null"] }
+          rhum: { type: [number, "null"] }
+          rco2: { type: [number, "null"] }
+          atmp_corrected: { type: [number, "null"] }
+          rhum_corrected: { type: [number, "null"] }
+          rco2_corrected: { type: [number, "null"] }
+          tvoc: { type: [number, "null"] }
+          tvocIndex: { type: [number, "null"] }
+          noxIndex: { type: [number, "null"] }
+          wifi: { type: [number, "null"] }
+          serialno: { type: [string, "null"] }
+          model: { type: [string, "null"] }
+          firmwareVersion: { type: [string, "null"] }
+          batteryVoltage: { type: [number, "null"] }
+          panelVoltage: { type: [number, "null"] }
+          # VA sends it as a string ("5").
+          datapoints: { type: [string, "null"] }
+
+spec:
+  type: Spec
+  connection_specification:
+    $schema: http://json-schema.org/draft-07/schema#
+    type: object
+    additionalProperties: true
+    required:
+      - username
+      - password
+      - start_date
+    properties:
+      username:
+        type: string
+        title: Username
+        order: 0
+      password:
+        type: string
+        title: Password
+        airbyte_secret: true
+        order: 1
+      start_date:
+        type: string
+        title: Start date
+        description: First moment to sync, UTC. VA history starts in early October 2026.
+        pattern: ^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$
+        default: "2026-10-01T00:00:00Z"
+        order: 2

@@ -232,7 +232,7 @@ models:
         tests: [not_null]
 
   - name: stg_respira_measurements
-    description: "Staging view for Respira Airbyte history. Uses timestamp as the measurement time, locationId as the source station id, and prefers corrected sensor values when present."
+    description: "Staging view for Respira Airbyte history. Unions the Respira and Vigilancia del Aire (VA) history tables under data_source_name respira_airbyte. Uses timestamp as the measurement time, locationId as the source station id, and prefers corrected sensor values when present. VA station metadata comes from stations_static, because its feed carries no coordinates."
     columns:
       - name: _airbyte_raw_id
         tests: [not_null]
