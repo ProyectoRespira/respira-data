@@ -13,3 +13,4 @@ asu_airport,Asunción Airport,Meteostat airport station,-25.2399,-57.5191,,activ
 cde_airport,Ciudad del Este Airport,Meteostat airport station,-25.5097,-54.6111,,active,{"source":"Meteostat"},false
 posadas_airport,Posadas Airport,Meteostat airport station,-27.38611,-55.97056,,active,{"source":"Meteostat"},false
 mariscal_airport,Mariscal Estigarribia Airport,Meteostat airport station,-22.0447,-60.6219,,active,{"source":"Meteostat"},false
+respira_209581,Barrio Cañada del Ybyray,,-25.26817,-57.57674,,active,"{""source"":""Respira"",""source_station_id"":""209581"",""station_name"":""Barrio Cañada del Ybyray"",""feed"":""va_respira"",""owner"":""Vigilancia del Aire Asunción"",""license"":""CC BY-SA 4.0""}",false

@@ -9,6 +9,7 @@ sources:
       - name: measurements
       - name: Respira_measures_past
       - name: Respira_measures_current_list
+      - name: va_respira_measures_past
       - name: meteostat_asu_airport
       - name: meteostat_cde_airport
       - name: meteostat_pss_airport

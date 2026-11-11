@@ -1,7 +1,22 @@
+{#
+  Respira and Vigilancia del Aire (VA) sensors both come from AirGradient and
+  share one logical source: same data_source_name, station_code namespace and
+  incremental checkpoint. union_relations aligns columns by name, not position.
+
+  Because the checkpoint is shared, the VA Airbyte sync must not overlap the
+  Respira one: rows extracted earlier but committed after a newer Respira
+  batch would fall behind max(extracted_at) and never be picked up.
+#}
+{% set respira_relation = source('airbyte', 'Respira_measures_past') %}
+{% set va_relation = source('airbyte', 'va_respira_measures_past') %}
+{% set relations = [respira_relation, va_relation] %}
+
 with src as (
 
-  select *
-  from {{ source('airbyte', 'Respira_measures_past') }}
+  {{ dbt_utils.union_relations(
+    relations=relations,
+    source_column_name=none
+  ) }}
 
 ),
 
@@ -10,7 +25,7 @@ typed as (
   select
     _airbyte_raw_id,
     _airbyte_extracted_at as extracted_at,
-    _airbyte_meta,
+    {{ coalesce_existing_columns(relations, ['_airbyte_meta', '_airbyte_metadata'], 'null::jsonb') }} as _airbyte_meta,
     _airbyte_generation_id,
 
     'respira_airbyte' as data_source_name,
