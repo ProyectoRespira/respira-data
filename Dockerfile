@@ -1,7 +1,7 @@
 # Stage 1: Builder
 # Resolves the locked runtime dependencies; nothing from this stage except the
 # installed packages reaches the final image.
-FROM python:3.12-slim AS builder
+FROM python:3.15-slim AS builder
 
 ENV PIP_NO_CACHE_DIR=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1
@@ -29,7 +29,7 @@ RUN dbt deps --project-dir /build/dbt
 
 
 # Stage 2: Runtime
-FROM python:3.12-slim
+FROM python:3.15-slim
 
 WORKDIR /app
 
