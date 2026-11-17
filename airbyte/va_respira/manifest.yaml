@@ -42,6 +42,9 @@ definitions:
       backoff_strategies:
         - type: ExponentialBackoffStrategy
           factor: 5
+      # Airbyte Cloud's web firewall answers 403 to a manifest containing a
+      # semicolon followed by an SQL keyword ("; update"). Keep that pattern
+      # out of these messages.
       response_filters:
         - type: HttpResponseFilter
           http_codes: [401, 403]
@@ -49,7 +52,7 @@ definitions:
           failure_type: config_error
           error_message: >-
             VA rejected the credentials. The password is provisional and VA
-            rotates it; update the connection's password.
+            rotates it, so set the new password in the source settings.
         - type: HttpResponseFilter
           http_codes: [422]
           action: FAIL
