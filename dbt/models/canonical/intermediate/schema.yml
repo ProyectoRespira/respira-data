@@ -189,10 +189,10 @@ models:
           expression: "variable_code in (select code from {{ ref('variables') }})"
 
   - name: int_stations_candidates
-    description: "Union of stations from static seed plus dynamically discovered AireLibre and MADES Open stations."
+    description: "Union of stations from static seed plus dynamically discovered AireLibre, MADES Open and Respira stations. The Vigilancia del Aire sensor (respira_209581) comes from the static seed because its feed has no coordinates; unique on code catches it if it ever also shows up in the Respira current list."
     columns:
       - name: code
-        tests: [not_null]
+        tests: [not_null, unique]
       - name: name
         tests: [not_null]
       - name: latitude
