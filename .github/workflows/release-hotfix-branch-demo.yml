@@ -301,11 +301,14 @@ jobs:
 
           capture_pulled_image_id() {
             service_name="$1"
-            image_refs="$(APP_IMAGE_TAG="$APP_IMAGE_TAG" WORKER_IMAGE_TAG="$WORKER_IMAGE_TAG" docker compose $compose_files --env-file .env.demo config --images "$service_name")"
-            IFS=$'\n' read -r image_ref _ <<< "$image_refs"
+            image_repo="$2"
+            # `config --images <service>` also lists the images of the service's
+            # depends_on targets (prefect_server), in no fixed order, so keep
+            # only the line from this service's own repository.
+            image_ref="$(APP_IMAGE_TAG="$APP_IMAGE_TAG" WORKER_IMAGE_TAG="$WORKER_IMAGE_TAG" docker compose $compose_files --env-file .env.demo config --images "$service_name" | grep -F "/$image_repo:" || true)"
 
-            if [ -z "$image_ref" ]; then
-              fail_deploy_step "Resolve image reference for $service_name" "Failed to resolve the image reference for service $service_name."
+            if [ -z "$image_ref" ] || [ "$(printf '%s\n' "$image_ref" | wc -l)" -ne 1 ]; then
+              fail_deploy_step "Resolve image reference for $service_name" "Expected exactly one $image_repo image for service $service_name, got: '$image_ref'."
             fi
 
             image_id="$(docker image inspect --format '{{.Id}}' "$image_ref")"
@@ -372,8 +375,8 @@ jobs:
             --env-file .env.demo \
             pull app prefect_worker
 
-          app_expected_image_id="$(capture_pulled_image_id app)"
-          worker_expected_image_id="$(capture_pulled_image_id prefect_worker)"
+          app_expected_image_id="$(capture_pulled_image_id app respira-data-app)"
+          worker_expected_image_id="$(capture_pulled_image_id prefect_worker respira-data-worker)"
 
           deploy_phase="[2/3] Recreate the stack from the pulled images"
           echo "$deploy_phase"
