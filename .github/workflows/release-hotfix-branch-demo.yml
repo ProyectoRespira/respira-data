@@ -399,10 +399,12 @@ jobs:
 
           deploy_phase="[2/4] Validate required staging sources"
           echo "$deploy_phase"
+          # -T and </dev/null: this script reaches bash on stdin, and `run`
+          # would otherwise read the rest of it and end the deploy early.
           APP_IMAGE_TAG="$APP_IMAGE_TAG" WORKER_IMAGE_TAG="$WORKER_IMAGE_TAG" docker compose \
             $compose_files \
             --env-file .env.demo \
-            run --pull never --rm --no-deps app bash -lc '
+            run -T --pull never --rm --no-deps app bash -lc '
               set -euo pipefail
               cd /app/dbt
               target="${DBT_TARGET:-prod}"
@@ -416,7 +418,7 @@ jobs:
                 echo "Legacy image has no source preflight macro; validating project compilation only."
                 dbt compile --target "$target" --selector canonical_core
               fi
-            '
+            ' </dev/null
 
           deploy_phase="[3/4] Recreate the stack from the pulled images"
           echo "$deploy_phase"
@@ -433,10 +435,12 @@ jobs:
           echo "Deployment image validation completed successfully."
 
           echo "Running shared metadata sync..."
+          # -T and </dev/null: this script reaches bash on stdin, and `run`
+          # would otherwise read the rest of it and end the deploy early.
           APP_IMAGE_TAG="$APP_IMAGE_TAG" WORKER_IMAGE_TAG="$WORKER_IMAGE_TAG" docker compose \
             $compose_files \
             --env-file .env.demo \
-            run --pull never --rm --no-deps app bash -lc '
+            run -T --pull never --rm --no-deps app bash -lc '
               set -euo pipefail
               cd /app/dbt
               target="${DBT_TARGET:-prod}"
@@ -444,7 +448,7 @@ jobs:
               dbt seed --target "$target" --selector shared_core_seed
               dbt test --target "$target" --selector shared_core_seed_tests
               dbt run --target "$target" --selector canonical_core
-            '
+            ' </dev/null
           REMOTE_SCRIPT
           echo "::endgroup::"
 
