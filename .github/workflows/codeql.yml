@@ -26,11 +26,8 @@ on:
   # Allow manual workflow triggers for on-demand scanning
   workflow_dispatch:
 
-# Required permissions for CodeQL analysis
-permissions:
-  actions: read      # Required to access GitHub Actions
-  contents: read     # Required to read repository contents
-  security-events: write  # Required to write security scanning results
+# Deny token access unless a job explicitly requires it.
+permissions: {}
 
 # Prevent concurrent CodeQL runs on the same branch to avoid resource contention
 concurrency:
@@ -41,6 +38,10 @@ jobs:
   analyze:
     name: Analyze (${{ matrix.language }})
     runs-on: ubuntu-latest
+    permissions:
+      actions: read      # Required to access GitHub Actions
+      contents: read     # Required to read repository contents
+      security-events: write  # Required to write security scanning results
     strategy:
       # Continue analyzing other languages even if one fails
       fail-fast: false

@@ -1,7 +1,7 @@
 # respira-data
 
 `respira-data` is the data platform for Proyecto Respira. It ingests raw sensor
-data replicated by Airbyte into Postgres, builds a reusable canonical layer with
+data replicated by Airbyte into a Postgres DB, builds a reusable canonical layer with
 dbt, and orchestrates canonical plus project-specific pipelines with Prefect.
 
 Today the only active project is `respira_gold`, but the repository is already

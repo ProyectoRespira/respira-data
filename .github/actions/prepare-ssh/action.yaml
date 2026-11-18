@@ -26,6 +26,9 @@ outputs:
   deploy_host:
     description: Normalized SSH host
     value: ${{ steps.prepare.outputs.deploy_host }}
+  deploy_scp_host:
+    description: Normalized host formatted for SCP destinations
+    value: ${{ steps.prepare.outputs.deploy_scp_host }}
   deploy_port:
     description: SSH port
     value: ${{ steps.prepare.outputs.deploy_port }}
@@ -117,7 +120,7 @@ runs:
 
         if [[ "$normalized_deploy_host" =~ ^\[([^]]+)\]:([0-9]+)$ ]]; then
           known_hosts_host="${BASH_REMATCH[1]}"
-          deploy_host="[$known_hosts_host]"
+          deploy_host="$known_hosts_host"
           deploy_port="${BASH_REMATCH[2]}"
         elif [[ "$normalized_deploy_host" =~ ^([^:]+):([0-9]+)$ ]]; then
           known_hosts_host="${BASH_REMATCH[1]}"
@@ -125,6 +128,12 @@ runs:
           deploy_port="${BASH_REMATCH[2]}"
         elif [[ "$normalized_deploy_host" =~ ^\[([^]]+)\]$ ]]; then
           known_hosts_host="${BASH_REMATCH[1]}"
+          deploy_host="$known_hosts_host"
+        fi
+
+        deploy_scp_host="$deploy_host"
+        if [[ "$deploy_host" == *:* ]]; then
+          deploy_scp_host="[$deploy_host]"
         fi
 
         if ! [[ "$deploy_port" =~ ^[0-9]{1,5}$ ]]; then
@@ -161,4 +170,5 @@ runs:
         echo "SSH key and host verification material prepared successfully."
         echo "key_path=$tmp_key" >> "$GITHUB_OUTPUT"
         echo "deploy_host=$deploy_host" >> "$GITHUB_OUTPUT"
+        echo "deploy_scp_host=$deploy_scp_host" >> "$GITHUB_OUTPUT"
         echo "deploy_port=$deploy_port" >> "$GITHUB_OUTPUT"
