@@ -22,6 +22,8 @@ services:
       timeout: 5s
       retries: 20
       start_period: 15s
+    restart: unless-stopped
+
   app:
     build:
       context: .
@@ -39,6 +41,7 @@ services:
       prefect_server:
         condition: service_healthy
     command: ["bash", "-lc", "sleep infinity"]
+    restart: unless-stopped
 
   prefect_worker:
     build:
