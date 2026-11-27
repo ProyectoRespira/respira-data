@@ -46,6 +46,10 @@ def test_load_measurement_source_registry_reads_registered_sources():
 
     assert "fiuna_airbyte" in registry
     assert "airelibre_airbyte" in registry
+    assert registry["respira_airbyte"]["variables"]["co2"] == "co2"
+    assert (
+        registry["respira_airbyte"]["variables"]["tvoc_index"] == "tvoc_index"
+    )
 
 
 def test_validate_measurement_sources_accepts_known_sources():

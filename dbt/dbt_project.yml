@@ -113,3 +113,5 @@ vars:
         pm10: pm10
         temperature_c: temperature_c
         hum: hum
+        co2: co2
+        tvoc_index: tvoc_index
