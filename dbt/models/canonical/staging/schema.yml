@@ -232,7 +232,7 @@ models:
         tests: [not_null]
 
   - name: stg_respira_measurements
-    description: "Staging view for Respira Airbyte history. Unions the Respira and Vigilancia del Aire (VA) history tables under data_source_name respira_airbyte. Uses timestamp as the measurement time, locationId as the source station id, and prefers corrected sensor values when present. VA station metadata comes from stations_static, because its feed carries no coordinates."
+    description: "Staging view for Respira Airbyte history. Unions the Respira and Vigilancia del Aire (VA) history tables under data_source_name respira_airbyte. Uses timestamp as the measurement time, locationId as the source station id, prefers corrected particulate, temperature, and humidity values when present, and exposes corrected CO2 plus TVOC Index for canonical silver processing. VA station metadata comes from stations_static, because its feed carries no coordinates."
     columns:
       - name: _airbyte_raw_id
         tests: [not_null]
@@ -251,5 +251,9 @@ models:
       - name: measured_at_parsed
       - name: is_measured_at_valid
         tests: [not_null]
+      - name: co2
+        description: "Corrected carbon dioxide concentration from rco2_corrected, in ppm."
+      - name: tvoc_index
+        description: "Unitless TVOC Index from tvocIndex; canonical validation accepts values from 1 through 500."
       - name: raw_payload
         tests: [not_null]

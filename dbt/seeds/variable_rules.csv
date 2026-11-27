@@ -11,3 +11,5 @@ wspd,0,300,true
 wdir,0,360,true
 dwpt,-273.15,60,true
 coco,0,100,true
+co2,1,10000,true
+tvoc_index,1,500,true

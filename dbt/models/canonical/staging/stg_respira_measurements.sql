@@ -72,6 +72,10 @@ typed as (
       nullif(rhum::text, '')::numeric
     ) as hum,
 
+    nullif(rco2_corrected::text, '')::numeric as co2,
+
+    nullif("tvocIndex"::text, '')::numeric as tvoc_index,
+
     nullif(model::text, '') as sensor_model,
     nullif(serialno::text, '') as serial_number,
     nullif("firmwareVersion"::text, '') as firmware_version,
